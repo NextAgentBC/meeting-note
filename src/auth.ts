@@ -1,0 +1,381 @@
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+  type AuthenticationResponseJSON,
+  type AuthenticatorTransport,
+  type RegistrationResponseJSON
+} from "@simplewebauthn/server";
+import { Hono, type Context, type Next } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { z } from "zod";
+import type { Env } from "./types";
+
+// Meeting Note has exactly one user: whoever deployed it. They sign in with a passkey
+// (Face ID, a fingerprint or the screen lock). There are no passwords to leak, and no
+// Cloudflare Access, which would need a card on file. Checking a passkey signature takes
+// well under a millisecond, so it fits the free plan's 10 ms of CPU per request.
+
+type AppContext = Context<{ Bindings: Env }>;
+
+const SESSION_DAYS = 30;
+const CHALLENGE_TTL_MS = 5 * 60_000;
+const COOKIE = "session";
+const encoder = new TextEncoder();
+
+class AuthError extends Error {
+  constructor(readonly status: ContentfulStatusCode, readonly code: string, message: string) {
+    super(message);
+  }
+}
+
+function fail(status: ContentfulStatusCode, code: string, message: string): never {
+  throw new AuthError(status, code, message);
+}
+
+// ── Small crypto helpers ─────────────────────────────────────────────────────
+
+function randomBytes(length: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
+
+export function toBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function randomToken(bytes = 32): string {
+  return toBase64Url(randomBytes(bytes));
+}
+
+export async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Compares two secrets without leaking, through timing, how much of them matched. */
+async function secretsMatch(a: string, b: string): Promise<boolean> {
+  const [left, right] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let difference = 0;
+  for (let i = 0; i < left.length; i += 1) difference |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return difference === 0;
+}
+
+// ── Sessions ─────────────────────────────────────────────────────────────────
+
+interface OwnerRow {
+  id: string;
+  name: string;
+  webauthn_user_id: string;
+}
+
+function isHttps(c: AppContext): boolean {
+  return new URL(c.req.url).protocol === "https:";
+}
+
+// Over https the cookie is named __Host-session, so browsers insist it is Secure,
+// Path=/ and tied to this exact host. Plain http only happens on your own machine.
+function cookiePrefix(c: AppContext): "host" | undefined {
+  return isHttps(c) ? "host" : undefined;
+}
+
+async function startSession(c: AppContext, ownerId: string): Promise<void> {
+  const token = randomToken();
+  const now = Date.now();
+  await c.env.DB.prepare("INSERT INTO sessions (token_hash, owner_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
+    .bind(await sha256Hex(token), ownerId, now + SESSION_DAYS * 86_400_000, now)
+    .run();
+  setCookie(c, COOKIE, token, {
+    httpOnly: true,
+    secure: isHttps(c),
+    sameSite: "Lax",
+    path: "/",
+    maxAge: SESSION_DAYS * 86_400,
+    prefix: cookiePrefix(c)
+  });
+}
+
+async function ownerForSession(c: AppContext): Promise<OwnerRow | null> {
+  const token = getCookie(c, COOKIE, cookiePrefix(c));
+  if (!token) return null;
+  return c.env.DB.prepare(
+    "SELECT o.id, o.name, o.webauthn_user_id FROM sessions s JOIN owners o ON o.id = s.owner_id WHERE s.token_hash = ? AND s.expires_at > ?"
+  ).bind(await sha256Hex(token), Date.now()).first<OwnerRow>();
+}
+
+async function currentOwner(db: D1Database): Promise<OwnerRow | null> {
+  return db.prepare("SELECT id, name, webauthn_user_id FROM owners LIMIT 1").first<OwnerRow>();
+}
+
+// ── Middleware ───────────────────────────────────────────────────────────────
+
+/**
+ * Anything that changes data must come from a page on this site. Browsers always send the
+ * Origin header on such requests and another site can't fake it, which stops a malicious
+ * page from acting in the signed-in owner's name.
+ */
+export async function sameOriginWrites(c: AppContext, next: Next) {
+  if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.header("origin") !== new URL(c.req.url).origin) {
+    return c.json({ ok: false, error: "Requests that change data must come from this site.", code: "cross_origin" }, 403);
+  }
+  return next();
+}
+
+/** Every /api route except sign-in and the health check needs the owner's session. */
+export async function requireOwner(c: AppContext, next: Next) {
+  const path = new URL(c.req.url).pathname;
+  if (path.startsWith("/api/auth/") || path === "/api/health") return next();
+  if (!(await ownerForSession(c))) {
+    return c.json({ ok: false, error: "Sign in with your passkey to continue.", code: "sign_in_required" }, 401);
+  }
+  return next();
+}
+
+// ── Passkey routes ───────────────────────────────────────────────────────────
+
+function relyingParty(c: AppContext) {
+  const url = new URL(c.req.url);
+  return { rpID: url.hostname, origin: url.origin };
+}
+
+async function storeChallenge(db: D1Database, purpose: "register" | "login", challenge: string, payload: object) {
+  const id = `chl_${randomToken(12)}`;
+  await db.prepare("INSERT INTO challenges (id, purpose, challenge, payload, expires_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(id, purpose, challenge, JSON.stringify(payload), Date.now() + CHALLENGE_TTL_MS)
+    .run();
+  return id;
+}
+
+/** Challenges are single use: reading one deletes it. */
+async function takeChallenge(db: D1Database, id: string, purpose: "register" | "login") {
+  const now = Date.now();
+  const row = await db.prepare("DELETE FROM challenges WHERE id = ? AND purpose = ? RETURNING challenge, payload, expires_at")
+    .bind(id, purpose)
+    .first<{ challenge: string; payload: string; expires_at: number }>();
+  await db.prepare("DELETE FROM challenges WHERE expires_at < ?").bind(now).run();
+  if (!row || row.expires_at < now) fail(400, "challenge_expired", "That took too long. Please try again.");
+  return row;
+}
+
+async function checkSetupCode(expected: string | undefined, given: string): Promise<boolean> {
+  const code = expected?.trim();
+  if (code && !(await secretsMatch(given.trim(), code))) fail(403, "wrong_setup_code", "That setup code doesn't match.");
+  return Boolean(code);
+}
+
+async function readBody<T extends z.ZodTypeAny>(c: AppContext, schema: T): Promise<z.infer<T>> {
+  const parsed = schema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) fail(400, "invalid_input", parsed.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
+  return parsed.data;
+}
+
+const registerBody = z.discriminatedUnion("purpose", [
+  z.object({ purpose: z.literal("setup"), setupCode: z.string().max(200).default(""), name: z.string().trim().min(1).max(80) }),
+  z.object({ purpose: z.literal("owner-recover"), setupCode: z.string().min(1).max(200) }),
+  z.object({ purpose: z.literal("add-device") })
+]);
+
+const verifyBody = z.object({ challengeId: z.string().min(1).max(100), response: z.record(z.string(), z.unknown()) });
+
+interface PendingRegistration {
+  purpose: "setup" | "owner-recover" | "add-device";
+  webauthnUserId: string;
+  ownerId?: string;
+  name?: string;
+}
+
+export const authRoutes = new Hono<{ Bindings: Env }>();
+
+authRoutes.onError((error, c) => {
+  if (error instanceof AuthError) return c.json({ ok: false, error: error.message, code: error.code }, error.status);
+  console.error(error);
+  return c.json({ ok: false, error: "Something went wrong on our side." }, 500);
+});
+
+authRoutes.get("/me", async (c) => {
+  const owner = await ownerForSession(c);
+  return c.json({
+    ok: true,
+    signedIn: Boolean(owner),
+    name: owner?.name ?? null,
+    hasOwner: Boolean(await currentOwner(c.env.DB)),
+    setupCodeRequired: Boolean(c.env.SETUP_CODE?.trim())
+  });
+});
+
+authRoutes.post("/register/options", async (c) => {
+  const body = await readBody(c, registerBody);
+  const db = c.env.DB;
+  let pending: PendingRegistration;
+  let exclude: { id: string; transports: AuthenticatorTransport[] }[] = [];
+
+  if (body.purpose === "setup") {
+    if (await currentOwner(db)) fail(409, "already_set_up", "This Meeting Note already has an owner.");
+    await checkSetupCode(c.env.SETUP_CODE, body.setupCode);
+    pending = { purpose: "setup", name: body.name, webauthnUserId: randomToken() };
+  } else if (body.purpose === "owner-recover") {
+    // The way back in after losing every device: the setup code chosen at deploy time.
+    if (!(await checkSetupCode(c.env.SETUP_CODE, body.setupCode))) {
+      fail(403, "no_setup_code", "This app has no setup code, so it can't be recovered this way.");
+    }
+    const owner = await currentOwner(db);
+    if (!owner) fail(409, "not_set_up", "Nobody has set this app up yet.");
+    pending = { purpose: "owner-recover", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id };
+  } else {
+    const owner = await ownerForSession(c);
+    if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+    const { results } = await db.prepare("SELECT id, transports FROM credentials WHERE owner_id = ?")
+      .bind(owner.id)
+      .all<{ id: string; transports: string }>();
+    exclude = results.map((row) => ({ id: row.id, transports: JSON.parse(row.transports) as AuthenticatorTransport[] }));
+    pending = { purpose: "add-device", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id };
+  }
+
+  const options = await generateRegistrationOptions({
+    rpName: "Meeting Note",
+    rpID: relyingParty(c).rpID,
+    userName: pending.name ?? "owner",
+    userDisplayName: pending.name ?? "Owner",
+    userID: fromBase64Url(pending.webauthnUserId),
+    attestationType: "none",
+    excludeCredentials: exclude,
+    // "required": the passkey lives on the device, so signing in needs no username at all.
+    authenticatorSelection: { residentKey: "required", userVerification: "preferred" }
+  });
+  const challengeId = await storeChallenge(db, "register", options.challenge, pending);
+  return c.json({ ok: true, challengeId, options });
+});
+
+authRoutes.post("/register/verify", async (c) => {
+  const body = await readBody(c, verifyBody);
+  const db = c.env.DB;
+  const stored = await takeChallenge(db, body.challengeId, "register");
+  const pending = JSON.parse(stored.payload) as PendingRegistration;
+  const { rpID, origin } = relyingParty(c);
+
+  let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
+  try {
+    verification = await verifyRegistrationResponse({
+      response: body.response as unknown as RegistrationResponseJSON,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: false
+    });
+  } catch (error) {
+    fail(400, "passkey_rejected", error instanceof Error ? error.message : "The passkey could not be checked.");
+  }
+  const info = verification.registrationInfo;
+  if (!verification.verified || !info) fail(400, "passkey_rejected", "The passkey could not be checked.");
+
+  const now = Date.now();
+  const insertCredential = (ownerId: string) =>
+    db.prepare("INSERT INTO credentials (id, owner_id, public_key, counter, transports, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(info.credential.id, ownerId, toBase64Url(info.credential.publicKey), info.credential.counter, JSON.stringify(info.credential.transports ?? []), now);
+
+  let ownerId: string;
+  if (pending.purpose === "setup") {
+    ownerId = `own_${randomToken(12)}`;
+    try {
+      // One transaction: the owner never exists without a passkey.
+      await db.batch([
+        db.prepare("INSERT INTO owners (id, name, webauthn_user_id, created_at) VALUES (?, ?, ?, ?)")
+          .bind(ownerId, pending.name, pending.webauthnUserId, now),
+        insertCredential(ownerId)
+      ]);
+    } catch (error) {
+      if (String(error).includes("UNIQUE")) fail(409, "already_set_up", "Someone has just claimed this Meeting Note.");
+      throw error;
+    }
+  } else if (pending.purpose === "owner-recover") {
+    ownerId = pending.ownerId!;
+    // Recovery means the old passkeys are lost or can't be trusted: replace them and sign out everywhere.
+    await db.batch([
+      db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
+      db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
+      insertCredential(ownerId)
+    ]);
+  } else {
+    const owner = await ownerForSession(c);
+    if (!owner || owner.id !== pending.ownerId) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+    ownerId = owner.id;
+    await insertCredential(ownerId).run();
+  }
+
+  await startSession(c, ownerId);
+  return c.json({ ok: true, name: pending.name ?? null });
+});
+
+authRoutes.post("/login/options", async (c) => {
+  const options = await generateAuthenticationOptions({
+    rpID: relyingParty(c).rpID,
+    userVerification: "preferred",
+    allowCredentials: [] // empty: the device offers whichever passkey it holds for this site
+  });
+  const challengeId = await storeChallenge(c.env.DB, "login", options.challenge, {});
+  return c.json({ ok: true, challengeId, options });
+});
+
+authRoutes.post("/login/verify", async (c) => {
+  const body = await readBody(c, verifyBody);
+  const db = c.env.DB;
+  const stored = await takeChallenge(db, body.challengeId, "login");
+  const response = body.response as unknown as AuthenticationResponseJSON;
+  if (typeof response.id !== "string") fail(400, "passkey_rejected", "The passkey could not be checked.");
+
+  const credential = await db.prepare(
+    `SELECT c.id, c.public_key, c.counter, c.transports, c.owner_id, o.webauthn_user_id
+     FROM credentials c JOIN owners o ON o.id = c.owner_id WHERE c.id = ?`
+  ).bind(response.id).first<{ id: string; public_key: string; counter: number; transports: string; owner_id: string; webauthn_user_id: string }>();
+  if (!credential) fail(400, "unknown_passkey", "This passkey isn't registered here.");
+  if (response.response?.userHandle && response.response.userHandle !== credential.webauthn_user_id) {
+    fail(400, "passkey_rejected", "The passkey could not be checked.");
+  }
+
+  const { rpID, origin } = relyingParty(c);
+  let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: stored.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: false,
+      credential: {
+        id: credential.id,
+        publicKey: fromBase64Url(credential.public_key),
+        counter: credential.counter,
+        transports: JSON.parse(credential.transports) as AuthenticatorTransport[]
+      }
+    });
+  } catch (error) {
+    fail(400, "passkey_rejected", error instanceof Error ? error.message : "The passkey could not be checked.");
+  }
+  if (!verification.verified) fail(400, "passkey_rejected", "The passkey could not be checked.");
+
+  await db.prepare("UPDATE credentials SET counter = ?, last_used_at = ? WHERE id = ?")
+    .bind(verification.authenticationInfo.newCounter, Date.now(), credential.id)
+    .run();
+  await startSession(c, credential.owner_id);
+  return c.json({ ok: true });
+});
+
+authRoutes.post("/logout", async (c) => {
+  const token = getCookie(c, COOKIE, cookiePrefix(c));
+  if (token) await c.env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256Hex(token)).run();
+  deleteCookie(c, COOKIE, { path: "/", secure: isHttps(c), prefix: cookiePrefix(c) });
+  return c.json({ ok: true });
+});

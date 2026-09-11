@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Meeting Note">
+  <rect width="512" height="512" fill="#0b0e12"/>
+  <circle cx="256" cy="256" r="160" fill="#11161d" stroke="#00e5d0" stroke-opacity=".38" stroke-width="8"/>
+  <g fill="#00e5d0">
+    <rect x="151" y="222" width="34" height="68" rx="17"/>
+    <rect x="202" y="169" width="34" height="174" rx="17"/>
+    <rect x="253" y="194" width="34" height="124" rx="17"/>
+    <rect x="304" y="230" width="34" height="52" rx="17"/>
+  </g>
+</svg>

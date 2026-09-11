@@ -1,0 +1,12 @@
+{
+  "name": "meeting-note-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser test of the passkey sign-in. Kept apart so deploying the app never downloads a browser.",
+  "scripts": {
+    "test": "node passkeys.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "meeting-note",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Record a meeting in your browser; your own free Cloudflare account transcribes it and writes a note every five minutes.",
+  "cloudflare": {
+    "label": "Meeting Note",
+    "products": ["Workers", "D1", "KV", "Queues", "Workers AI"],
+    "categories": ["ai"],
+    "bindings": {
+      "SETUP_CODE": {
+        "description": "Pick any code you'll remember. You type it once, when you open your new Meeting Note and create your passkey, so nobody else can claim it first."
+      }
+    }
+  },
+  "scripts": {
+    "dev": "npm run db:local && wrangler dev --local",
+    "predeploy": "wrangler d1 migrations apply DB --remote",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^14.0.1",
+    "hono": "^4.13.7",
+    "opencc-js": "^1.4.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260910.1",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^5.0.0",
+    "wrangler": "^4.131.1"
+  }
+}

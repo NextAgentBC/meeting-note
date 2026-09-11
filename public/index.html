@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0e12" />
+    <meta name="description" content="Record a meeting; your own Cloudflare account transcribes it and writes the notes." />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Meeting Note" />
+    <title>Meeting Note</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/auth.css" />
+  </head>
+  <body class="auth-pending">
+    <header class="topbar">
+      <button class="brand" id="homeButton" type="button" aria-label="Back to meetings">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><strong>Meeting Note</strong><small>On your own Cloudflare account</small></span>
+      </button>
+      <div class="top-actions">
+        <button id="installButton" class="install-button hidden" type="button">Install app</button>
+        <button id="signOutButton" class="install-button hidden" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="authView" class="view hidden">
+        <div class="auth-wrap">
+          <div class="new-card auth-card">
+            <p class="eyebrow">Meeting Note · passkey sign-in</p>
+            <h1 id="authTitle">Sign in</h1>
+            <p id="authLede" class="lede"></p>
+
+            <form id="setupForm" class="auth-form hidden">
+              <label id="setupCodeField">
+                <span>Setup code</span>
+                <input id="setupCode" autocomplete="off" />
+                <small>The code you chose when you deployed this app.</small>
+              </label>
+              <p id="noSetupCodeWarning" class="auth-warning hidden">This app has no setup code, so whoever finishes this step first owns it. Do it now.</p>
+              <label>
+                <span>Your name</span>
+                <input id="ownerName" maxlength="80" autocomplete="name" required />
+              </label>
+              <button class="primary-button" type="submit"><span>Create my passkey</span><b>→</b></button>
+            </form>
+
+            <div id="signInPanel" class="auth-form hidden">
+              <button id="signInButton" class="primary-button" type="button"><span>Sign in with your passkey</span><b>→</b></button>
+              <button id="showRecover" class="auth-link" type="button">Lost your passkey? Use your setup code</button>
+            </div>
+
+            <form id="recoverForm" class="auth-form hidden">
+              <label>
+                <span>Setup code</span>
+                <input id="recoverCode" autocomplete="off" required />
+                <small>Replaces your old passkeys with a new one on this device, and signs you out everywhere else.</small>
+              </label>
+              <button class="primary-button" type="submit"><span>Replace my passkey</span><b>→</b></button>
+              <button id="hideRecover" class="auth-link" type="button">← Back to sign in</button>
+            </form>
+
+            <p id="authError" class="auth-error hidden" role="alert"></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="dashboardView" class="view">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">A quieter way to remember</p>
+            <h1>Your conversation,<br /><em>made useful.</em></h1>
+            <p class="lede">Record a meeting or workshop. Audio is uploaded in resilient chunks to your own Cloudflare account and transcribed as you speak, and the note is written in five-minute sections while you are still talking.</p>
+          </div>
+
+          <form id="newMeetingForm" class="new-card">
+            <div class="card-head">
+              <span class="step-number">01</span>
+              <div><h2>Start a recording</h2><p>The note begins immediately after browser permission.</p></div>
+            </div>
+            <label>
+              <span>Meeting title</span>
+              <input id="meetingTitle" name="title" placeholder="Team meeting · Monday" maxlength="160" required />
+            </label>
+            <div class="form-row">
+              <label>
+                <span>Note type</span>
+                <select id="meetingTemplate" name="template">
+                  <option value="workshop">Workshop</option>
+                  <option value="meeting">Business meeting</option>
+                  <option value="interview">Interview</option>
+                </select>
+              </label>
+              <label>
+                <span>Language</span>
+                <select id="meetingLanguage" name="language">
+                  <option value="auto">English + 中文</option>
+                  <option value="en">English</option>
+                  <option value="zh">中文</option>
+                </select>
+              </label>
+            </div>
+            <fieldset>
+              <legend>Audio source</legend>
+              <label class="choice">
+                <input type="radio" name="source" value="screen" checked />
+                <span class="choice-icon">◎</span>
+                <span><strong>Zoom + microphone</strong><small>Choose the Zoom window and enable “Share tab audio” or system audio.</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="source" value="microphone" />
+                <span class="choice-icon">⌁</span>
+                <span><strong>Microphone only</strong><small>Best for in-person conversations in one room.</small></span>
+              </label>
+            </fieldset>
+            <button class="primary-button" type="submit"><span>Begin recording</span><b>→</b></button>
+            <p class="privacy-note">Only you can sign in · audio deleted after 7 days · a note written every 5 minutes</p>
+            <p id="mobileCaptureNote" class="mobile-capture-note hidden">On phones, keep this app open and use the microphone. Mobile browsers cannot capture audio from another app such as Zoom.</p>
+          </form>
+        </div>
+
+        <section id="usageCard" class="usage-card hidden">
+          <div class="usage-head">
+            <div>
+              <p class="eyebrow">Workers AI budget · today</p>
+              <h2 id="usageHeadline">Checking…</h2>
+            </div>
+            <span class="usage-reset" id="usageReset"></span>
+          </div>
+          <div class="usage-track"><i id="usageBar"></i></div>
+          <p class="usage-meta" id="usageMeta"></p>
+        </section>
+
+        <section class="recent-section">
+          <div class="section-title"><div><p class="eyebrow">Your archive</p><h2>Recent meetings</h2></div><button id="refreshButton" class="text-button" type="button">Refresh</button></div>
+          <div id="meetingList" class="meeting-list"><p class="empty-state">Loading meetings…</p></div>
+        </section>
+      </section>
+
+      <section id="meetingView" class="view hidden">
+        <div class="meeting-header">
+          <button id="backButton" class="back-button" type="button">← All meetings</button>
+          <div class="meeting-title-row">
+            <div><p id="meetingKicker" class="eyebrow">Live workshop</p><h1 id="activeMeetingTitle">Meeting</h1></div>
+            <div id="meetingStatus" class="status-badge">Preparing</div>
+          </div>
+        </div>
+
+        <div id="recorderPanel" class="recorder-panel hidden">
+          <div class="recorder-main">
+            <div class="live-orb"><span></span></div>
+            <div><p class="recording-label">Recording</p><div id="timer" class="timer">00:00:00</div></div>
+          </div>
+          <canvas id="levelMeter" width="600" height="72" aria-label="Microphone activity"></canvas>
+          <p id="silenceWarning" class="silence-warning hidden" role="alert"></p>
+          <div class="recorder-stats">
+            <span><b id="chunkCount">0</b> chunks saved</span>
+            <span><b id="transcribedCount">0</b> transcribed</span>
+            <span><b id="segmentCount">0</b> sections written</span>
+            <span><b id="levelDb">—</b> input level</span>
+            <span id="connectionState"><i></i> Online</span>
+          </div>
+          <button id="stopButton" class="stop-button" type="button"><span></span> Stop &amp; create note</button>
+        </div>
+
+        <div id="progressPanel" class="progress-panel hidden">
+          <div class="progress-copy"><span class="spinner"></span><div><strong id="progressTitle">Finishing transcript</strong><p id="progressDetail">Waiting for the final audio chunks…</p></div></div>
+          <div class="progress-track"><i id="progressBar"></i></div>
+          <button id="retryFinalizeButton" class="retry-button hidden" type="button">Retry finishing this meeting</button>
+          <button id="forceSummaryButton" class="retry-button ghost hidden" type="button">Create the note from what we have</button>
+          <a id="backupLink" class="retry-button backup hidden" href="#" download>Download the full local recording</a>
+        </div>
+
+        <div class="content-grid">
+          <section class="transcript-card">
+            <div class="section-title"><div><p class="eyebrow">Source record</p><h2>Transcript</h2></div><span id="transcriptMeta">0 chunks</span></div>
+            <div id="transcriptList" class="transcript-list"><p class="empty-state">Transcript will appear here after the first chunk.</p></div>
+          </section>
+          <aside class="note-card">
+            <div class="section-title"><div><p class="eyebrow">Structured result</p><h2>Meeting note</h2></div><a id="exportLink" class="text-button hidden" href="#">Export .md</a></div>
+            <div id="summaryContent" class="summary-content"><p class="empty-state">Notes appear here about five minutes after you start, and are merged into one note when you stop.</p></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <div id="reauthBanner" class="reauth-banner hidden" role="alert">
+      <span id="reauthMessage">Your sign-in has expired. Recording continues, and new audio waits on this device.</span>
+      <button id="reauthButton" type="button">Sign in again</button>
+    </div>
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

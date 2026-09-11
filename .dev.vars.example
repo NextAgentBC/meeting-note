@@ -1,0 +1,3 @@
+# The setup code you type once, when you open your new Meeting Note and create your passkey.
+# Pick anything you'll remember. Without it, nobody else can claim the app.
+SETUP_CODE=

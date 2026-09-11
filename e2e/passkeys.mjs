@@ -88,6 +88,47 @@ try {
   if (upload.status !== 201) throw new Error(`chunk upload returned ${upload.status}: ${upload.body}`);
   console.log(`  meeting ${upload.id}: chunk stored`);
 
+  if (process.env.AUDIO_FILE) {
+    // Deployed copies only: Workers AI isn't available locally.
+    step("real speech comes back as a transcript and a note");
+    const { readFile } = await import("node:fs/promises");
+    const base64 = (await readFile(process.env.AUDIO_FILE)).toString("base64");
+    const type = process.env.AUDIO_FILE.endsWith(".mp3") ? "audio/mpeg" : "audio/webm";
+    const meetingId = await owner.evaluate(async ({ base64, type }) => {
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const created = await fetch("/api/meetings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "Real audio check", template: "meeting", language: "auto" })
+      }).then((r) => r.json());
+      const id = created.meeting.id;
+      await fetch(`/api/meetings/${id}/chunks/0`, { method: "PUT", headers: { "content-type": type, "x-duration-ms": "20000" }, body: bytes });
+      await fetch(`/api/meetings/${id}/finalize`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedChunks: 1 })
+      });
+      return id;
+    }, { base64, type });
+
+    const deadline = Date.now() + 5 * 60_000;
+    let detail = {};
+    do {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      detail = await owner.evaluate(async (id) => (await fetch(`/api/meetings/${id}`)).json(), meetingId);
+    } while (Date.now() < deadline && !detail.meeting?.summaryMarkdown && detail.meeting?.status !== "failed");
+
+    const chunk = detail.chunks?.[0] ?? {};
+    const transcript = Object.entries(chunk)
+      .filter(([key, value]) => /transcript/i.test(key) && typeof value === "string")
+      .map(([, value]) => value)
+      .join(" ")
+      .trim();
+    console.log(`  transcript: ${transcript.slice(0, 240)}`);
+    console.log(`  note: ${(detail.meeting?.summaryMarkdown ?? "(none yet)").slice(0, 400).replace(/\n+/g, " ⏎ ")}`);
+    if (!transcript) throw new Error(`no transcript: status ${detail.meeting?.status}, note ${detail.meeting?.summaryStatus}`);
+  }
+
   step("the session runs out mid-use: a banner offers to sign in again, in place");
   await owner.context().clearCookies();
   await owner.getByRole("button", { name: "Refresh" }).click();

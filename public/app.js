@@ -915,9 +915,13 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !isStandalone()) {
   $("#installButton").classList.remove("hidden");
 }
 if ("serviceWorker" in navigator) {
+  // Reload only to swap in an updated app: never on a first visit (nothing stale to replace, and the
+  // reload would cut into creating the passkey), and never mid-sign-in or mid-recording.
+  const hadController = Boolean(navigator.serviceWorker.controller);
   window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js").catch((error) => console.warn("PWA registration failed", error)));
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!isRecording && !sessionStorage.getItem("pwa-reloaded-v3")) {
+    const signingIn = !$("#authView").classList.contains("hidden");
+    if (hadController && !isRecording && !signingIn && !sessionStorage.getItem("pwa-reloaded-v3")) {
       sessionStorage.setItem("pwa-reloaded-v3", "1");
       location.reload();
     }

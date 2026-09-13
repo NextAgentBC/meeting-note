@@ -179,8 +179,3 @@ body.auth-pending main {
   gap: 8px;
   margin: 10px 0 0;
 }
-@media (max-width: 560px) {
-  #addDeviceButton {
-    padding: 0 10px;
-  }
-}

@@ -153,6 +153,8 @@ function editHtml(task) {
 
 function render() {
   const suggested = tasks.filter((task) => task.status === "suggested");
+  $("#plansBadge").textContent = suggested.length > 9 ? "9+" : String(suggested.length);
+  $("#plansBadge").classList.toggle("hidden", suggested.length === 0);
   $("#suggestedBlock").classList.toggle("hidden", suggested.length === 0);
   $("#confirmAllButton").classList.toggle("hidden", suggested.length < 2);
   $("#suggestedList").innerHTML = suggested.map(rowHtml).join("");
@@ -479,7 +481,7 @@ function showFeed(url) {
   }
 }
 
-$("#calendarSyncButton").addEventListener("click", async () => {
+async function openCalendarSync() {
   const dialog = $("#calendarDialog");
   try {
     showFeed((await api("/api/calendar")).feedUrl);
@@ -489,7 +491,10 @@ $("#calendarSyncButton").addEventListener("click", async () => {
   }
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
-});
+}
+
+$("#calendarSyncButton").addEventListener("click", () => void openCalendarSync());
+$("#calendarSyncRow").addEventListener("click", () => void openCalendarSync());
 
 $("#createFeedButton").addEventListener("click", (event) => {
   void act(event.currentTarget, async () => showFeed((await api("/api/calendar/feed", { method: "POST" })).feedUrl));

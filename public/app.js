@@ -14,8 +14,6 @@ const BACKUP_BITRATE = 64_000;
 const FINALIZE_PREFIX = "meetingnote-pending-finalize:";
 
 const $ = (selector) => document.querySelector(selector);
-const dashboardView = $("#dashboardView");
-const meetingView = $("#meetingView");
 const form = $("#newMeetingForm");
 const recorderPanel = $("#recorderPanel");
 const progressPanel = $("#progressPanel");
@@ -70,9 +68,10 @@ function isMobileDevice() {
 function configureMobileCapture() {
   const screenInput = form.querySelector('input[name="source"][value="screen"]');
   const micInput = form.querySelector('input[name="source"][value="microphone"]');
-  const screenChoice = screenInput.closest(".choice");
+  const screenChoice = screenInput.closest("label");
   const mobileOnly = isMobileDevice() || !navigator.mediaDevices?.getDisplayMedia;
   $("#mobileCaptureNote").classList.toggle("hidden", !mobileOnly);
+  screenChoice.closest(".segmented").classList.toggle("hidden", mobileOnly);
   screenChoice.classList.toggle("unsupported", mobileOnly);
   screenInput.disabled = mobileOnly;
   if (mobileOnly) micInput.checked = true;
@@ -179,6 +178,7 @@ async function loadUsage() {
     const data = await api("/api/usage");
     const left = data.remainingRecordingSeconds;
     $("#usageHeadline").textContent = `${formatHours(left)} of recording left today`;
+    $("#usageLine").textContent = `About ${formatHours(left)} of free recording left today`;
 
     const percent = Math.min(100, data.freeDailyNeurons ? data.usedNeurons / data.freeDailyNeurons * 100 : 0);
     const bar = $("#usageBar");
@@ -190,10 +190,7 @@ async function loadUsage() {
       ? data.byKind.map((item) => `${item.kind} ${Math.round(item.neurons)}`).join(" · ")
       : "nothing used yet";
     const perHour = Math.round(data.neuronsPerAudioSecond * 3600);
-    $("#usageMeta").textContent = `${Math.round(data.usedNeurons).toLocaleString()} of ${data.freeDailyNeurons.toLocaleString()} free neurons used · ${kinds} · ${data.measured ? "measured" : "estimated"} at ${perHour.toLocaleString()} neurons per recorded hour`;
-    if (data.hardLimit) {
-      $("#usageMeta").textContent += " · Free plan: Workers AI stops completely at the daily limit, it does not bill beyond it";
-    }
+    $("#usageMeta").textContent = `${Math.round(data.usedNeurons).toLocaleString()} of ${data.freeDailyNeurons.toLocaleString()} free AI units used (${kinds}). An hour of recording uses about ${perHour.toLocaleString()}.${data.hardLimit ? " At the limit AI pauses until it resets; nothing is billed." : ""}`;
     $("#usageReset").textContent = `resets ${new Date(data.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
     $("#usageCard").classList.remove("hidden");
   } catch (error) {
@@ -211,7 +208,7 @@ async function loadMeetings() {
     }
     container.innerHTML = data.meetings.map((meeting) => `
       <button class="meeting-row" type="button" data-id="${escapeHtml(meeting.id)}">
-        <span><strong>${escapeHtml(meeting.title)}</strong><small>${escapeHtml(meeting.template)} · ${meeting.processedChunks}/${meeting.expectedChunks ?? "?"} chunks processed</small></span>
+        <span><strong>${escapeHtml(meeting.title)}</strong><small>${escapeHtml(formatDate(meeting.startedAt))}</small></span>
         <time>${escapeHtml(formatDate(meeting.startedAt))}</time>
         <span class="row-status">${escapeHtml(statusLabel(meeting))} →</span>
       </button>`).join("");
@@ -433,25 +430,74 @@ function startMeter() {
   draw();
 }
 
-function showMeetingView() {
-  dashboardView.classList.add("hidden");
-  meetingView.classList.remove("hidden");
+// ── Navigation: one view at a time, chosen by the address (#/meetings, #/meetings/<id>, #/plans,
+// #/memory, #/me), so the tab bar, the back gesture and home-screen shortcuts all just change it.
+// A recording carries on whichever tab is open; the red pill in the top bar leads back to it.
+
+const TABS = ["meetings", "plans", "memory", "me"];
+const TITLES = { meetings: "Meetings", meeting: "Meeting", plans: "Plans", memory: "Memory", me: "Me" };
+const TEMPLATE_LABELS = { meeting: "Business meeting", workshop: "Workshop", interview: "Interview" };
+let currentView = "";
+
+function parseRoute() {
+  const parts = location.hash.replace(/^#\/?/, "").split("?")[0].split("/").filter(Boolean);
+  const tab = TABS.includes(parts[0]) ? parts[0] : "meetings";
+  if (tab === "meetings" && parts[1]) return { view: "meeting", tab, id: decodeURIComponent(parts[1]) };
+  return { view: tab, tab };
+}
+
+function navigate(hash) {
+  if (location.hash === hash) renderRoute();
+  else location.hash = hash;
+}
+
+function updateRecordingPill() {
+  const route = parseRoute();
+  const onRecording = route.view === "meeting" && route.id === activeMeeting?.id;
+  $("#recordingPill").classList.toggle("hidden", !isRecording || onRecording);
+  if (isRecording) $("#recordingPillTime").textContent = formatDuration(Date.now() - startedAt).replace(/^00:/, "");
+}
+
+function renderRoute() {
+  if (!signedIn) return;
+  const route = parseRoute();
+  const changed = route.view !== currentView || route.view === "meeting";
+  currentView = route.view;
+  document.querySelectorAll(".app-view").forEach((view) => view.classList.toggle("hidden", view.dataset.view !== route.view));
+  document.querySelectorAll("#tabbar a").forEach((link) => {
+    if (link.dataset.tab === route.tab) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+  $("#backButton").classList.toggle("hidden", route.view !== "meeting");
+  $("#viewTitle").textContent = TITLES[route.view];
+  updateRecordingPill();
+  if (changed) window.scrollTo(0, 0);
+
+  if (route.view === "meeting") {
+    void showMeeting(route.id);
+    return;
+  }
+  // Leaving a meeting stops refreshing it, unless it's the one being recorded.
+  if (!isRecording) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+  if (route.view === "meetings") void loadMeetings();
+  if (route.view === "plans") void loadPlans();
+  if (route.view === "me") void loadUsage();
+  if (route.view === "memory") window.dispatchEvent(new CustomEvent("meetingnote:memory-shown"));
 }
 
 function goHome() {
-  if (isRecording) {
-    showToast("Stop the recording before leaving this screen.");
-    return;
-  }
-  clearInterval(pollInterval);
-  void loadUsage();
-  if (backupUrl) { URL.revokeObjectURL(backupUrl); backupUrl = null; $("#backupLink").classList.add("hidden"); }
-  activeMeeting = null;
-  meetingView.classList.add("hidden");
-  dashboardView.classList.remove("hidden");
-  void loadMeetings();
-  void loadPlans();
-  void loadUsage();
+  navigate("#/meetings");
+}
+
+function setPane(name) {
+  const note = name !== "transcript";
+  $("#noteTab").setAttribute("aria-selected", String(note));
+  $("#transcriptTab").setAttribute("aria-selected", String(!note));
+  $("#notePane").classList.toggle("pane-hidden", !note);
+  $("#transcriptPane").classList.toggle("pane-hidden", note);
 }
 
 async function beginMeeting(event) {
@@ -467,7 +513,7 @@ async function beginMeeting(event) {
 
   const submit = form.querySelector("button[type=submit]");
   submit.disabled = true;
-  submit.querySelector("span").textContent = "Waiting for permission…";
+  submit.querySelector("span:last-child").textContent = "Waiting for permission…";
   let stream;
   try {
     const source = new FormData(form).get("source");
@@ -488,9 +534,10 @@ async function beginMeeting(event) {
     sequence = 0;
     inferredExpectedChunks = 0;
     activeHasProcessingFailure = false;
-    showMeetingView();
+    setPane("note");
+    navigate(`#/meetings/${encodeURIComponent(activeMeeting.id)}`);
     $("#activeMeetingTitle").textContent = activeMeeting.title;
-    $("#meetingKicker").textContent = activeMeeting.template;
+    $("#meetingKicker").textContent = TEMPLATE_LABELS[activeMeeting.template] ?? activeMeeting.template;
     $("#meetingStatus").textContent = "Recording";
     $("#timer").textContent = "00:00:00";
     $("#chunkCount").textContent = "0";
@@ -506,7 +553,10 @@ async function beginMeeting(event) {
     startBackupRecorder(stream, mimeType);
     startMeter();
     void requestWakeLock();
-    timerInterval = window.setInterval(() => $("#timer").textContent = formatDuration(Date.now() - startedAt), 500);
+    timerInterval = window.setInterval(() => {
+      $("#timer").textContent = formatDuration(Date.now() - startedAt);
+      updateRecordingPill();
+    }, 500);
     startPolling(activeMeeting.id);
   } catch (error) {
     inputStreams.forEach((input) => input.getTracks().forEach((track) => track.stop()));
@@ -515,7 +565,7 @@ async function beginMeeting(event) {
     else showToast(`Could not start: ${error.message}`, 7000);
   } finally {
     submit.disabled = false;
-    submit.querySelector("span").textContent = "Begin recording";
+    submit.querySelector("span:last-child").textContent = "Start recording";
   }
 }
 
@@ -524,6 +574,7 @@ async function stopRecording() {
   stopButton.disabled = true;
   stopButton.lastChild.textContent = " Saving final chunk…";
   isRecording = false;
+  updateRecordingPill();
   document.body.classList.remove("recording-active");
   clearTimeout(chunkTimer);
   clearInterval(timerInterval);
@@ -572,10 +623,32 @@ async function stopRecording() {
   }
 }
 
-async function openMeeting(id) {
-  activeMeeting = { id };
-  $("#rebuildNoteButton").classList.add("hidden");
-  showMeetingView();
+function openMeeting(id) {
+  navigate(`#/meetings/${encodeURIComponent(id)}`);
+}
+
+/** Shows one meeting; for the meeting being recorded, the live recorder stays as it is. */
+async function showMeeting(id) {
+  if (isRecording && activeMeeting?.id !== id) {
+    showToast("Stop the recording before opening another meeting.");
+    navigate(`#/meetings/${encodeURIComponent(activeMeeting.id)}`);
+    return;
+  }
+  if (isRecording) {
+    await refreshActiveMeeting();
+    return;
+  }
+  if (activeMeeting?.id !== id) {
+    if (backupUrl) { URL.revokeObjectURL(backupUrl); backupUrl = null; $("#backupLink").classList.add("hidden"); }
+    activeMeeting = { id };
+    $("#rebuildNoteButton").classList.add("hidden");
+    $("#exportLink").classList.add("hidden");
+    progressPanel.classList.add("hidden");
+    $("#activeMeetingTitle").textContent = "Loading…";
+    $("#summaryContent").innerHTML = '<p class="empty-state">Loading…</p>';
+    $("#transcriptList").innerHTML = "";
+    setPane("note");
+  }
   recorderPanel.classList.add("hidden");
   await refreshActiveMeeting();
   startPolling(id);
@@ -661,9 +734,10 @@ async function refreshActiveMeeting() {
   if (!activeMeeting?.id) return;
   try {
     const data = await api(`/api/meetings/${activeMeeting.id}`);
+    if (activeMeeting?.id !== data.meeting.id) return; // the owner has moved on to another meeting
     activeMeeting = data.meeting;
     $("#activeMeetingTitle").textContent = activeMeeting.title;
-    $("#meetingKicker").textContent = activeMeeting.template;
+    $("#meetingKicker").textContent = [formatDate(activeMeeting.startedAt), TEMPLATE_LABELS[activeMeeting.template] ?? activeMeeting.template].filter(Boolean).join(" · ");
     $("#meetingStatus").textContent = statusLabel(activeMeeting);
     $("#transcribedCount").textContent = String(activeMeeting.processedChunks);
     const segments = data.segments || [];
@@ -900,6 +974,7 @@ async function restorePendingUploads() {
 }
 
 function updateConnection() {
+  $("#offlinePill").classList.toggle("hidden", navigator.onLine);
   const state = $("#connectionState");
   state.lastChild.textContent = navigator.onLine ? " Online" : " Offline · caching";
   state.querySelector("i").style.background = navigator.onLine ? "var(--cyan)" : "var(--amber)";
@@ -911,10 +986,15 @@ function updateConnection() {
 
 form.addEventListener("submit", beginMeeting);
 stopButton.addEventListener("click", stopRecording);
-$("#homeButton").addEventListener("click", goHome);
 $("#forceSummaryButton").addEventListener("click", forceSummary);
 $("#rebuildNoteButton").addEventListener("click", rebuildNote);
 $("#backButton").addEventListener("click", goHome);
+$("#recordingPill").addEventListener("click", () => {
+  if (activeMeeting?.id) navigate(`#/meetings/${encodeURIComponent(activeMeeting.id)}`);
+});
+$("#noteTab").addEventListener("click", () => setPane("note"));
+$("#transcriptTab").addEventListener("click", () => setPane("transcript"));
+window.addEventListener("hashchange", renderRoute);
 $("#refreshButton").addEventListener("click", loadMeetings);
 $("#retryFinalizeButton").addEventListener("click", retryActiveFinalization);
 window.addEventListener("online", updateConnection);
@@ -959,16 +1039,23 @@ if ("serviceWorker" in navigator) {
   });
 }
 if (navigator.storage?.persist) void navigator.storage.persist();
-if (new URLSearchParams(location.search).get("action") === "record") {
-  window.setTimeout(() => $("#meetingTitle").focus(), 300);
+// Home-screen shortcuts (manifest.webmanifest) arrive as ?action=record / dictate / ask.
+const shortcut = new URLSearchParams(location.search).get("action");
+if (shortcut) history.replaceState(null, "", `${location.pathname}${shortcut === "dictate" ? "#/plans" : shortcut === "ask" ? "#/memory" : "#/meetings"}`);
+try {
+  $("#timezoneLabel").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || "—";
+} catch {
+  // leave the dash
 }
 // Nothing is fetched until the owner has signed in with their passkey (see auth.js).
 void ensureSignedIn().then(() => {
   signedIn = true;
+  document.body.classList.add("signed-in");
   void restorePendingUploads().then(resumePendingFinalizations);
-  void loadMeetings();
   void initPlans();
   void loadUsage();
+  renderRoute();
+  if (shortcut === "record") window.setTimeout(() => $("#meetingTitle").focus(), 300);
 });
 // A passage in an Ask answer that came from a meeting opens that meeting.
 window.addEventListener("meetingnote:open-meeting", (event) => {
@@ -976,7 +1063,7 @@ window.addEventListener("meetingnote:open-meeting", (event) => {
     showToast(isRecording ? "Stop the recording before opening another meeting." : "Finish or cancel the spoken plan first.");
     return;
   }
-  if (event.detail?.id) void openMeeting(event.detail.id);
+  if (event.detail?.id) openMeeting(event.detail.id);
 });
 // After signing in again mid-session, send whatever audio was waiting.
 window.addEventListener("meetingnote:signed-in", () => {

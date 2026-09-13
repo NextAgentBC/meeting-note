@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0e12" />
-    <meta name="description" content="Record a meeting and get the transcript, summary and to-dos." />
+    <meta name="description" content="Record meetings, say your plans, and ask what was said." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -16,17 +16,20 @@
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/auth.css" />
     <link rel="stylesheet" href="/assistant.css" />
+    <link rel="stylesheet" href="/shell.css" />
   </head>
   <body class="auth-pending">
-    <header class="topbar">
-      <button class="brand" id="homeButton" type="button" aria-label="Back to meetings">
-        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><strong>Meeting Note</strong><small>Your private meeting recorder</small></span>
+    <header class="appbar">
+      <button id="backButton" class="appbar-back hidden" type="button" aria-label="Back to meetings">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
       </button>
-      <div class="top-actions">
-        <button id="installButton" class="install-button hidden" type="button">Install app</button>
-        <button id="addDeviceButton" class="install-button hidden" type="button">Add device</button>
-        <button id="signOutButton" class="install-button hidden" type="button">Sign out</button>
+      <div class="appbar-title">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <h1 id="viewTitle">Meeting Note</h1>
+      </div>
+      <div class="appbar-actions">
+        <span id="offlinePill" class="status-pill offline hidden">Offline</span>
+        <button id="recordingPill" class="status-pill recording hidden" type="button" aria-label="Back to the recording"><i></i><span id="recordingPillTime">0:00</span></button>
       </div>
     </header>
 
@@ -54,7 +57,7 @@
 
             <div id="signInPanel" class="auth-form hidden">
               <button id="signInButton" class="primary-button" type="button"><span>Sign in with your passkey</span><b>→</b></button>
-              <p class="auth-hint">New phone or computer? On a device where you're already signed in, press <b>Add device</b> and scan the code with this one.</p>
+              <p class="auth-hint">New phone or computer? On a device where you're already signed in, open <b>Me</b> → <b>Add a phone or computer</b> and scan the code with this one.</p>
               <button id="showRecover" class="auth-link" type="button">Lost every device? Use your recovery code</button>
             </div>
 
@@ -84,33 +87,29 @@
         </div>
       </section>
 
-      <section id="dashboardView" class="view">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">A quieter way to remember</p>
-            <h1>Your conversation,<br /><em>made useful.</em></h1>
-            <p class="lede">Name the meeting and press Record. As people speak, Meeting Note safely saves the audio in small pieces, turns it into text and prepares the summary and to-dos.</p>
+      <!-- Meetings: start a recording, and every meeting so far -->
+      <section id="meetingsView" class="view app-view hidden" data-view="meetings" data-title="Meetings">
+        <form id="newMeetingForm" class="card record-card">
+          <label class="field">
+            <span>What's this meeting?</span>
+            <input id="meetingTitle" name="title" placeholder="Team meeting · Monday" maxlength="160" required />
+          </label>
+          <div class="segmented" role="radiogroup" aria-label="What to record">
+            <label><input type="radio" name="source" value="microphone" checked /><span>Microphone</span></label>
+            <label class="screen-choice"><input type="radio" name="source" value="screen" /><span>Zoom + microphone</span></label>
           </div>
-
-          <form id="newMeetingForm" class="new-card">
-            <div class="card-head">
-              <span class="step-number">01</span>
-              <div><h2>Start a recording</h2><p>The note begins immediately after browser permission.</p></div>
-            </div>
-            <label>
-              <span>Meeting title</span>
-              <input id="meetingTitle" name="title" placeholder="Team meeting · Monday" maxlength="160" required />
-            </label>
+          <details class="record-options">
+            <summary>Note type and language</summary>
             <div class="form-row">
-              <label>
+              <label class="field">
                 <span>Note type</span>
                 <select id="meetingTemplate" name="template">
-                  <option value="workshop">Workshop</option>
                   <option value="meeting">Business meeting</option>
+                  <option value="workshop">Workshop</option>
                   <option value="interview">Interview</option>
                 </select>
               </label>
-              <label>
+              <label class="field">
                 <span>Language</span>
                 <select id="meetingLanguage" name="language">
                   <option value="auto">English + 中文</option>
@@ -119,107 +118,25 @@
                 </select>
               </label>
             </div>
-            <fieldset>
-              <legend>Audio source</legend>
-              <label class="choice">
-                <input type="radio" name="source" value="screen" checked />
-                <span class="choice-icon">◎</span>
-                <span><strong>Zoom + microphone</strong><small>Choose the Zoom window and enable “Share tab audio” or system audio.</small></span>
-              </label>
-              <label class="choice">
-                <input type="radio" name="source" value="microphone" />
-                <span class="choice-icon">⌁</span>
-                <span><strong>Microphone only</strong><small>Best for in-person conversations in one room.</small></span>
-              </label>
-            </fieldset>
-            <button class="primary-button" type="submit"><span>Begin recording</span><b>→</b></button>
-            <p class="privacy-note">Only you can sign in · audio deleted after 7 days · a note written every 5 minutes</p>
-            <p id="mobileCaptureNote" class="mobile-capture-note hidden">On phones, keep this app open and use the microphone. Mobile browsers cannot capture audio from another app such as Zoom.</p>
-          </form>
+          </details>
+          <button class="record-button" type="submit"><span class="record-dot" aria-hidden="true"></span><span>Start recording</span></button>
+          <p id="usageLine" class="hint center"></p>
+          <p id="mobileCaptureNote" class="hint hidden">Records this device's microphone. Keep Meeting Note open while it records.</p>
+        </form>
+
+        <div class="list-head">
+          <h2>Your meetings</h2>
+          <button id="refreshButton" class="text-button" type="button">Refresh</button>
         </div>
-
-        <section id="askSection" class="ask-section">
-          <form id="askForm" class="ask-form">
-            <label for="askInput"><span class="eyebrow">Ask your meetings and plans</span></label>
-            <div class="ask-row">
-              <input id="askInput" name="question" placeholder="What did we decide about the venue? · 上周开会说了什么？" maxlength="500" autocomplete="off" enterkeyhint="search" required />
-              <button class="quick-add-button" type="submit">Ask</button>
-            </div>
-          </form>
-          <div id="askAnswer" class="ask-answer hidden" role="status" aria-live="polite">
-            <p id="askText"></p>
-            <div id="askSources" class="ask-sources"></div>
-          </div>
-        </section>
-
-        <section id="plansSection" class="plans-section">
-          <div class="section-title">
-            <div><p class="eyebrow">Your plans</p><h2>Say it, and it goes on your calendar</h2></div>
-            <button id="calendarSyncButton" class="text-button" type="button">Calendar sync</button>
-          </div>
-
-          <div class="plans-grid">
-            <div class="new-card dictate-card">
-              <button id="dictateButton" class="dictate-button" type="button" aria-describedby="dictateHint" aria-pressed="false">
-                <span class="dictate-orb" aria-hidden="true"><i></i></span>
-                <span class="dictate-copy"><strong id="dictateLabel">Tap and say your plans</strong><small id="dictateSub">Up to two minutes · English or 中文</small></span>
-              </button>
-              <button id="dictateCancel" class="text-button dictate-cancel hidden" type="button">Cancel</button>
-              <p id="dictateHint" class="dictate-hint">Like “Next Tuesday at 3, call Cindy about the venue” or “月底前把房租交了”. You check each plan before it goes anywhere.</p>
-              <div id="dictateResult" class="dictate-result hidden" role="status">
-                <p id="dictateMessage"></p>
-                <p id="dictateTranscript" class="dictate-transcript"></p>
-                <button id="dictateRetry" class="text-button hidden" type="button">Try sending it again</button>
-              </div>
-              <form id="quickAddForm" class="quick-add">
-                <input id="quickAddTitle" name="title" placeholder="Or type one, e.g. Dentist" maxlength="200" aria-label="Plan" required />
-                <input id="quickAddDate" name="date" type="date" aria-label="Date" />
-                <input id="quickAddTime" name="time" type="time" aria-label="Time" />
-                <button class="quick-add-button" type="submit">Add</button>
-              </form>
-            </div>
-
-            <div class="plans-lists">
-              <div id="suggestedBlock" class="plan-block suggested hidden">
-                <div class="plan-block-head">
-                  <div><h3>Check these</h3><p>Found in what you said and in your meetings. Nothing is added until you say so.</p></div>
-                  <button id="confirmAllButton" class="text-button" type="button">Add all</button>
-                </div>
-                <div id="suggestedList" class="plan-list"></div>
-              </div>
-              <div class="plan-block">
-                <div class="plan-block-head"><div><h3>Coming up</h3></div></div>
-                <div id="taskList" class="plan-list"><p class="empty-state">Nothing planned yet.</p></div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="usageCard" class="usage-card hidden">
-          <div class="usage-head">
-            <div>
-              <p class="eyebrow">Free recording time · today</p>
-              <h2 id="usageHeadline">Checking…</h2>
-            </div>
-            <span class="usage-reset" id="usageReset"></span>
-          </div>
-          <div class="usage-track"><i id="usageBar"></i></div>
-          <p class="usage-meta" id="usageMeta"></p>
-        </section>
-
-        <section class="recent-section">
-          <div class="section-title"><div><p class="eyebrow">Your archive</p><h2>Recent meetings</h2></div><button id="refreshButton" class="text-button" type="button">Refresh</button></div>
-          <div id="meetingList" class="meeting-list"><p class="empty-state">Loading meetings…</p></div>
-        </section>
+        <div id="meetingList" class="meeting-list"><p class="empty-state">Loading meetings…</p></div>
       </section>
 
-      <section id="meetingView" class="view hidden">
-        <div class="meeting-header">
-          <button id="backButton" class="back-button" type="button">← All meetings</button>
-          <div class="meeting-title-row">
-            <div><p id="meetingKicker" class="eyebrow">Live workshop</p><h1 id="activeMeetingTitle">Meeting</h1></div>
-            <div id="meetingStatus" class="status-badge">Preparing</div>
-          </div>
+      <!-- One meeting: live recording, progress, the note and the transcript -->
+      <section id="meetingView" class="view app-view hidden" data-view="meeting" data-title="Meeting">
+        <div class="meeting-head">
+          <p id="meetingKicker" class="eyebrow">Meeting</p>
+          <h2 id="activeMeetingTitle">Meeting</h2>
+          <span id="meetingStatus" class="status-badge">Preparing</span>
         </div>
 
         <div id="recorderPanel" class="recorder-panel hidden">
@@ -230,10 +147,10 @@
           <canvas id="levelMeter" width="600" height="72" aria-label="Microphone activity"></canvas>
           <p id="silenceWarning" class="silence-warning hidden" role="alert"></p>
           <div class="recorder-stats">
-            <span><b id="chunkCount">0</b> chunks saved</span>
+            <span><b id="chunkCount">0</b> saved</span>
             <span><b id="transcribedCount">0</b> transcribed</span>
-            <span><b id="segmentCount">0</b> sections written</span>
-            <span><b id="levelDb">—</b> input level</span>
+            <span><b id="segmentCount">0</b> sections</span>
+            <span><b id="levelDb">—</b> level</span>
             <span id="connectionState"><i></i> Online</span>
           </div>
           <button id="stopButton" class="stop-button" type="button"><span></span> Stop &amp; create note</button>
@@ -247,21 +164,165 @@
           <a id="backupLink" class="retry-button backup hidden" href="#" download>Download the full local recording</a>
         </div>
 
-        <div class="content-grid">
-          <section class="transcript-card">
-            <div class="section-title"><div><p class="eyebrow">Source record</p><h2>Transcript</h2></div><span id="transcriptMeta">0 chunks</span></div>
+        <div class="meeting-toolbar">
+          <div class="segmented tabs" role="tablist" aria-label="Show">
+            <button id="noteTab" role="tab" type="button" aria-selected="true" aria-controls="notePane">Note</button>
+            <button id="transcriptTab" role="tab" type="button" aria-selected="false" aria-controls="transcriptPane">Transcript</button>
+          </div>
+          <div class="note-actions">
+            <button id="rebuildNoteButton" class="text-button hidden" type="button">Rewrite note</button>
+            <a id="exportLink" class="text-button hidden" href="#">Export .md</a>
+          </div>
+        </div>
+
+        <div class="meeting-panes">
+          <section id="notePane" class="note-card pane" role="tabpanel" aria-labelledby="noteTab">
+            <div id="summaryContent" class="summary-content"><p class="empty-state">Notes appear here about five minutes after you start, and are merged into one note when you stop.</p></div>
+          </section>
+          <section id="transcriptPane" class="transcript-card pane pane-hidden" role="tabpanel" aria-labelledby="transcriptTab">
+            <p id="transcriptMeta" class="hint">0 chunks</p>
             <div id="transcriptList" class="transcript-list"><p class="empty-state">Transcript will appear here after the first chunk.</p></div>
           </section>
-          <aside class="note-card">
-            <div class="section-title"><div><p class="eyebrow">Structured result</p><h2>Meeting note</h2></div><div class="note-actions"><button id="rebuildNoteButton" class="text-button hidden" type="button">Rewrite note</button><a id="exportLink" class="text-button hidden" href="#">Export .md</a></div></div>
-            <div id="summaryContent" class="summary-content"><p class="empty-state">Notes appear here about five minutes after you start, and are merged into one note when you stop.</p></div>
-          </aside>
         </div>
+      </section>
+
+      <!-- Plans: say or type them, check suggestions, see what's coming -->
+      <section id="plansSection" class="view app-view hidden" data-view="plans" data-title="Plans">
+        <div class="card dictate-card">
+          <button id="dictateButton" class="dictate-button" type="button" aria-describedby="dictateHint" aria-pressed="false">
+            <span class="dictate-orb" aria-hidden="true"><i></i></span>
+            <span class="dictate-copy"><strong id="dictateLabel">Tap and say your plans</strong><small id="dictateSub">Up to two minutes · English or 中文</small></span>
+          </button>
+          <button id="dictateCancel" class="text-button dictate-cancel hidden" type="button">Cancel</button>
+          <p id="dictateHint" class="hint">Like “Next Tuesday at 3, call Cindy about the venue” or “月底前把房租交了”. You check each plan before it's added.</p>
+          <div id="dictateResult" class="dictate-result hidden" role="status">
+            <p id="dictateMessage"></p>
+            <p id="dictateTranscript" class="dictate-transcript"></p>
+            <button id="dictateRetry" class="text-button hidden" type="button">Try sending it again</button>
+          </div>
+          <form id="quickAddForm" class="quick-add">
+            <input id="quickAddTitle" name="title" placeholder="Or type one, e.g. Dentist" maxlength="200" aria-label="Plan" required />
+            <input id="quickAddDate" name="date" type="date" aria-label="Date" />
+            <input id="quickAddTime" name="time" type="time" aria-label="Time" />
+            <button class="quick-add-button" type="submit">Add</button>
+          </form>
+        </div>
+
+        <div id="suggestedBlock" class="plan-block suggested hidden">
+          <div class="plan-block-head">
+            <div><h3>Check these</h3><p>Found in what you said and in your meetings. Nothing is added until you say so.</p></div>
+            <button id="confirmAllButton" class="text-button" type="button">Add all</button>
+          </div>
+          <div id="suggestedList" class="plan-list"></div>
+        </div>
+
+        <div class="plan-block">
+          <div class="plan-block-head">
+            <div><h3>Coming up</h3></div>
+            <button id="calendarSyncButton" class="text-button" type="button">Calendar sync</button>
+          </div>
+          <div id="taskList" class="plan-list"><p class="empty-state">Nothing planned yet.</p></div>
+        </div>
+      </section>
+
+      <!-- Memory: ask anything, and see what's remembered -->
+      <section id="askSection" class="view app-view hidden" data-view="memory" data-title="Memory">
+        <form id="askForm" class="card ask-form">
+          <label for="askInput" class="field"><span>Ask your meetings and plans</span></label>
+          <div class="ask-row">
+            <input id="askInput" name="question" placeholder="What did we decide about the venue?" maxlength="500" autocomplete="off" enterkeyhint="search" required />
+            <button class="quick-add-button" type="submit">Ask</button>
+          </div>
+          <div class="ask-examples" aria-label="Examples">
+            <button type="button" class="chip" data-example="What's on this week?">What's on this week?</button>
+            <button type="button" class="chip" data-example="上次开会决定了什么？">上次开会决定了什么？</button>
+            <button type="button" class="chip" data-example="Who promised to do what?">Who promised to do what?</button>
+          </div>
+        </form>
+        <p id="memoryIntro" class="memory-intro">Everything you record, say and plan is remembered on its own. Ask in English or Chinese, and every answer shows where it came from.</p>
+        <div id="askAnswer" class="ask-answer hidden" role="status" aria-live="polite">
+          <p id="askText"></p>
+          <div id="askSources" class="ask-sources"></div>
+        </div>
+
+        <div id="factsBlock" class="plan-block hidden">
+          <div class="plan-block-head"><div><h3>Remembered facts</h3><p>Things that stay true, taken from your meetings. The newest version of each wins.</p></div></div>
+          <div id="factsList" class="memory-list"></div>
+        </div>
+
+        <div id="memoryBlock" class="plan-block hidden">
+          <div class="plan-block-head">
+            <div><h3>Recently remembered</h3></div>
+            <select id="memoryKind" class="compact-select" aria-label="Show">
+              <option value="">Everything</option>
+              <option value="summary">Meeting notes</option>
+              <option value="plan">Plans</option>
+              <option value="dictation">Said aloud</option>
+              <option value="transcript">Transcripts</option>
+            </select>
+          </div>
+          <div id="memoryList" class="memory-list"></div>
+          <button id="memoryMore" class="text-button hidden" type="button">Show more</button>
+        </div>
+      </section>
+
+      <!-- Me: allowance, devices, calendar, the app itself -->
+      <section id="meView" class="view app-view hidden" data-view="me" data-title="Me">
+        <section id="usageCard" class="usage-card hidden">
+          <div class="usage-head">
+            <div>
+              <p class="eyebrow">Free AI today</p>
+              <h2 id="usageHeadline">Checking…</h2>
+            </div>
+            <span class="usage-reset" id="usageReset"></span>
+          </div>
+          <div class="usage-track"><i id="usageBar"></i></div>
+          <p class="usage-meta" id="usageMeta"></p>
+        </section>
+
+        <div class="settings-group">
+          <h3>Sign-in</h3>
+          <button id="addDeviceButton" class="settings-row" type="button"><span><strong>Add a phone or computer</strong><small>Show a code the new device scans</small></span><b aria-hidden="true">›</b></button>
+          <button id="recoveryCodeRow" class="settings-row" type="button"><span><strong>Recovery code</strong><small>Make a new one if you lost yours</small></span><b aria-hidden="true">›</b></button>
+        </div>
+
+        <div class="settings-group">
+          <h3>Calendar</h3>
+          <button id="calendarSyncRow" class="settings-row" type="button"><span><strong>Calendar sync</strong><small>Google, iPhone, Mac or Outlook</small></span><b aria-hidden="true">›</b></button>
+        </div>
+
+        <div class="settings-group">
+          <h3>This device</h3>
+          <button id="installButton" class="settings-row hidden" type="button"><span><strong>Install on this device</strong><small>Opens like an app, from the home screen</small></span><b aria-hidden="true">›</b></button>
+          <div class="settings-row static"><span><strong>Time zone</strong><small id="timezoneLabel">—</small></span></div>
+        </div>
+
+        <button id="signOutButton" class="settings-row danger" type="button"><span><strong>Sign out</strong></span></button>
+        <p class="footnote">Only you can sign in · audio deletes itself after 7 days</p>
       </section>
     </main>
 
-    <dialog id="calendarDialog" class="calendar-dialog" aria-labelledby="calendarDialogTitle">
-      <div class="calendar-dialog-body">
+    <nav id="tabbar" class="tabbar" aria-label="Main">
+      <a href="#/meetings" data-tab="meetings">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" /></svg>
+        <span>Meetings</span>
+      </a>
+      <a href="#/plans" data-tab="plans">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17M9 15l2 2 4-4" /></svg>
+        <span>Plans</span><b id="plansBadge" class="tab-badge hidden"></b>
+      </a>
+      <a href="#/memory" data-tab="memory">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5" /></svg>
+        <span>Memory</span>
+      </a>
+      <a href="#/me" data-tab="me">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5c1.6-3.6 4.4-5.5 7.5-5.5s5.9 1.9 7.5 5.5" /></svg>
+        <span>Me</span>
+      </a>
+    </nav>
+
+    <dialog id="calendarDialog" class="sheet" aria-labelledby="calendarDialogTitle">
+      <div class="sheet-body">
         <p class="eyebrow">Calendar sync</p>
         <h2 id="calendarDialogTitle">Put your plans on your calendar</h2>
         <p>Every plan you add has two buttons: <b>Google</b> adds it to Google Calendar, and <b>Apple · Outlook</b> opens it in the calendar on your iPhone, Mac or PC.</p>
@@ -279,14 +340,14 @@
           </div>
           <p class="feed-warning">Anyone with this address can see the plans you've added. If it gets out, <button id="resetFeedButton" class="auth-link inline" type="button">replace it</button> and subscribe again.</p>
         </div>
-        <button id="closeCalendarDialog" class="text-button calendar-dialog-close" type="button">Close</button>
+        <button id="closeCalendarDialog" class="sheet-close" type="button">Close</button>
       </div>
     </dialog>
 
-    <dialog id="deviceDialog" class="device-dialog" aria-labelledby="deviceDialogTitle">
-      <div class="device-dialog-body">
-        <p class="eyebrow">Add device</p>
-        <h2 id="deviceDialogTitle">Sign in on your phone or another computer</h2>
+    <dialog id="deviceDialog" class="sheet" aria-labelledby="deviceDialogTitle">
+      <div class="sheet-body">
+        <p class="eyebrow">Add a phone or computer</p>
+        <h2 id="deviceDialogTitle">Sign in on another device</h2>
         <ol>
           <li>On the new device, point the camera at this code, or open the link below on it.</li>
           <li>Press <b>Add this device</b> and confirm with Face ID, a fingerprint or the screen lock.</li>
@@ -294,17 +355,23 @@
         <div id="deviceQr" class="device-qr" role="img" aria-label="QR code for the link below"></div>
         <input id="deviceLink" readonly aria-label="Link for your new device" />
         <div class="device-actions">
-          <button id="copyDeviceLink" class="install-button" type="button">Copy link</button>
-          <button id="newDeviceLink" class="install-button" type="button">Make a new code</button>
+          <button id="copyDeviceLink" class="quick-add-button" type="button">Copy link</button>
+          <button id="newDeviceLink" class="quick-add-button ghost" type="button">Make a new code</button>
         </div>
         <p id="deviceExpiry" class="auth-warning">It works once, for ten minutes. Only open it on your own device.</p>
-        <div class="device-recovery">
-          <p>Lost the recovery code you saved at setup? Make a new one; the old one stops working.</p>
-          <button id="newRecoveryCode" class="install-button" type="button">Make a new recovery code</button>
-          <p id="newRecoveryCodeValue" class="recovery-code hidden"></p>
-          <p id="newRecoveryCodeHint" class="auth-hint hidden">Take a screenshot or write it down now: it won't be shown again.</p>
-        </div>
-        <button id="closeDeviceDialog" class="auth-link" type="button">Close</button>
+        <button id="closeDeviceDialog" class="sheet-close" type="button">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="recoveryDialog" class="sheet" aria-labelledby="recoveryDialogTitle">
+      <div class="sheet-body">
+        <p class="eyebrow">Recovery code</p>
+        <h2 id="recoveryDialogTitle">Your way back in</h2>
+        <p>If every device you sign in with is lost, the recovery code puts Meeting Note on a new one. Lost the code you saved? Make a new one here; the old one stops working at once.</p>
+        <button id="newRecoveryCode" class="primary-button" type="button"><span>Make a new recovery code</span><b>→</b></button>
+        <p id="newRecoveryCodeValue" class="recovery-code hidden"></p>
+        <p id="newRecoveryCodeHint" class="auth-hint hidden">Take a screenshot or write it down now: it won't be shown again.</p>
+        <button id="closeRecoveryDialog" class="sheet-close" type="button">Close</button>
       </div>
     </dialog>
 

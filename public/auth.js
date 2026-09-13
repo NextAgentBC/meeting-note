@@ -116,9 +116,7 @@ function showError(error) {
 
 function enterApp() {
   show($("#authView"), false);
-  show($("#dashboardView"), true);
-  show($("#signOutButton"), true);
-  show($("#addDeviceButton"), true);
+  document.body.classList.add("signed-in");
   document.body.classList.remove("auth-pending");
   window.dispatchEvent(new CustomEvent("meetingnote:signed-in"));
   whenSignedIn?.();
@@ -154,14 +152,12 @@ export async function ensureSignedIn() {
   const me = await fetch("/api/auth/me", { credentials: "same-origin" }).then((r) => r.json());
   if (me.signedIn) {
     deviceLinkToken = null; // this device is already signed in
-    show($("#signOutButton"), true);
-    show($("#addDeviceButton"), true);
     document.body.classList.remove("auth-pending");
     return;
   }
 
-  show($("#dashboardView"), false);
-  show($("#meetingView"), false);
+  document.body.classList.remove("signed-in");
+  document.querySelectorAll(".app-view").forEach((view) => show(view, false));
   show($("#authView"), true);
   document.body.classList.remove("auth-pending");
 
@@ -232,7 +228,7 @@ $("#recoverySaved").addEventListener("click", () => enterApp());
 
 $("#signOutButton").addEventListener("click", async () => {
   await post("/api/auth/logout").catch(() => undefined);
-  location.reload();
+  location.replace("/");
 });
 
 // If a request comes back 401 mid-session (the 30-day session ran out), offer to sign in
@@ -290,6 +286,24 @@ $("#addDeviceButton").addEventListener("click", () => {
   void makeDeviceLink();
 });
 $("#newDeviceLink").addEventListener("click", () => void makeDeviceLink());
+function openSheet(dialog) {
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeSheet(dialog) {
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+$("#recoveryCodeRow").addEventListener("click", () => openSheet($("#recoveryDialog")));
+$("#closeRecoveryDialog").addEventListener("click", () => {
+  $("#newRecoveryCodeValue").textContent = "";
+  show($("#newRecoveryCodeValue"), false);
+  show($("#newRecoveryCodeHint"), false);
+  closeSheet($("#recoveryDialog"));
+});
+
 $("#newRecoveryCode").addEventListener("click", async (event) => {
   if (!window.confirm("Make a new recovery code? The one you have now will stop working.")) return;
   const button = event.currentTarget;
@@ -319,9 +333,6 @@ $("#closeDeviceDialog").addEventListener("click", () => {
   clearTimeout(deviceLinkTimer);
   $("#deviceQr").innerHTML = "";
   $("#deviceLink").value = "";
-  $("#newRecoveryCodeValue").textContent = "";
-  show($("#newRecoveryCodeValue"), false);
-  show($("#newRecoveryCodeHint"), false);
   if (typeof dialog.close === "function") dialog.close();
   else dialog.removeAttribute("open");
 });

@@ -72,7 +72,12 @@ try {
     await page.getByRole("button", { name: /Create my passkey/ }).click();
   }
   await page.getByRole("button", { name: /I've saved it/ }).click();
-  await page.getByRole("heading", { name: "Say it, and it goes on your calendar" }).waitFor();
+  await page.locator("#tabbar").waitFor();
+  const tab = async (name) => {
+    await page.locator("#tabbar").getByRole("link", { name, exact: true }).click();
+    await page.waitForFunction((title) => document.querySelector("#viewTitle")?.textContent === title, name);
+  };
+  await tab("Plans");
 
   step("a typed plan with a date and time lands in Coming up, with calendar links");
   await page.locator("#quickAddTitle").fill("Workshop at OCCA");
@@ -141,6 +146,7 @@ try {
     });
   });
   await page.reload();
+  await tab("Plans");
   const suggestion = page.locator("#suggestedList .plan-row", { hasText: "Maybe repaint the office" });
   await suggestion.waitFor();
   expect(!(await outsider.get(newFeedUrl).then((r) => r.text())).includes("repaint"), "a suggestion leaked into the feed");
@@ -176,6 +182,7 @@ try {
   }
 
   step("removing a confirmed plan tells subscribed calendars to drop it");
+  await tab("Plans");
   await page.locator("#taskList .plan-row", { hasText: "Workshop at OCCA" }).getByRole("button", { name: "Remove" }).click();
   await page.locator("#taskList .plan-row", { hasText: "Workshop at OCCA" }).waitFor({ state: "detached" });
   const cancelledFeed = await outsider.get(newFeedUrl).then((r) => r.text());
@@ -220,6 +227,7 @@ try {
     };
 
     await page.reload();
+    await tab("Plans");
     const fromMeeting = page.locator("#suggestedList .plan-row", { hasText: "From “Weekly planning”" });
     await fromMeeting.first().waitFor();
     const meetingTodos = await fromMeeting.locator("strong").allInnerTexts();
@@ -227,6 +235,7 @@ try {
     expect(meetingTodos.some((title) => /海报|poster/i.test(title)), "the poster to-do wasn't suggested from the meeting");
     await shot(page, "08-meeting-todos");
 
+    await tab("Memory");
     const venue = await ask("讲座的场地定在哪里？");
     expect(/图书馆|library/i.test(venue.answer) && venue.sources.some((s) => s.includes("Weekly planning")), "Ask didn't find the venue in the meeting");
     await shot(page, "07-ask");
@@ -234,8 +243,8 @@ try {
     expect(/Sam/i.test(poster.answer), "Ask didn't find who makes the poster");
     await page.locator(".ask-source", { hasText: "Weekly planning" }).first().click();
     await page.locator("#activeMeetingTitle", { hasText: "Weekly planning" }).waitFor();
-    await page.getByRole("button", { name: "← All meetings" }).click();
-    await page.locator("#askSection").waitFor();
+    await page.getByRole("button", { name: "Back to meetings" }).click();
+    await tab("Memory");
 
     if (WAV) {
       const tomorrow = await ask("明天有什么安排？");
@@ -245,7 +254,7 @@ try {
 
   step("the same screen on a phone");
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator("#plansSection").scrollIntoViewIfNeeded();
+  await tab("Plans");
   await shot(page, "06-phone");
 
   await outsider.dispose();

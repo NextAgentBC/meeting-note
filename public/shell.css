@@ -1,0 +1,197 @@
+/* The app shell: top bar, one view at a time, and the tab bar. Phone first; on wide screens the tab
+   bar becomes a rail on the left. Colours come from styles.css. */
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 14px 16px calc(96px + env(safe-area-inset-bottom));
+}
+
+.icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(11, 14, 18, 0.88);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+.appbar-back { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--text); border: 0; background: none; cursor: pointer; }
+.appbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; grid-column: 2; }
+.appbar-back.hidden + .appbar-title { grid-column: 1 / 3; padding-left: 4px; }
+.appbar-back:not(.hidden) + .appbar-title .brand-mark { display: none; }
+.appbar-title .brand-mark { flex: none; width: 28px; height: 28px; padding: 6px; }
+.appbar-title h1 { margin: 0; overflow: hidden; font-size: 17px; font-weight: 750; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.appbar-actions { display: flex; align-items: center; gap: 8px; grid-column: 3; }
+.status-pill { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.status-pill.recording { color: #ffd1d0; border: 1px solid rgba(255, 107, 103, 0.45); background: rgba(255, 107, 103, 0.14); cursor: pointer; }
+.status-pill.recording i { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: pulse 1.4s infinite; }
+.status-pill.offline { color: var(--amber); border: 1px solid rgba(255, 202, 104, 0.35); }
+
+/* ── Views ───────────────────────────────────────────────────────────────── */
+
+.app-view { display: grid; gap: 14px; }
+.card { padding: 18px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(255,255,255,.012)); }
+.field { display: block; }
+.field > span { display: block; margin-bottom: 8px; color: #aeb8c2; font-size: 12px; letter-spacing: 0.03em; }
+.hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.hint.center { text-align: center; }
+.list-head { display: flex; align-items: baseline; justify-content: space-between; margin-top: 10px; }
+.list-head h2 { margin: 0; font-size: 18px; }
+.footnote { margin: 4px 0 0; color: #6f7b86; font-size: 11px; text-align: center; }
+
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: #0c1117; }
+.segmented label, .segmented button { position: relative; display: grid; place-items: center; min-height: 40px; padding: 0 10px; color: #aeb8c2; border: 0; border-radius: 10px; background: none; font: inherit; font-size: 13px; font-weight: 650; text-align: center; cursor: pointer; }
+.segmented input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented label:has(input:checked), .segmented button[aria-selected="true"] { color: #071311; background: var(--cyan); }
+.segmented label.unsupported { display: none; }
+
+/* Meetings */
+.record-card { display: grid; gap: 14px; }
+.record-card input, .record-card select { height: 48px; font-size: 16px; }
+.record-options summary { color: #aeb8c2; font-size: 13px; cursor: pointer; }
+.record-options[open] summary { margin-bottom: 12px; }
+.record-options .form-row { grid-template-columns: 1fr 1fr; }
+.record-button { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 58px; color: #fff; border: 0; border-radius: 16px; background: linear-gradient(180deg, #ff6b67, #e2524e); box-shadow: 0 10px 30px rgba(255, 107, 103, 0.22); font-size: 16px; font-weight: 800; cursor: pointer; }
+.record-button:disabled { opacity: 0.6; cursor: wait; }
+.record-dot { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, 0.35); }
+.meeting-list { margin-top: 0; }
+.meeting-row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; min-height: 68px; padding: 14px 16px; }
+.meeting-row time { display: none; }
+.meeting-row .row-status { min-width: 0; font-size: 12px; }
+.memory-intro { margin: 0; padding: 4px 4px 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+/* One meeting */
+.meeting-head { display: grid; gap: 6px; }
+.meeting-head .eyebrow { margin: 0; }
+.meeting-head h2 { margin: 0; font-family: Georgia, serif; font-size: clamp(28px, 7vw, 40px); font-weight: 400; line-height: 1.08; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.meeting-head .status-badge { justify-self: start; }
+.meeting-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.meeting-toolbar .segmented { min-width: 220px; }
+.meeting-panes { display: grid; gap: 14px; }
+.meeting-panes .pane { min-height: 0; padding: 16px; border-radius: 18px; }
+.meeting-panes .pane-hidden { display: none; }
+.transcript-list { max-height: none; }
+.recorder-panel { margin-bottom: 0; }
+.progress-panel { margin-bottom: 0; }
+
+/* Plans */
+.dictate-card { display: grid; gap: 12px; }
+.plan-block { border-radius: 20px; }
+.plan-block-head { align-items: center; }
+
+/* Memory */
+.ask-form { display: grid; gap: 12px; }
+.ask-row input { height: 50px; }
+.ask-examples { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.ask-examples .chip { flex: none; min-height: 34px; padding: 0 12px; color: #c7d0d8; background: rgba(255,255,255,.03); font: inherit; font-size: 12px; cursor: pointer; }
+.ask-answer { margin-top: 0; }
+.memory-list { display: grid; margin-top: 6px; }
+.memory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.memory-row:last-child { border-bottom: 0; }
+.memory-row button.memory-open { padding: 0; color: var(--text); border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+.memory-row strong { display: block; font-size: 13px; }
+.memory-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.memory-row .kind { color: var(--cyan); font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.compact-select { width: auto; height: 34px; padding: 0 10px; font-size: 12px; border-radius: 10px; }
+
+/* Me */
+.usage-card { margin: 0; border-radius: 20px; }
+.settings-group { overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); }
+.settings-group h3 { margin: 0; padding: 14px 16px 6px; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 60px; padding: 10px 16px; color: var(--text); border: 0; border-top: 1px solid rgba(255,255,255,.06); background: none; font: inherit; text-align: left; cursor: pointer; }
+.settings-group h3 + .settings-row { border-top: 0; }
+.settings-row strong, .settings-row small { display: block; }
+.settings-row strong { font-size: 15px; font-weight: 650; }
+.settings-row small { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.settings-row b { color: var(--muted); font-size: 22px; font-weight: 400; }
+.settings-row.static { cursor: default; }
+.settings-row.danger { justify-content: center; border: 1px solid rgba(255,107,103,.28); border-radius: 16px; background: rgba(255,107,103,.06); }
+.settings-row.danger strong { color: #ff8a86; }
+
+/* ── Tab bar ─────────────────────────────────────────────────────────────── */
+
+.tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 25;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 6px 8px env(safe-area-inset-bottom);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 14, 18, 0.94);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+.tabbar a { position: relative; display: grid; justify-items: center; gap: 3px; min-height: 54px; padding-top: 5px; color: #7d8894; text-decoration: none; font-size: 11px; font-weight: 650; }
+.tabbar a[aria-current="page"] { color: var(--cyan); }
+.tab-badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; color: #1a1406; border-radius: 999px; background: var(--amber); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
+
+body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
+
+/* Things that sat at the bottom now clear the tab bar. */
+.toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.reauth-banner { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.recording-active .stop-button { position: fixed; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); left: 12px; z-index: 30; width: auto; height: 56px; margin: 0; border-color: rgba(255,107,103,.44); background: rgba(69,24,27,.96); box-shadow: 0 12px 35px rgba(0,0,0,.5); font-weight: 750; }
+.recording-active .recorder-panel { padding-bottom: 80px; }
+
+/* ── Sheets ──────────────────────────────────────────────────────────────── */
+
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92dvh;
+  margin: auto auto 0;
+  padding: 0;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  background: #121820;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+}
+.sheet::backdrop { background: rgba(4, 6, 9, 0.7); }
+.sheet-body { padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); }
+.sheet h2 { margin: 0 0 10px; font-size: 21px; }
+.sheet h3 { margin: 18px 0 6px; font-size: 14px; }
+.sheet p, .sheet ol { color: #b3bdc6; font-size: 13px; line-height: 1.6; }
+.sheet ol { margin: 0 0 14px; padding-left: 20px; }
+.sheet input[readonly] { margin-top: 8px; font-size: 12px; }
+.sheet-close { width: 100%; min-height: 48px; margin-top: 16px; color: var(--text); border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.04); font: inherit; font-weight: 650; cursor: pointer; }
+
+/* ── Wide screens: a rail on the left, and the note beside the transcript ── */
+
+@media (min-width: 900px) {
+  main { max-width: none; margin: 0 0 0 96px; padding: 28px 40px 60px; }
+  .app-view, #authView { max-width: 880px; margin: 0 auto; }
+  .tabbar { top: calc(56px + env(safe-area-inset-top)); right: auto; width: 96px; grid-template-columns: 1fr; grid-auto-rows: 78px; align-content: start; padding: 12px 8px; border-top: 0; border-right: 1px solid rgba(255,255,255,.07); }
+  .tabbar a { align-content: center; }
+  body:not(.signed-in) main { margin-left: auto; margin-right: auto; }
+  .toast, .reauth-banner { bottom: 24px; }
+  .recording-active .stop-button { position: static; width: 100%; height: 48px; margin-top: 22px; }
+  .recording-active .recorder-panel { padding-bottom: 28px; }
+  .sheet { margin: auto; border-bottom: 1px solid var(--line-strong); border-radius: 22px; }
+}
+
+@media (min-width: 1180px) {
+  #meetingView.app-view { max-width: 1100px; }
+  .meeting-panes { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .meeting-panes .pane-hidden { display: block; }
+  .meeting-toolbar .segmented { display: none; }
+}
+
+@media (display-mode: standalone) {
+  .appbar { padding-top: env(safe-area-inset-top); }
+}

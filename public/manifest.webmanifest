@@ -2,15 +2,22 @@
   "id": "/",
   "name": "Meeting Note · Private AI Notes",
   "short_name": "Meeting Note",
-  "description": "Private meeting recording, transcription and structured notes.",
+  "description": "Record meetings, say your plans, and ask what was said.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "orientation": "any",
   "background_color": "#0b0e12",
   "theme_color": "#0b0e12",
-  "categories": ["productivity", "business", "utilities"],
+  "categories": [
+    "productivity",
+    "business",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -35,9 +42,38 @@
     {
       "name": "New recording",
       "short_name": "Record",
-      "description": "Start a new meeting recording",
+      "description": "Start recording a meeting",
       "url": "/?action=record",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Say a plan",
+      "short_name": "Plan",
+      "description": "Say what you plan to do",
+      "url": "/?action=dictate",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Ask",
+      "short_name": "Ask",
+      "description": "Ask your meetings and plans",
+      "url": "/?action=ask",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

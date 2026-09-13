@@ -78,7 +78,7 @@ try {
   await owner.locator("#ownerName").fill("Test Owner");
   await owner.getByRole("button", { name: /Create my passkey/ }).click();
   let recoveryCode = await saveRecoveryCode(owner, "02-recovery-code");
-  await owner.getByRole("heading", { name: "Recent meetings" }).waitFor();
+  await owner.getByRole("heading", { name: "Your meetings" }).waitFor();
   await shot(owner, "03-dashboard");
 
   step("nobody else can claim it now");
@@ -165,6 +165,7 @@ try {
   await owner.getByText("E2E check").waitFor();
 
   step("sign out, then back in with nothing but the passkey");
+  await owner.getByRole("link", { name: "Me", exact: true }).click();
   await owner.getByRole("button", { name: "Sign out" }).click();
   await owner.getByRole("heading", { name: "Sign in" }).waitFor();
   await shot(owner, "05-sign-in");
@@ -172,7 +173,8 @@ try {
   await owner.getByText("E2E check").waitFor();
 
   step("a phone joins through Add device, and the first device keeps working");
-  await owner.getByRole("button", { name: "Add device" }).click();
+  await owner.getByRole("link", { name: "Me", exact: true }).click();
+  await owner.getByRole("button", { name: /Add a phone or computer/ }).click();
   await owner.waitForFunction(() => document.querySelector("#deviceLink")?.value.includes("#add-device="));
   const deviceLink = await owner.locator("#deviceLink").inputValue();
   if (!(await owner.locator("#deviceQr svg").count())) throw new Error("no QR code for the device link");
@@ -192,7 +194,7 @@ try {
   await latecomer.getByText("expired or has already been used").waitFor();
 
   step("a signed-in device makes a new recovery code, and the old one stops working");
-  await owner.getByRole("button", { name: "Add device" }).click();
+  await owner.getByRole("button", { name: /Recovery code/ }).click();
   owner.once("dialog", (dialog) => dialog.accept());
   await owner.getByRole("button", { name: "Make a new recovery code" }).click();
   await owner.locator("#newRecoveryCodeValue:not(.hidden)").waitFor();
@@ -208,10 +210,11 @@ try {
   if (staleCode !== 403) throw new Error(`the replaced recovery code still worked (${staleCode})`);
 
   step("both devices sign in with their own passkeys");
+  await phone.getByRole("link", { name: "Me", exact: true }).click();
   await phone.getByRole("button", { name: "Sign out" }).click();
   await phone.getByRole("button", { name: /Sign in with your passkey/ }).click();
   await phone.getByText("E2E check").waitFor();
-  await owner.reload();
+  await owner.goto(BASE);
   await owner.getByText("E2E check").waitFor();
 
   step("a lost device: the recovery code, typed loosely, puts a new passkey on a new device");

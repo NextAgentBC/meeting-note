@@ -78,7 +78,7 @@ try {
   await owner.locator("#ownerName").fill("Test Owner");
   await owner.getByRole("button", { name: /Create my passkey/ }).click();
   const recoveryCode = await saveRecoveryCode(owner, "02-recovery-code");
-  await owner.getByText("No recordings yet").waitFor();
+  await owner.getByRole("heading", { name: "Recent meetings" }).waitFor();
   await shot(owner, "03-dashboard");
 
   step("nobody else can claim it now");

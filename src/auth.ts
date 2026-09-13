@@ -17,6 +17,10 @@ import type { Env } from "./types";
 // (Face ID, a fingerprint or the screen lock). There are no passwords to leak, and no
 // Cloudflare Access, which would need a card on file. Checking a passkey signature takes
 // well under a millisecond, so it fits the free plan's 10 ms of CPU per request.
+//
+// Nothing needs choosing at deploy time. The first person to open a fresh copy claims it,
+// straight after installing, and is shown a recovery code once. That code (or a SETUP_CODE
+// secret, for anyone who configures one) is the way back in after losing every device.
 
 type AppContext = Context<{ Bindings: Env }>;
 
@@ -74,12 +78,36 @@ async function secretsMatch(a: string, b: string): Promise<boolean> {
   return difference === 0;
 }
 
+// Crockford base32: no I, L, O or U, so a code copied by hand or read aloud survives.
+const RECOVERY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/** 16 characters, 80 random bits, shown as XXXX-XXXX-XXXX-XXXX. */
+export function newRecoveryCode(): string {
+  const bytes = randomBytes(16);
+  let code = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    code += RECOVERY_ALPHABET[bytes[i] % 32]; // 256 is a multiple of 32, so there is no bias
+    if (i % 4 === 3 && i < bytes.length - 1) code += "-";
+  }
+  return code;
+}
+
+/** Forgives how a person types it back: case, spaces, dashes, and O/I/L for 0/1. */
+export function normalizeRecoveryCode(value: string): string {
+  return value.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+}
+
+async function recoveryHash(code: string): Promise<string> {
+  return sha256Hex(normalizeRecoveryCode(code));
+}
+
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 interface OwnerRow {
   id: string;
   name: string;
   webauthn_user_id: string;
+  recovery_hash?: string | null;
 }
 
 function isHttps(c: AppContext): boolean {
@@ -117,7 +145,7 @@ async function ownerForSession(c: AppContext): Promise<OwnerRow | null> {
 }
 
 async function currentOwner(db: D1Database): Promise<OwnerRow | null> {
-  return db.prepare("SELECT id, name, webauthn_user_id FROM owners LIMIT 1").first<OwnerRow>();
+  return db.prepare("SELECT id, name, webauthn_user_id, recovery_hash FROM owners LIMIT 1").first<OwnerRow>();
 }
 
 // ── Middleware ───────────────────────────────────────────────────────────────
@@ -170,12 +198,6 @@ async function takeChallenge(db: D1Database, id: string, purpose: "register" | "
   return row;
 }
 
-async function checkSetupCode(expected: string | undefined, given: string): Promise<boolean> {
-  const code = expected?.trim();
-  if (code && !(await secretsMatch(given.trim(), code))) fail(403, "wrong_setup_code", "That setup code doesn't match.");
-  return Boolean(code);
-}
-
 async function readBody<T extends z.ZodTypeAny>(c: AppContext, schema: T): Promise<z.infer<T>> {
   const parsed = schema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) fail(400, "invalid_input", parsed.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
@@ -184,7 +206,7 @@ async function readBody<T extends z.ZodTypeAny>(c: AppContext, schema: T): Promi
 
 const registerBody = z.discriminatedUnion("purpose", [
   z.object({ purpose: z.literal("setup"), setupCode: z.string().max(200).default(""), name: z.string().trim().min(1).max(80) }),
-  z.object({ purpose: z.literal("owner-recover"), setupCode: z.string().min(1).max(200) }),
+  z.object({ purpose: z.literal("owner-recover"), code: z.string().trim().min(1).max(200) }),
   z.object({ purpose: z.literal("add-device") })
 ]);
 
@@ -224,15 +246,20 @@ authRoutes.post("/register/options", async (c) => {
 
   if (body.purpose === "setup") {
     if (await currentOwner(db)) fail(409, "already_set_up", "This Meeting Note already has an owner.");
-    await checkSetupCode(c.env.SETUP_CODE, body.setupCode);
+    const setupCode = c.env.SETUP_CODE?.trim();
+    if (setupCode && !(await secretsMatch(body.setupCode.trim(), setupCode))) {
+      fail(403, "wrong_setup_code", "That setup code doesn't match.");
+    }
     pending = { purpose: "setup", name: body.name, webauthnUserId: randomToken() };
   } else if (body.purpose === "owner-recover") {
-    // The way back in after losing every device: the setup code chosen at deploy time.
-    if (!(await checkSetupCode(c.env.SETUP_CODE, body.setupCode))) {
-      fail(403, "no_setup_code", "This app has no setup code, so it can't be recovered this way.");
-    }
+    // The way back in after losing every device: the recovery code shown at setup, or the
+    // SETUP_CODE secret if this deployment has one.
     const owner = await currentOwner(db);
     if (!owner) fail(409, "not_set_up", "Nobody has set this app up yet.");
+    const setupCode = c.env.SETUP_CODE?.trim();
+    const byRecoveryCode = Boolean(owner.recovery_hash) && (await secretsMatch(await recoveryHash(body.code), owner.recovery_hash!));
+    const bySetupCode = Boolean(setupCode) && (await secretsMatch(body.code, setupCode!));
+    if (!byRecoveryCode && !bySetupCode) fail(403, "wrong_recovery_code", "That recovery code doesn't match.");
     pending = { purpose: "owner-recover", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id };
   } else {
     const owner = await ownerForSession(c);
@@ -287,13 +314,15 @@ authRoutes.post("/register/verify", async (c) => {
       .bind(info.credential.id, ownerId, toBase64Url(info.credential.publicKey), info.credential.counter, JSON.stringify(info.credential.transports ?? []), now);
 
   let ownerId: string;
+  let recoveryCode: string | null = null;
   if (pending.purpose === "setup") {
     ownerId = `own_${randomToken(12)}`;
+    recoveryCode = newRecoveryCode();
     try {
       // One transaction: the owner never exists without a passkey.
       await db.batch([
-        db.prepare("INSERT INTO owners (id, name, webauthn_user_id, created_at) VALUES (?, ?, ?, ?)")
-          .bind(ownerId, pending.name, pending.webauthnUserId, now),
+        db.prepare("INSERT INTO owners (id, name, webauthn_user_id, recovery_hash, created_at) VALUES (?, ?, ?, ?, ?)")
+          .bind(ownerId, pending.name, pending.webauthnUserId, await recoveryHash(recoveryCode), now),
         insertCredential(ownerId)
       ]);
     } catch (error) {
@@ -302,10 +331,13 @@ authRoutes.post("/register/verify", async (c) => {
     }
   } else if (pending.purpose === "owner-recover") {
     ownerId = pending.ownerId!;
-    // Recovery means the old passkeys are lost or can't be trusted: replace them and sign out everywhere.
+    recoveryCode = newRecoveryCode();
+    // Recovery means the old passkeys are lost or can't be trusted: replace them, sign out
+    // everywhere, and retire the code that was just used.
     await db.batch([
       db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
       db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
+      db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
       insertCredential(ownerId)
     ]);
   } else {
@@ -316,7 +348,7 @@ authRoutes.post("/register/verify", async (c) => {
   }
 
   await startSession(c, ownerId);
-  return c.json({ ok: true, name: pending.name ?? null });
+  return c.json({ ok: true, name: pending.name ?? null, recoveryCode });
 });
 
 authRoutes.post("/login/options", async (c) => {

@@ -5,15 +5,16 @@
 //   cd e2e && npm install && npx playwright install chromium
 //   npm test                                           (in e2e/, another terminal)
 //
-// Environment: BASE (default http://localhost:8787), SETUP_CODE (default local-dev-code,
-// matching .dev.vars), PW_CHANNEL=chrome to use the installed Google Chrome, SHOTS=<folder>
-// to save screenshots.
+// Environment: BASE (default http://localhost:8787); SETUP_CODE, only if the deployment has that
+// secret; PW_CHANNEL=chrome to use the installed Google Chrome; SHOTS=<folder> to save screenshots;
+// AUDIO_FILE=<speech.mp3> to send real speech through a deployed copy (Workers AI isn't local).
 
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE ?? "http://localhost:8787";
-const SETUP_CODE = process.env.SETUP_CODE ?? "local-dev-code";
+const SETUP_CODE = process.env.SETUP_CODE ?? "";
 const SHOTS = process.env.SHOTS;
+const CODE_SHAPE = /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/;
 
 async function deviceWithPasskeys(browser) {
   const context = await browser.newContext({ locale: "en-US", viewport: { width: 1200, height: 860 } });
@@ -45,6 +46,16 @@ async function shot(page, name) {
   }
 }
 
+/** Reads the recovery code off the screen, checks its shape, and continues into the app. */
+async function saveRecoveryCode(page, shotName) {
+  await page.getByRole("heading", { name: "Save your recovery code" }).waitFor();
+  const code = (await page.locator("#recoveryCode").innerText()).trim();
+  if (!CODE_SHAPE.test(code)) throw new Error(`unexpected recovery code: ${code}`);
+  await shot(page, shotName);
+  await page.getByRole("button", { name: /I've saved it/ }).click();
+  return code;
+}
+
 const step = (name) => console.log(`• ${name}`);
 const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
 
@@ -55,16 +66,20 @@ try {
   const refused = await stranger.evaluate(async () => (await fetch("/api/meetings")).status);
   if (refused !== 401) throw new Error(`expected 401 from /api/meetings, got ${refused}`);
 
-  step("the owner sets it up with the setup code and a passkey");
+  step("the owner claims the fresh copy with a passkey and is shown a recovery code");
   const owner = await deviceWithPasskeys(browser);
   await owner.goto(BASE);
   await owner.getByRole("heading", { name: "Set up your Meeting Note" }).waitFor();
   await shot(owner, "01-setup");
-  await owner.locator("#setupCode").fill(SETUP_CODE);
+  if (await owner.locator("#setupCode").isVisible()) {
+    if (!SETUP_CODE) throw new Error("this deployment asks for a setup code: pass SETUP_CODE");
+    await owner.locator("#setupCode").fill(SETUP_CODE);
+  }
   await owner.locator("#ownerName").fill("Test Owner");
   await owner.getByRole("button", { name: /Create my passkey/ }).click();
+  const recoveryCode = await saveRecoveryCode(owner, "02-recovery-code");
   await owner.getByText("No recordings yet").waitFor();
-  await shot(owner, "02-dashboard");
+  await shot(owner, "03-dashboard");
 
   step("nobody else can claim it now");
   await stranger.reload();
@@ -89,7 +104,6 @@ try {
   console.log(`  meeting ${upload.id}: chunk stored`);
 
   if (process.env.AUDIO_FILE) {
-    // Deployed copies only: Workers AI isn't available locally.
     step("real speech comes back as a transcript and a note");
     const { readFile } = await import("node:fs/promises");
     const base64 = (await readFile(process.env.AUDIO_FILE)).toString("base64");
@@ -133,7 +147,7 @@ try {
   await owner.context().clearCookies();
   await owner.getByRole("button", { name: "Refresh" }).click();
   await owner.getByRole("button", { name: "Sign in again" }).waitFor();
-  await shot(owner, "03-reauth-banner");
+  await shot(owner, "04-reauth-banner");
   await owner.getByRole("button", { name: "Sign in again" }).click();
   await owner.locator("#reauthBanner").waitFor({ state: "hidden" });
   await owner.getByRole("button", { name: "Refresh" }).click();
@@ -142,22 +156,32 @@ try {
   step("sign out, then back in with nothing but the passkey");
   await owner.getByRole("button", { name: "Sign out" }).click();
   await owner.getByRole("heading", { name: "Sign in" }).waitFor();
-  await shot(owner, "04-sign-in");
+  await shot(owner, "05-sign-in");
   await owner.getByRole("button", { name: /Sign in with your passkey/ }).click();
   await owner.getByText("E2E check").waitFor();
 
-  step("a lost device: the setup code puts a new passkey on a new device");
+  step("a lost device: the recovery code, typed loosely, puts a new passkey on a new device");
   const ownerNewDevice = await deviceWithPasskeys(browser);
   await ownerNewDevice.goto(BASE);
-  await ownerNewDevice.getByRole("button", { name: "Lost your passkey? Use your setup code" }).click();
-  await ownerNewDevice.locator("#recoverCode").fill(SETUP_CODE);
+  await ownerNewDevice.getByRole("button", { name: /Lost your passkey/ }).click();
+  await ownerNewDevice.locator("#recoverCode").fill(recoveryCode.toLowerCase().replace(/-/g, " "));
   await ownerNewDevice.getByRole("button", { name: /Replace my passkey/ }).click();
+  const newRecoveryCode = await saveRecoveryCode(ownerNewDevice, "06-new-recovery-code");
+  if (newRecoveryCode === recoveryCode) throw new Error("the recovery code was not replaced");
   await ownerNewDevice.getByText("E2E check").waitFor();
 
   step("the old device is signed out, and its passkey no longer works");
   await owner.reload();
   await owner.getByRole("button", { name: /Sign in with your passkey/ }).click();
   await owner.getByText("isn't registered here").waitFor();
+
+  step("a used recovery code doesn't work twice");
+  const intruder = await deviceWithPasskeys(browser);
+  await intruder.goto(BASE);
+  await intruder.getByRole("button", { name: /Lost your passkey/ }).click();
+  await intruder.locator("#recoverCode").fill(recoveryCode);
+  await intruder.getByRole("button", { name: /Replace my passkey/ }).click();
+  await intruder.getByText("doesn't match").waitFor();
 
   console.log("All Meeting Note sign-in flows passed.");
 } catch (error) {

@@ -3,6 +3,10 @@
 Record a meeting or a workshop in your browser. Your own free Cloudflare account transcribes it, in
 English and Chinese, and writes a structured note every five minutes while you are still talking.
 
+**New to Cloudflare?** Start with the [plain-language Chinese setup guide](QUICKSTART.zh-CN.md).
+You do not need to learn Cloudflare or write code. It is simply the free account that runs your
+private copy of Meeting Note.
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/NextAgentBC/meeting-note)
 
 - Record the microphone, or the microphone plus a Zoom tab's audio (desktop Chrome).
@@ -30,9 +34,10 @@ The app shows how much recording today's allowance still affords, before you sta
 ## Put it online
 
 1. Make two free accounts, if you don't have them: [Cloudflare](https://dash.cloudflare.com/sign-up) and [GitHub](https://github.com/signup).
-2. Press **Deploy to Cloudflare** above. When it asks for **SETUP_CODE**, type any code you'll remember.
-3. Open `https://meeting-note.<your-name>.workers.dev`, type the setup code and your name, and create
-   your passkey. From then on, only your devices can sign in.
+2. Press **Deploy to Cloudflare** above and keep the suggested settings. It takes a few minutes.
+3. Straight away, open `https://meeting-note.<your-name>.workers.dev`, type your name and create your
+   passkey. The app then shows a **recovery code** once: take a screenshot of it. From then on, only
+   your devices can sign in.
 
 Install it like an app: in Chrome, the install icon in the address bar; on an iPhone, Safari → Share →
 Add to Home Screen.
@@ -57,8 +62,13 @@ Phones can't record another app's audio, so record calls from a computer.
   section that did transcribe.
 - **Your sign-in ran out mid-meeting:** a banner says so. Recording carries on, the audio waits on your
   device, and it uploads once you press **Sign in again**.
-- **You lost your passkey:** on the sign-in screen, choose **Lost your passkey? Use your setup code**. It
-  replaces your old passkeys and signs you out everywhere else.
+- **You lost your passkey:** on the sign-in screen, choose **Lost your passkey? Use your recovery code**.
+  It puts a new passkey on the device you're holding, signs you out everywhere else, and shows a new
+  recovery code; the old one stops working.
+- **It asks you to sign in the very first time you open it:** someone set it up before you did. In the
+  Cloudflare dashboard, open the `meeting-note` Worker → **Settings** → **Variables and Secrets** and add a
+  secret named `SETUP_CODE` with any code. Then choose **Lost your passkey? Use your recovery code** and
+  type that code: their passkeys and sessions are removed and the app is yours.
 - **Today's AI allowance is used up:** transcription pauses until 00:00 UTC. Open the meeting afterwards
   and press **Retry**.
 
@@ -82,8 +92,10 @@ is in Simplified Chinese, and every transcript and note is then converted charac
 regional words are left as the speaker said them. Set `CHINESE_SCRIPT` to `off` to keep the model's output.
 
 **Sign-in:** a passkey signature check takes well under a millisecond, which fits the free plan's
-10 ms of CPU per request. The database stores only hashes of session tokens. Requests that change data
-must come from the app's own address.
+10 ms of CPU per request. The database stores only hashes of session tokens and of the recovery code.
+Requests that change data must come from the app's own address. Nothing is asked at deploy time: a fresh
+copy belongs to whoever sets it up first, so open yours right after deploying. To require a code at setup
+instead, add a `SETUP_CODE` secret to the Worker.
 
 ## Privacy
 
@@ -109,14 +121,13 @@ Change these in `wrangler.jsonc` (or in the Cloudflare dashboard, under the Work
 
 ```sh
 npm install
-cp .dev.vars.example .dev.vars   # then put a setup code in .dev.vars
-npm run dev                      # http://localhost:8787
+npm run dev      # http://localhost:8787
 npm test
 ```
 
 Locally everything runs on your machine except Workers AI, so recording and uploads work but
-transcription only happens in the deployed app. `e2e/passkeys.mjs` walks through setup, sign-in, an
-expired session and owner recovery in a real browser; the steps are at the top of the file.
+transcription only happens in the deployed app. `e2e/passkeys.mjs` walks through setup, the recovery
+code, sign-in, an expired session and recovery on a new device in a real browser; the steps are at the top of the file.
 
 ## License
 

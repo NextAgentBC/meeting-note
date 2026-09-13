@@ -8,12 +8,7 @@
   "cloudflare": {
     "label": "Meeting Note",
     "products": ["Workers", "D1", "KV", "Queues", "Workers AI"],
-    "categories": ["ai"],
-    "bindings": {
-      "SETUP_CODE": {
-        "description": "Pick any code you'll remember. You type it once, when you open your new Meeting Note and create your passkey, so nobody else can claim it first."
-      }
-    }
+    "categories": ["ai"]
   },
   "scripts": {
     "dev": "npm run db:local && wrangler dev --local",

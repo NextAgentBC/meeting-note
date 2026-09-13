@@ -99,6 +99,7 @@ function showPanel(name) {
   show($("#setupForm"), name === "setup");
   show($("#signInPanel"), name === "signin");
   show($("#recoverForm"), name === "recover");
+  show($("#recoveryPanel"), name === "recovery");
   show($("#authError"), false);
 }
 
@@ -117,11 +118,23 @@ function enterApp() {
   whenSignedIn = null;
 }
 
-async function run(button, action) {
+/** Shown once after setup, and again after a recovery replaces the old code. */
+function showRecoveryCode(code, replaced) {
+  $("#authTitle").textContent = "Save your recovery code";
+  $("#authLede").textContent = replaced
+    ? "Your old recovery code no longer works. This is the new one. Take a screenshot or write it down now: it won't be shown again."
+    : "If you ever lose the phone or computer you just used, this code gets you back in. Take a screenshot or write it down now: it won't be shown again.";
+  $("#recoveryCode").textContent = code;
+  $("#copyRecoveryCode").textContent = "Copy the code";
+  showPanel("recovery");
+}
+
+async function run(button, action, { replacesCode = false } = {}) {
   button.disabled = true;
   try {
-    await action();
-    enterApp();
+    const result = await action();
+    if (result?.recoveryCode) showRecoveryCode(result.recoveryCode, replacesCode);
+    else enterApp();
   } catch (error) {
     showError(error);
   } finally {
@@ -156,7 +169,7 @@ export async function ensureSignedIn() {
     showPanel("signin");
   } else {
     $("#authTitle").textContent = "Set up your Meeting Note";
-    $("#authLede").textContent = "You're the first one here. Create your passkey, and this Meeting Note is yours alone.";
+    $("#authLede").textContent = "This copy is brand new. Create your passkey now, and it's yours alone.";
     show($("#setupCodeField"), me.setupCodeRequired);
     show($("#noSetupCodeWarning"), !me.setupCodeRequired);
     $("#setupCode").required = me.setupCodeRequired;
@@ -181,10 +194,23 @@ $("#hideRecover").addEventListener("click", () => showPanel("signin"));
 
 $("#recoverForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  void run(event.submitter ?? $("#recoverForm button"), () =>
-    createPasskey({ purpose: "owner-recover", setupCode: $("#recoverCode").value })
+  void run(
+    event.submitter ?? $("#recoverForm button"),
+    () => createPasskey({ purpose: "owner-recover", code: $("#recoverCode").value }),
+    { replacesCode: true }
   );
 });
+
+$("#copyRecoveryCode").addEventListener("click", async (event) => {
+  try {
+    await navigator.clipboard.writeText($("#recoveryCode").textContent);
+    event.currentTarget.textContent = "Copied";
+  } catch {
+    // Clipboard blocked: the code is on screen and selectable.
+  }
+});
+
+$("#recoverySaved").addEventListener("click", () => enterApp());
 
 $("#signOutButton").addEventListener("click", async () => {
   await post("/api/auth/logout").catch(() => undefined);

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0e12" />
-    <meta name="description" content="Record a meeting; your own Cloudflare account transcribes it and writes the notes." />
+    <meta name="description" content="Record a meeting and get the transcript, summary and to-dos." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -20,7 +20,7 @@
     <header class="topbar">
       <button class="brand" id="homeButton" type="button" aria-label="Back to meetings">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><strong>Meeting Note</strong><small>On your own Cloudflare account</small></span>
+        <span><strong>Meeting Note</strong><small>Your private meeting recorder</small></span>
       </button>
       <div class="top-actions">
         <button id="installButton" class="install-button hidden" type="button">Install app</button>
@@ -32,17 +32,17 @@
       <section id="authView" class="view hidden">
         <div class="auth-wrap">
           <div class="new-card auth-card">
-            <p class="eyebrow">Meeting Note · passkey sign-in</p>
+            <p class="eyebrow">Meeting Note · private sign-in</p>
             <h1 id="authTitle">Sign in</h1>
             <p id="authLede" class="lede"></p>
 
             <form id="setupForm" class="auth-form hidden">
               <label id="setupCodeField">
-                <span>Setup code</span>
+                <span>One-time setup code</span>
                 <input id="setupCode" autocomplete="off" />
-                <small>The code you chose when you deployed this app.</small>
+                <small>Use the code you chose during the one-time installation.</small>
               </label>
-              <p id="noSetupCodeWarning" class="auth-warning hidden">This app has no setup code, so whoever finishes this step first owns it. Do it now.</p>
+              <p id="noSetupCodeWarning" class="auth-warning hidden">Do this straight after installing: whoever finishes this step first becomes the owner.</p>
               <label>
                 <span>Your name</span>
                 <input id="ownerName" maxlength="80" autocomplete="name" required />
@@ -52,18 +52,24 @@
 
             <div id="signInPanel" class="auth-form hidden">
               <button id="signInButton" class="primary-button" type="button"><span>Sign in with your passkey</span><b>→</b></button>
-              <button id="showRecover" class="auth-link" type="button">Lost your passkey? Use your setup code</button>
+              <button id="showRecover" class="auth-link" type="button">Lost your passkey? Use your recovery code</button>
             </div>
 
             <form id="recoverForm" class="auth-form hidden">
               <label>
-                <span>Setup code</span>
-                <input id="recoverCode" autocomplete="off" required />
-                <small>Replaces your old passkeys with a new one on this device, and signs you out everywhere else.</small>
+                <span>Recovery code</span>
+                <input id="recoverCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
+                <small>The code you saved when you set up Meeting Note. It puts a new passkey on this device, signs you out everywhere else, and gives you a new code.</small>
               </label>
               <button class="primary-button" type="submit"><span>Replace my passkey</span><b>→</b></button>
               <button id="hideRecover" class="auth-link" type="button">← Back to sign in</button>
             </form>
+
+            <div id="recoveryPanel" class="auth-form hidden">
+              <p id="recoveryCode" class="recovery-code"></p>
+              <button id="copyRecoveryCode" class="auth-link" type="button">Copy the code</button>
+              <button id="recoverySaved" class="primary-button" type="button"><span>I've saved it — open Meeting Note</span><b>→</b></button>
+            </div>
 
             <p id="authError" class="auth-error hidden" role="alert"></p>
           </div>
@@ -75,7 +81,7 @@
           <div class="hero-copy">
             <p class="eyebrow">A quieter way to remember</p>
             <h1>Your conversation,<br /><em>made useful.</em></h1>
-            <p class="lede">Record a meeting or workshop. Audio is uploaded in resilient chunks to your own Cloudflare account and transcribed as you speak, and the note is written in five-minute sections while you are still talking.</p>
+            <p class="lede">Name the meeting and press Record. As people speak, Meeting Note safely saves the audio in small pieces, turns it into text and prepares the summary and to-dos.</p>
           </div>
 
           <form id="newMeetingForm" class="new-card">
@@ -127,7 +133,7 @@
         <section id="usageCard" class="usage-card hidden">
           <div class="usage-head">
             <div>
-              <p class="eyebrow">Workers AI budget · today</p>
+              <p class="eyebrow">Free recording time · today</p>
               <h2 id="usageHeadline">Checking…</h2>
             </div>
             <span class="usage-reset" id="usageReset"></span>

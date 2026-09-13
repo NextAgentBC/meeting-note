@@ -1,4 +1,4 @@
-const CACHE = "meetingnote-shell-v8";
+const CACHE = "meetingnote-shell-v9";
 const SHELL = [
   "/",
   "/index.html",
@@ -6,6 +6,8 @@ const SHELL = [
   "/app.js",
   "/auth.js",
   "/auth.css",
+  "/plans.js",
+  "/plans.css",
   "/manifest.webmanifest",
   "/icons/icon.svg",
   "/icons/icon-192.png",
@@ -31,7 +33,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith("/api/")) {
+  // Live data, and the private calendar feed, never go into the offline cache.
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/cal/")) {
     event.respondWith(fetch(request));
     return;
   }

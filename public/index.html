@@ -15,6 +15,7 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/auth.css" />
+    <link rel="stylesheet" href="/plans.css" />
   </head>
   <body class="auth-pending">
     <header class="topbar">
@@ -130,6 +131,49 @@
           </form>
         </div>
 
+        <section id="plansSection" class="plans-section">
+          <div class="section-title">
+            <div><p class="eyebrow">Your plans</p><h2>Say it, and it goes on your calendar</h2></div>
+            <button id="calendarSyncButton" class="text-button" type="button">Calendar sync</button>
+          </div>
+
+          <div class="plans-grid">
+            <div class="new-card dictate-card">
+              <button id="dictateButton" class="dictate-button" type="button" aria-describedby="dictateHint">
+                <span class="dictate-orb" aria-hidden="true"><i></i></span>
+                <span class="dictate-copy"><strong id="dictateLabel">Tap and say your plans</strong><small id="dictateSub">Up to two minutes · English or 中文</small></span>
+              </button>
+              <button id="dictateCancel" class="text-button dictate-cancel hidden" type="button">Cancel</button>
+              <p id="dictateHint" class="dictate-hint">Like “Next Tuesday at 3, call Cindy about the venue” or “月底前把房租交了”. You check each plan before it goes anywhere.</p>
+              <div id="dictateResult" class="dictate-result hidden" role="status">
+                <p id="dictateMessage"></p>
+                <p id="dictateTranscript" class="dictate-transcript"></p>
+                <button id="dictateRetry" class="text-button hidden" type="button">Try sending it again</button>
+              </div>
+              <form id="quickAddForm" class="quick-add">
+                <input id="quickAddTitle" name="title" placeholder="Or type one, e.g. Dentist" maxlength="200" aria-label="Plan" required />
+                <input id="quickAddDate" name="date" type="date" aria-label="Date" />
+                <input id="quickAddTime" name="time" type="time" aria-label="Time" />
+                <button class="quick-add-button" type="submit">Add</button>
+              </form>
+            </div>
+
+            <div class="plans-lists">
+              <div id="suggestedBlock" class="plan-block suggested hidden">
+                <div class="plan-block-head">
+                  <div><h3>Check these</h3><p>Found in what you said. Nothing is added until you say so.</p></div>
+                  <button id="confirmAllButton" class="text-button" type="button">Add all</button>
+                </div>
+                <div id="suggestedList" class="plan-list"></div>
+              </div>
+              <div class="plan-block">
+                <div class="plan-block-head"><div><h3>Coming up</h3></div></div>
+                <div id="taskList" class="plan-list"><p class="empty-state">Nothing planned yet.</p></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="usageCard" class="usage-card hidden">
           <div class="usage-head">
             <div>
@@ -194,6 +238,29 @@
         </div>
       </section>
     </main>
+
+    <dialog id="calendarDialog" class="calendar-dialog" aria-labelledby="calendarDialogTitle">
+      <div class="calendar-dialog-body">
+        <p class="eyebrow">Calendar sync</p>
+        <h2 id="calendarDialogTitle">Put your plans on your calendar</h2>
+        <p>Every plan you add has two buttons: <b>Google</b> adds it to Google Calendar, and <b>Apple · Outlook</b> opens it in the calendar on your iPhone, Mac or PC.</p>
+        <h3>Or subscribe once</h3>
+        <p>Your calendar then shows everything you add here and keeps up with changes by itself: Apple Calendar within an hour, Google Calendar within a day.</p>
+        <div id="feedEmpty">
+          <button id="createFeedButton" class="primary-button" type="button"><span>Make my private calendar address</span><b>→</b></button>
+        </div>
+        <div id="feedReady" class="hidden">
+          <input id="feedUrl" readonly aria-label="Your private calendar address" />
+          <div class="feed-actions">
+            <button id="copyFeedButton" class="quick-add-button" type="button">Copy address</button>
+            <a id="webcalLink" class="quick-add-button" href="#">iPhone · Mac: subscribe</a>
+            <a class="quick-add-button" href="https://calendar.google.com/calendar/r/settings/addbyurl" target="_blank" rel="noopener">Google: paste it here</a>
+          </div>
+          <p class="feed-warning">Anyone with this address can see the plans you've added. If it gets out, <button id="resetFeedButton" class="auth-link inline" type="button">replace it</button> and subscribe again.</p>
+        </div>
+        <button id="closeCalendarDialog" class="text-button calendar-dialog-close" type="button">Close</button>
+      </div>
+    </dialog>
 
     <div id="reauthBanner" class="reauth-banner hidden" role="alert">
       <span id="reauthMessage">Your sign-in has expired. Recording continues, and new audio waits on this device.</span>

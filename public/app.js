@@ -1,4 +1,5 @@
 import { ensureSignedIn } from "./auth.js";
+import { initPlans, loadPlans } from "./plans.js";
 
 const CHUNK_MS = 3 * 60 * 1000;
 // Input quieter than this counts as nothing reaching the recorder. Normal speech
@@ -448,7 +449,8 @@ function goHome() {
   meetingView.classList.add("hidden");
   dashboardView.classList.remove("hidden");
   void loadMeetings();
-void loadUsage();
+  void loadPlans();
+  void loadUsage();
 }
 
 async function beginMeeting(event) {
@@ -936,11 +938,13 @@ void ensureSignedIn().then(() => {
   signedIn = true;
   void restorePendingUploads().then(resumePendingFinalizations);
   void loadMeetings();
+  void initPlans();
   void loadUsage();
 });
 // After signing in again mid-session, send whatever audio was waiting.
 window.addEventListener("meetingnote:signed-in", () => {
   if (!signedIn) return;
   void processUploads();
+  void loadPlans();
   void loadUsage();
 });

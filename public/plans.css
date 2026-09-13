@@ -1,0 +1,98 @@
+/* Plans: dictation, the suggestion review, the list, and calendar sync. Colours come from styles.css. */
+
+.plans-section { margin: 90px 0 60px; }
+.plans-grid { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 22px; }
+
+.dictate-card { display: grid; gap: 14px; }
+.dictate-button { display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: center; width: 100%; min-height: 96px; padding: 16px; color: var(--text); border: 1px solid rgba(0,229,208,.32); border-radius: 18px; background: linear-gradient(120deg, rgba(0,229,208,.12), rgba(0,229,208,.03)); text-align: left; cursor: pointer; transition: border .2s, background .2s; }
+.dictate-button:hover { border-color: rgba(0,229,208,.55); }
+.dictate-button:disabled { cursor: wait; opacity: .7; }
+.dictate-orb { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: rgba(0,229,208,.14); }
+.dictate-orb i { width: 22px; height: 22px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 22px rgba(0,229,208,.55); transition: transform .08s linear; }
+.dictate-copy strong, .dictate-copy small { display: block; }
+.dictate-copy strong { font-size: 17px; letter-spacing: -.01em; }
+.dictate-copy small { margin-top: 5px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dictating .dictate-button { border-color: rgba(255,107,103,.5); background: linear-gradient(120deg, rgba(255,107,103,.14), rgba(255,107,103,.03)); }
+.dictating .dictate-orb { background: rgba(255,107,103,.14); }
+.dictating .dictate-orb i { background: var(--red); box-shadow: 0 0 22px rgba(255,107,103,.6); }
+.dictate-busy .dictate-orb i { width: 26px; height: 26px; background: transparent; border: 2px solid rgba(0,229,208,.2); border-top-color: var(--cyan); box-shadow: none; animation: spin .8s linear infinite; }
+.dictate-cancel { justify-self: start; color: var(--muted); }
+.dictate-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.dictate-result { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
+.dictate-result p { margin: 0; font-size: 13px; line-height: 1.55; }
+.dictate-transcript { margin-top: 6px !important; color: var(--muted); font-style: italic; }
+.dictate-transcript:empty { display: none; }
+
+.quick-add { display: grid; grid-template-columns: minmax(0, 1fr) 132px 96px auto; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.quick-add input { height: 42px; padding: 0 10px; font-size: 13px; }
+.quick-add input[type="date"], .quick-add input[type="time"] { color-scheme: dark; }
+.quick-add-button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 14px; color: var(--cyan); border: 1px solid rgba(0,229,208,.3); border-radius: 11px; background: var(--cyan-soft); font-size: 12px; font-weight: 750; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.quick-add-button.ghost { color: #c7d0d8; border-color: var(--line); background: rgba(255,255,255,.03); }
+.quick-add-button:disabled { opacity: .5; cursor: wait; }
+
+.plans-lists { display: grid; gap: 16px; }
+.plan-block { padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.plan-block.suggested { border-color: rgba(255,202,104,.35); background: linear-gradient(120deg, rgba(255,202,104,.07), var(--panel)); }
+.plan-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.plan-block-head h3 { margin: 0; font-size: 16px; }
+.plan-block-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.plan-list { margin-top: 8px; }
+.plan-group { margin: 16px 0 4px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.plan-group.overdue { color: var(--red); }
+
+.plan-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.plan-row:last-child { border-bottom: 0; }
+.plan-row.done strong { color: var(--muted); text-decoration: line-through; }
+.plan-check { display: grid; place-items: center; width: 26px; height: 26px; margin-top: 1px; padding: 0; color: #071311; border: 1.5px solid var(--line-strong); border-radius: 50%; background: none; font-size: 13px; font-weight: 900; cursor: pointer; }
+.plan-row.done .plan-check { border-color: var(--cyan); background: var(--cyan); }
+.plan-kind { display: grid; place-items: center; width: 26px; height: 26px; color: var(--amber); font-size: 15px; }
+.plan-main strong { display: block; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.plan-main small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.plan-main small.missing { color: var(--amber); }
+.plan-notes { margin: 5px 0 0; color: #aab5bf; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 290px; }
+.plan-actions .quick-add-button { min-height: 32px; padding: 0 10px; font-size: 11px; }
+.plan-remove { min-height: 32px; padding: 0 8px; color: var(--muted); border: 0; background: none; font-size: 16px; cursor: pointer; }
+.plan-remove:hover { color: var(--red); }
+
+.plan-edit { display: grid; grid-template-columns: minmax(0, 1fr) 132px 96px; gap: 8px; grid-column: 2 / 4; }
+.plan-edit input { height: 40px; padding: 0 10px; font-size: 13px; color-scheme: dark; }
+.plan-edit .notes { grid-column: 1 / 4; }
+.plan-edit .edit-actions { display: flex; gap: 8px; grid-column: 1 / 4; }
+
+.calendar-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--radius); background: #121820; box-shadow: 0 30px 90px rgba(0,0,0,.55); }
+.calendar-dialog::backdrop { background: rgba(4,6,9,.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.calendar-dialog-body { padding: 26px; }
+.calendar-dialog h2 { margin: 0 0 12px; font-size: 22px; }
+.calendar-dialog h3 { margin: 22px 0 6px; font-size: 14px; }
+.calendar-dialog p { margin: 0 0 10px; color: #b3bdc6; font-size: 13px; line-height: 1.6; }
+.calendar-dialog #feedUrl { margin-top: 8px; font-size: 12px; }
+.feed-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+.feed-warning { padding: 10px 12px; border: 1px solid rgba(255,202,104,.25); border-radius: 10px; background: rgba(255,202,104,.06); }
+.auth-link.inline { display: inline; margin: 0; font-size: inherit; }
+.calendar-dialog-close { margin-top: 14px; }
+
+@media (max-width: 900px) {
+  .plans-section { margin-top: 70px; }
+  .plans-grid { grid-template-columns: 1fr; }
+  .dictate-card { max-width: none; }
+}
+
+@media (max-width: 560px) {
+  .plans-section { margin: 56px 0 40px; }
+  .plans-section .section-title { align-items: center; }
+  .plans-grid .dictate-card { order: 0; } /* styles.css moves .new-card first on phones; here it already is */
+  .dictate-button { grid-template-columns: 56px 1fr; min-height: 88px; }
+  .dictate-orb { width: 56px; height: 56px; }
+  .quick-add { grid-template-columns: 1fr 1fr; }
+  .quick-add #quickAddTitle { grid-column: 1 / 3; }
+  .quick-add-button[type="submit"] { grid-column: 1 / 3; min-height: 46px; }
+  .quick-add input { height: 46px; font-size: 16px; }
+  .plan-block { padding: 14px 14px; border-radius: 17px; }
+  .plan-row { grid-template-columns: 30px minmax(0, 1fr); }
+  .plan-actions { grid-column: 2; justify-content: flex-start; max-width: none; }
+  .plan-actions .quick-add-button { min-height: 38px; }
+  .plan-edit { grid-column: 1 / 3; grid-template-columns: 1fr 1fr; }
+  .plan-edit input:first-child, .plan-edit .notes, .plan-edit .edit-actions { grid-column: 1 / 3; }
+  .plan-edit input { height: 46px; font-size: 16px; }
+}

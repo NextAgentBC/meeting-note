@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { extractJson, stripThinking, SummarySchema, summaryJsonSchema, toMarkdown } from "./summary";
+import { extractJson, SummarySchema, summaryJsonSchema, toMarkdown } from "./summary";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
+import { modelText, recordUsage, runModel } from "./ai";
+import { assistantRoutes, calendarFeed } from "./assistant";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import {
   SEGMENT_TARGET_MS,
@@ -70,10 +72,6 @@ function jsonError(message: string, status = 400): Response {
   return Response.json({ ok: false, error: message }, { status });
 }
 
-function runModel(env: Env, model: string, input: unknown): Promise<unknown> {
-  return (env.AI as unknown as { run: (model: string, input: unknown) => Promise<unknown> }).run(model, input);
-}
-
 /** The final merge runs once per meeting, so it can afford a stronger model. */
 function finalModel(env: Env): string {
   return env.FINAL_MODEL || env.SUMMARY_MODEL;
@@ -81,31 +79,6 @@ function finalModel(env: Env): string {
 
 function simplify<T>(env: Env, value: T): T {
   return simplifyEnabled(env.CHINESE_SCRIPT) ? deepSimplify(value) : value;
-}
-
-function usageOf(result: unknown): { neurons: number; raw: string | null } {
-  if (!result || typeof result !== "object") return { neurons: 0, raw: null };
-  const usage = (result as Record<string, unknown>).usage;
-  if (!usage || typeof usage !== "object") return { neurons: 0, raw: null };
-  const neurons = Number((usage as Record<string, unknown>).neurons);
-  return {
-    neurons: Number.isFinite(neurons) ? neurons : 0,
-    raw: JSON.stringify(usage).slice(0, 500)
-  };
-}
-
-/** Never let accounting failures take down a job that otherwise succeeded. */
-async function recordUsage(env: Env, meetingId: string | null, kind: string, model: string, result: unknown, audioMs = 0) {
-  try {
-    const { neurons, raw } = usageOf(result);
-    const now = isoNow();
-    await env.DB.prepare(
-      `INSERT INTO ai_usage (meeting_id, kind, model, neurons, audio_ms, raw_usage, day, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(meetingId, kind, model, neurons, audioMs, raw, now.slice(0, 10), now).run();
-  } catch (error) {
-    console.error("Could not record AI usage", error);
-  }
 }
 
 function meetingView(row: MeetingRow) {
@@ -154,6 +127,7 @@ async function recordEvent(env: Env, meetingId: string, eventType: string, detai
 app.use("/api/*", sameOriginWrites);
 app.use("/api/*", requireOwner);
 app.route("/api/auth", authRoutes);
+app.route("/api", assistantRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare" }));
 
@@ -172,7 +146,7 @@ app.get("/api/usage", async (c) => {
     `SELECT
        (SELECT COALESCE(SUM(neurons), 0) FROM ai_usage WHERE day = ?1) AS today_neurons,
        (SELECT COALESCE(SUM(audio_ms), 0) FROM ai_usage WHERE day = ?1 AND kind = 'asr') AS today_audio_ms,
-       (SELECT COALESCE(SUM(neurons), 0) FROM ai_usage) AS all_neurons,
+       (SELECT COALESCE(SUM(neurons), 0) FROM ai_usage WHERE kind IN ('asr', 'segment', 'final')) AS all_neurons,
        (SELECT COALESCE(SUM(audio_ms), 0) FROM ai_usage WHERE kind = 'asr') AS all_audio_ms`
   ).bind(today).first<{ today_neurons: number; today_audio_ms: number; all_neurons: number; all_audio_ms: number }>();
 
@@ -186,7 +160,8 @@ app.get("/api/usage", async (c) => {
   ).all<{ day: string; neurons: number; audio_ms: number }>();
 
   // Cost per second of *recorded audio*, including the notes written from it —
-  // that is the number that answers "how much longer can I record".
+  // that is the number that answers "how much longer can I record". Dictated plans
+  // still use up today's allowance, but don't change what a meeting costs.
   const measuredSeconds = (totals?.all_audio_ms ?? 0) / 1000;
   const perAudioSecond = measuredSeconds > 60
     ? (totals?.all_neurons ?? 0) / measuredSeconds
@@ -455,6 +430,9 @@ app.get("/api/meetings/:id/export.md", async (c) => {
   });
 });
 
+// A calendar app subscribing to the owner's plans. Outside /api: calendar apps can't sign in.
+app.get("/cal/:file", calendarFeed);
+
 app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
 
 app.onError((error, c) => {
@@ -698,15 +676,6 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
   ).bind(JSON.stringify(note), note.headline.slice(0, 300), now, segment.id).run();
   await recordEvent(env, message.meetingId, "segment_done", `seq=${segment.seq};bullets=${note.bullets.length}`);
   await advance(env, message.meetingId);
-}
-
-function modelText(result: unknown): string {
-  if (typeof result === "string") return stripThinking(result);
-  if (!result || typeof result !== "object") return "";
-  const object = result as Record<string, unknown>;
-  if (object.response !== undefined) return typeof object.response === "string" ? stripThinking(object.response) : JSON.stringify(object.response);
-  if (object.result !== undefined) return typeof object.result === "string" ? stripThinking(object.result) : JSON.stringify(object.result);
-  return JSON.stringify(result);
 }
 
 /** Merge the rolling segment notes into the final structured note. */

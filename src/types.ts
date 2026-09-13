@@ -8,6 +8,8 @@ export interface Env {
   ASR_MODEL: string;
   SUMMARY_MODEL: string;
   FINAL_MODEL: string;
+  /** Reads dates and to-dos out of dictated plans. Falls back to FINAL_MODEL. */
+  PLAN_MODEL?: string;
   CHINESE_SCRIPT: string;
   FREE_DAILY_NEURONS: string;
   WORKERS_PLAN: string;

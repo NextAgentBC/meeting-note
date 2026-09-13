@@ -449,6 +449,35 @@ app.post("/api/meetings/:id/force-summary", async (c) => {
   return c.json({ ok: true, forced: true });
 });
 
+/**
+ * Write the note again from the transcript already saved, for instance after a better model or
+ * prompt. Audio and transcripts are left alone, so a bad note never means recording again.
+ */
+app.post("/api/meetings/:id/rebuild-note", async (c) => {
+  const meetingId = c.req.param("id");
+  const meeting = await findMeeting(c.env.DB, meetingId);
+  if (!meeting) return jsonError("Meeting not found", 404);
+  if (meeting.status === "recording") return jsonError("Stop the recording first", 409);
+
+  const transcripts = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM audio_chunks WHERE meeting_id = ? AND status = 'done' AND LENGTH(TRIM(COALESCE(transcript_text, ''))) > 0"
+  ).bind(meetingId).first<{ count: number }>();
+  if (!transcripts?.count) return jsonError("There's no saved transcript to write a note from", 409);
+
+  const now = isoNow();
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM meeting_segments WHERE meeting_id = ?").bind(meetingId),
+    c.env.DB.prepare(
+      `UPDATE meetings SET status = 'finalizing', summary_status = 'waiting',
+         summary_json = NULL, summary_markdown = NULL, summary_enqueued_at = NULL,
+         force_summary = 0, last_error = NULL, updated_at = ? WHERE id = ?`
+    ).bind(now, meetingId)
+  ]);
+  await recordEvent(c.env, meetingId, "note_rebuild_started", `transcripts=${transcripts.count}`);
+  await advance(c.env, meetingId);
+  return c.json({ ok: true, status: "rebuilding", transcripts: transcripts.count });
+});
+
 app.get("/api/meetings/:id/export.md", async (c) => {
   const meeting = await findMeeting(c.env.DB, c.req.param("id"));
   if (!meeting) return jsonError("Meeting not found", 404);

@@ -75,6 +75,13 @@ describe("reading the model's plans", () => {
     expect(plans[1]).toMatchObject({ kind: "task", title: "Renew licence", due_date: null });
   });
 
+  it("trusts the date words over the model's arithmetic", () => {
+    const [call] = normalizePlan({ items: [{ kind: "event", title: "Call Cindy", date_phrase: "明天下午", date: "2026-09-12", time: "15:00" }] }, SATURDAY_EVENING, VANCOUVER);
+    expect(call.due_date).toBe("2026-09-13");
+    const [unknown] = normalizePlan({ items: [{ kind: "task", title: "Renew passport", date_phrase: "before the trip", date: "2026-10-01" }] }, SATURDAY_EVENING, VANCOUVER);
+    expect(unknown.due_date).toBe("2026-10-01");
+  });
+
   it("keeps a repeat as words, and an empty answer as no plans", () => {
     const [weekly] = normalizePlan({ items: [{ kind: "event", title: "周会", date: "2026-09-14", time: "09:00", repeat: "every Monday" }] }, SATURDAY_EVENING, VANCOUVER);
     expect(weekly.repeat_hint).toBe("every Monday");

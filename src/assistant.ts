@@ -5,6 +5,7 @@ import { isDailyLimitError, modelText, recordUsage, runModel } from "./ai";
 import { sha256Hex } from "./auth";
 import { buildEventIcs, buildFeedIcs, icsFilename, type CalendarTask } from "./calendar";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
+import { dictationItem, planItem, rememberSource, safely } from "./memory";
 import { DICTATION_TRANSCRIBE_PROMPT, normalizePlan, planJsonSchema, planPrompt, type PlanDraft } from "./plans";
 import { extractJson } from "./summary";
 import { cleanDate, cleanTime, scheduleFor, taskView, toCalendarTask, validTimeZone, type TaskRow } from "./tasks";
@@ -102,6 +103,11 @@ function draftToRow(draft: PlanDraft, extra: Pick<TaskRow, "timezone" | "source"
   };
 }
 
+/** Plans are remembered once confirmed; a suggestion or a cancelled plan is forgotten. */
+async function rememberPlan(db: D1Database, row: TaskRow): Promise<void> {
+  await safely("remember a plan", () => rememberSource(db, row.id, row.status === "confirmed" || row.status === "done" ? [planItem(row)] : []));
+}
+
 function calendarTaskWithLink(c: AppContext, row: TaskRow): CalendarTask | null {
   const calendar = toCalendarTask(row);
   return calendar ? { ...calendar, url: new URL(c.req.url).origin } : null;
@@ -168,6 +174,7 @@ assistantRoutes.post("/tasks", async (c) => {
     updated_at: now
   };
   await insertTask(c.env.DB, row).run();
+  await rememberPlan(c.env.DB, row);
   return c.json({ ok: true, task: taskView(row) }, 201);
 });
 
@@ -180,6 +187,7 @@ assistantRoutes.post("/tasks/confirm", async (c) => {
   ));
   const placeholders = parsed.data.ids.map(() => "?").join(", ");
   const { results } = await c.env.DB.prepare(`SELECT * FROM tasks WHERE id IN (${placeholders})`).bind(...parsed.data.ids).all<TaskRow>();
+  for (const row of results) await rememberPlan(c.env.DB, row);
   return c.json({ ok: true, tasks: results.map(taskView) });
 });
 
@@ -219,6 +227,7 @@ assistantRoutes.patch("/tasks/:id", async (c) => {
     `UPDATE tasks SET title = ?, notes = ?, kind = ?, status = ?, all_day = ?, due_date = ?, starts_at = ?, ends_at = ?,
        timezone = ?, updated_at = ? WHERE id = ?`
   ).bind(next.title, next.notes, next.kind, next.status, next.all_day, next.due_date, next.starts_at, next.ends_at, next.timezone, next.updated_at, row.id).run();
+  await rememberPlan(c.env.DB, next);
   return c.json({ ok: true, task: taskView(next) });
 });
 
@@ -226,6 +235,7 @@ assistantRoutes.patch("/tasks/:id", async (c) => {
 assistantRoutes.delete("/tasks/:id", async (c) => {
   const row = await findTask(c.env.DB, c.req.param("id"));
   if (!row) return c.json({ ok: true, removed: "already_gone" });
+  await safely("forget a plan", () => rememberSource(c.env.DB, row.id, []));
   if (row.status === "suggested") {
     await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(row.id).run();
     return c.json({ ok: true, removed: "deleted" });
@@ -312,7 +322,7 @@ async function extractPlans(env: Env, transcript: string, now: number, timeZone:
   const { system, user } = planPrompt(transcript, now, timeZone);
   const request = {
     messages: [{ role: "system", content: system }, { role: "user", content: user }],
-    max_tokens: 1500,
+    max_tokens: 2500, // includes any reasoning before the answer
     temperature: 0.1
   };
   const model = planModel(env);
@@ -383,6 +393,9 @@ assistantRoutes.post("/dictations", async (c) => {
       .bind(dictationId, transcript, durationMs, timeZone, status, lastError, new Date(now).toISOString()),
     ...rows.map((row) => insertTask(env.DB, row))
   ]);
+  await safely("remember a dictation", () =>
+    rememberSource(env.DB, dictationId, [dictationItem({ id: dictationId, transcript, created_at: new Date(now).toISOString() })])
+  );
 
   return c.json({
     ok: true,

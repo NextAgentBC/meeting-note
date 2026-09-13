@@ -7,6 +7,8 @@
 //   cd e2e && BASE=http://localhost:8789 DICTATION_WAV=/path/to/spoken-plan.wav node assistant.mjs
 //
 // DICTATION_WAV plays as the microphone (16-bit PCM WAV). Without it, the dictation step is skipped.
+// MEETING_WAV is uploaded as a one-chunk meeting that then gets asked about; it should say the talk
+// is at the Richmond Public Library (列治文公共图书馆) and that Sam makes the poster.
 // PW_CHANNEL=chrome uses the installed Google Chrome; SHOTS=<folder> saves screenshots.
 
 import { chromium, request } from "playwright";
@@ -143,10 +145,14 @@ try {
     console.log(`  said: ${await page.locator("#dictateMessage").innerText()}`);
     const suggested = page.locator("#suggestedList .plan-row");
     const count = await suggested.count();
+    const lines = [];
     for (let index = 0; index < count; index += 1) {
       const row = suggested.nth(index);
-      console.log(`  suggestion: ${await row.locator("strong").innerText()} — ${await row.locator("small").innerText()}`);
+      lines.push(`${await row.locator("strong").innerText()} — ${await row.locator("small").innerText()}`);
     }
+    for (const line of lines) console.log(`  suggestion: ${line}`);
+    // e.g. DICTATION_EXPECT="Tomorrow · 3:00 PM" for a recording that says 明天下午三点
+    if (process.env.DICTATION_EXPECT) expect(lines.some((line) => line.includes(process.env.DICTATION_EXPECT)), `no suggestion shows "${process.env.DICTATION_EXPECT}"`);
     await shot(page, "04-suggestions");
     expect(count > 0, "dictation found no plans");
     if (count > 1) await page.getByRole("button", { name: "Add all" }).click();
@@ -160,6 +166,57 @@ try {
   const cancelledFeed = await outsider.get(newFeedUrl).then((r) => r.text());
   expect(/SUMMARY:Workshop at OCCA[\s\S]*?STATUS:CANCELLED/.test(cancelledFeed), `the feed doesn't mark it cancelled:\n${cancelledFeed}`);
   await shot(page, "05-plans-final");
+
+  if (process.env.MEETING_WAV) {
+    step("a recorded meeting is remembered, and Ask answers from it with its sources");
+    const { readFile } = await import("node:fs/promises");
+    const wav = await readFile(process.env.MEETING_WAV);
+    const seconds = Math.round((wav.length - 44) / (wav.readUInt32LE(28) || 32000));
+    const meetingId = await page.evaluate(async ({ base64, durationMs }) => {
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const created = await fetch("/api/meetings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "Weekly planning", template: "meeting", language: "auto" })
+      }).then((r) => r.json());
+      const id = created.meeting.id;
+      await fetch(`/api/meetings/${id}/chunks/0`, { method: "PUT", headers: { "content-type": "audio/wav", "x-duration-ms": String(durationMs) }, body: bytes });
+      await fetch(`/api/meetings/${id}/finalize`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedChunks: 1 }) });
+      return id;
+    }, { base64: wav.toString("base64"), durationMs: seconds * 1000 });
+
+    const deadline = Date.now() + 5 * 60_000;
+    let meeting = {};
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(4000);
+      meeting = (await page.evaluate(async (id) => (await fetch(`/api/meetings/${id}`)).json(), meetingId)).meeting ?? {};
+      if (meeting.status === "ready" || meeting.summaryStatus === "failed") break;
+    }
+    expect(meeting.status === "ready", `the meeting didn't finish: ${meeting.status} / ${meeting.summaryStatus} ${meeting.lastError ?? ""}`);
+
+    const ask = async (question) => {
+      await page.locator("#askInput").fill(question);
+      await page.locator("#askForm").getByRole("button", { name: "Ask" }).click();
+      await page.locator("#askAnswer:not(.thinking)").waitFor({ timeout: 90_000 });
+      const answer = await page.locator("#askText").innerText();
+      const sources = await page.locator(".ask-source strong").allInnerTexts();
+      console.log(`  Q: ${question}\n  A: ${answer.replace(/\n+/g, " ")}\n  sources: ${sources.join(" | ") || "(none)"}`);
+      return { answer, sources };
+    };
+
+    await page.reload();
+    const venue = await ask("讲座的场地定在哪里？");
+    expect(/图书馆|library/i.test(venue.answer) && venue.sources.some((s) => s.includes("Weekly planning")), "Ask didn't find the venue in the meeting");
+    await shot(page, "07-ask");
+    const poster = await ask("Who is doing the poster, and by when?");
+    expect(/Sam/i.test(poster.answer), "Ask didn't find who makes the poster");
+    if (WAV) await ask("明天有什么安排？");
+
+    await page.locator(".ask-source", { hasText: "Weekly planning" }).first().click();
+    await page.locator("#activeMeetingTitle", { hasText: "Weekly planning" }).waitFor();
+    await page.getByRole("button", { name: "← All meetings" }).click();
+    await page.locator("#askSection").waitFor();
+  }
 
   step("the same screen on a phone");
   await page.setViewportSize({ width: 390, height: 844 });

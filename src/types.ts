@@ -10,6 +10,8 @@ export interface Env {
   FINAL_MODEL: string;
   /** Reads dates and to-dos out of dictated plans. Falls back to FINAL_MODEL. */
   PLAN_MODEL?: string;
+  /** Answers questions about past meetings and plans. Falls back to FINAL_MODEL. */
+  ASK_MODEL?: string;
   CHINESE_SCRIPT: string;
   FREE_DAILY_NEURONS: string;
   WORKERS_PLAN: string;
@@ -25,7 +27,9 @@ export type JobMessage =
   // "summarize" is the pre-segment name for the final merge; still accepted so
   // messages already in flight during a deploy are not dropped.
   | { type: "final"; meetingId: string }
-  | { type: "summarize"; meetingId: string };
+  | { type: "summarize"; meetingId: string }
+  // Copies a meeting recorded before memory existed into it.
+  | { type: "remember"; meetingId: string };
 
 export interface MeetingRow {
   id: string;

@@ -1,0 +1,257 @@
+import { buildFtsQuery, isJunk, mergeHits, splitForIndex, type MergedHit, type RouteResult, type TimeRange } from "./recall";
+import { parseSegmentNote, type SegmentNote } from "./segment";
+import { SummarySchema, type MeetingSummary } from "./summary";
+import type { TaskRow } from "./tasks";
+
+// Memory: short passages copied from everything the owner records or plans, so a question
+// like "what did we decide about the venue?" can find them again. See migrations/0007_memory.sql.
+
+export type MemoryKind = "transcript" | "section" | "summary" | "plan" | "dictation" | "fact";
+
+export interface MemoryItem {
+  id: string;
+  kind: MemoryKind;
+  sourceId: string;
+  meetingId: string | null;
+  chunkSequence: number | null;
+  title: string;
+  text: string;
+  occurredAt: string;
+}
+
+export interface MemoryRow {
+  id: string;
+  kind: MemoryKind;
+  source_id: string;
+  meeting_id: string | null;
+  chunk_sequence: number | null;
+  title: string;
+  text: string;
+  occurred_at: string;
+  superseded_by: string | null;
+}
+
+const PASSAGE_CHARS = 800;
+
+// ── What goes in ────────────────────────────────────────────────────────────
+
+export function transcriptItems(meeting: { id: string; title: string }, chunk: { id: string; sequence: number; created_at: string }, transcript: string): MemoryItem[] {
+  return splitForIndex(transcript, PASSAGE_CHARS)
+    .filter((piece) => !isJunk(piece))
+    .map((piece, index) => ({
+      id: `transcript:${chunk.id}:${index}`,
+      kind: "transcript",
+      sourceId: chunk.id,
+      meetingId: meeting.id,
+      chunkSequence: chunk.sequence,
+      title: meeting.title,
+      text: piece,
+      occurredAt: chunk.created_at
+    }));
+}
+
+export function sectionItem(meeting: { id: string; title: string }, segment: { id: string; start_chunk: number; updated_at: string }, note: SegmentNote): MemoryItem | null {
+  const lines = [
+    note.headline,
+    ...note.bullets,
+    ...note.decisions.map((decision) => `Decision: ${decision}`),
+    ...note.questions.map((item) => `Q: ${item.question}${item.answer ? ` A: ${item.answer}` : ""}`),
+    ...note.action_items.map((item) => `To do: ${item.task}${item.owner && item.owner !== "Unassigned" ? ` (${item.owner})` : ""}${item.due ? `, due ${item.due}` : ""}`)
+  ].filter((line) => line.trim());
+  if (lines.length <= 1 && !note.bullets.length) return null;
+  return {
+    id: `section:${segment.id}`,
+    kind: "section",
+    sourceId: segment.id,
+    meetingId: meeting.id,
+    chunkSequence: segment.start_chunk,
+    title: meeting.title,
+    text: lines.join("\n").slice(0, 4000),
+    occurredAt: segment.updated_at
+  };
+}
+
+export function summaryItem(meeting: { id: string; title: string; started_at: string }, summary: MeetingSummary): MemoryItem | null {
+  const lines = [
+    summary.overview,
+    ...summary.key_points,
+    ...summary.action_items.map((item) => `To do: ${item.task}${item.owner && item.owner !== "Unassigned" ? ` (${item.owner})` : ""}${item.due ? `, due ${item.due}` : ""}`),
+    ...summary.resources_promised.map((item) => `Promised: ${item}`)
+  ].filter((line) => line.trim());
+  if (!lines.length) return null;
+  return {
+    id: `summary:${meeting.id}`,
+    kind: "summary",
+    sourceId: meeting.id,
+    meetingId: meeting.id,
+    chunkSequence: null,
+    title: meeting.title,
+    text: lines.join("\n").slice(0, 6000),
+    occurredAt: meeting.started_at
+  };
+}
+
+/** A plan is remembered for when it happens, so "what's on next week" finds it. */
+export function planItem(task: TaskRow): MemoryItem {
+  const when = task.starts_at ?? (task.due_date ? `${task.due_date}T12:00:00.000Z` : task.created_at);
+  const text = [task.title, task.notes, task.repeat_hint ? `Repeats ${task.repeat_hint}` : ""].filter(Boolean).join("\n");
+  return {
+    id: `plan:${task.id}`,
+    kind: "plan",
+    sourceId: task.id,
+    meetingId: task.meeting_id,
+    chunkSequence: null,
+    title: task.title,
+    text,
+    occurredAt: when
+  };
+}
+
+export function dictationItem(dictation: { id: string; transcript: string; created_at: string }): MemoryItem {
+  return {
+    id: `dictation:${dictation.id}`,
+    kind: "dictation",
+    sourceId: dictation.id,
+    meetingId: null,
+    chunkSequence: null,
+    title: "Said aloud",
+    text: dictation.transcript.slice(0, 4000),
+    occurredAt: dictation.created_at
+  };
+}
+
+export function upsertMemory(db: D1Database, item: MemoryItem): D1PreparedStatement {
+  const now = new Date().toISOString();
+  return db.prepare(
+    `INSERT INTO memory_items (id, kind, source_id, meeting_id, chunk_sequence, title, text, occurred_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       kind = excluded.kind, source_id = excluded.source_id, meeting_id = excluded.meeting_id,
+       chunk_sequence = excluded.chunk_sequence, title = excluded.title, text = excluded.text,
+       occurred_at = excluded.occurred_at, updated_at = excluded.updated_at
+     WHERE memory_items.text IS NOT excluded.text OR memory_items.title IS NOT excluded.title
+        OR memory_items.occurred_at IS NOT excluded.occurred_at`
+  ).bind(item.id, item.kind, item.sourceId, item.meetingId, item.chunkSequence, item.title, item.text, item.occurredAt, now, now);
+}
+
+export function forgetSource(db: D1Database, sourceId: string): D1PreparedStatement {
+  return db.prepare("DELETE FROM memory_items WHERE source_id = ?").bind(sourceId);
+}
+
+/** Replaces everything remembered from one source, e.g. a chunk transcribed again. */
+export async function rememberSource(db: D1Database, sourceId: string, items: MemoryItem[]): Promise<void> {
+  const keep = new Set(items.map((item) => item.id));
+  const { results } = await db.prepare("SELECT id FROM memory_items WHERE source_id = ?").bind(sourceId).all<{ id: string }>();
+  const stale = results.filter((row) => !keep.has(row.id));
+  const statements = [
+    ...stale.map((row) => db.prepare("DELETE FROM memory_items WHERE id = ?").bind(row.id)),
+    ...items.map((item) => upsertMemory(db, item))
+  ];
+  if (statements.length) await db.batch(statements);
+}
+
+/** Memory is a convenience: a failure to remember must never fail the recording or the plan. */
+export async function safely(label: string, work: () => Promise<unknown>): Promise<void> {
+  try {
+    await work();
+  } catch (error) {
+    console.error(`Memory: could not ${label}`, error);
+  }
+}
+
+// ── What comes out ──────────────────────────────────────────────────────────
+
+const COLUMNS = "m.id, m.kind, m.source_id, m.meeting_id, m.chunk_sequence, m.title, m.text, m.occurred_at, m.superseded_by";
+
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+export interface SearchResult extends MergedHit {
+  row: MemoryRow;
+}
+
+/**
+ * Three searches, merged: full-text on words of three or more characters, LIKE for shorter
+ * (mostly Chinese) words, and whatever falls in a time range the question mentioned.
+ */
+export async function searchMemory(db: D1Database, query: { terms: string[]; range?: TimeRange; limit?: number }): Promise<SearchResult[]> {
+  const rows = new Map<string, MemoryRow>();
+  const routes: RouteResult[] = [];
+  const terms = [...new Set(query.terms.map((term) => term.trim()).filter(Boolean))].slice(0, 12);
+  const fts = buildFtsQuery(terms.join(" "));
+
+  if (fts.match) {
+    const { results } = await db.prepare(
+      `SELECT ${COLUMNS}, bm25(memory_fts) AS rank
+         FROM memory_fts JOIN memory_items m ON m.rowid = memory_fts.rowid
+        WHERE memory_fts MATCH ?
+        ORDER BY rank LIMIT 40`
+    ).bind(fts.match).all<MemoryRow & { rank: number }>();
+    // By position: bm25 values shrink towards zero when a word is in most passages, as in a small archive.
+    routes.push({ route: "fulltext", hits: results.map((row, index) => ({ id: row.id, score: results.length - index, text: row.text, supersededBy: row.superseded_by })) });
+    for (const row of results) rows.set(row.id, row);
+  }
+
+  if (fts.likeTerms.length) {
+    const likeTerms = fts.likeTerms.slice(0, 8);
+    const clauses = likeTerms.map(() => "(m.text LIKE ? ESCAPE '\\' OR m.title LIKE ? ESCAPE '\\')").join(" OR ");
+    const bindings = likeTerms.flatMap((term) => [`%${escapeLike(term)}%`, `%${escapeLike(term)}%`]);
+    const { results } = await db.prepare(
+      `SELECT ${COLUMNS} FROM memory_items m WHERE ${clauses} ORDER BY m.occurred_at DESC LIMIT 60`
+    ).bind(...bindings).all<MemoryRow>();
+    routes.push({
+      route: "tag",
+      hits: results.map((row) => ({
+        id: row.id,
+        score: likeTerms.filter((term) => row.text.includes(term) || row.title.includes(term)).length,
+        text: row.text,
+        supersededBy: row.superseded_by
+      }))
+    });
+    for (const row of results) rows.set(row.id, row);
+  }
+
+  if (query.range) {
+    const { results } = await db.prepare(
+      `SELECT ${COLUMNS} FROM memory_items m
+        WHERE m.occurred_at >= ? AND m.occurred_at < ? AND m.kind != 'transcript'
+        ORDER BY m.occurred_at DESC LIMIT 30`
+    ).bind(new Date(query.range.from).toISOString(), new Date(query.range.to).toISOString()).all<MemoryRow>();
+    routes.push({ route: "time", hits: results.map((row, index) => ({ id: row.id, score: results.length - index, text: row.text, supersededBy: row.superseded_by })) });
+    for (const row of results) rows.set(row.id, row);
+  }
+
+  return mergeHits(routes, { limit: query.limit ?? 12 })
+    .map((hit) => ({ ...hit, row: rows.get(hit.id)! }))
+    .filter((hit) => hit.row);
+}
+
+// ── Catching up ─────────────────────────────────────────────────────────────
+
+/** Remembers a whole meeting again: for copies that recorded meetings before memory existed. */
+export async function rememberMeeting(db: D1Database, meetingId: string): Promise<void> {
+  const meeting = await db.prepare("SELECT id, title, started_at, summary_json FROM meetings WHERE id = ?")
+    .bind(meetingId).first<{ id: string; title: string; started_at: string; summary_json: string | null }>();
+  if (!meeting) return;
+
+  const chunks = await db.prepare(
+    "SELECT id, sequence, created_at, transcript_text FROM audio_chunks WHERE meeting_id = ? AND status = 'done' ORDER BY sequence"
+  ).bind(meetingId).all<{ id: string; sequence: number; created_at: string; transcript_text: string | null }>();
+  for (const chunk of chunks.results) {
+    await rememberSource(db, chunk.id, transcriptItems(meeting, chunk, chunk.transcript_text ?? ""));
+  }
+
+  const segments = await db.prepare(
+    "SELECT id, start_chunk, updated_at, notes_json FROM meeting_segments WHERE meeting_id = ? AND status = 'done' ORDER BY seq"
+  ).bind(meetingId).all<{ id: string; start_chunk: number; updated_at: string; notes_json: string | null }>();
+  for (const segment of segments.results) {
+    const note = parseSegmentNote(segment.notes_json);
+    const item = note ? sectionItem(meeting, segment, note) : null;
+    await rememberSource(db, segment.id, item ? [item] : []);
+  }
+
+  const summary = meeting.summary_json ? SummarySchema.safeParse(JSON.parse(meeting.summary_json)) : null;
+  const item = summary?.success ? summaryItem(meeting, summary.data) : null;
+  await rememberSource(db, meeting.id, item ? [item] : []);
+}

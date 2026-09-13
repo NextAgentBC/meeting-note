@@ -1,4 +1,21 @@
-/* Plans: dictation, the suggestion review, the list, and calendar sync. Colours come from styles.css. */
+/* Ask, and plans: dictation, the suggestion review, the list, and calendar sync. Colours come from styles.css. */
+
+.ask-section { margin: 90px 0 0; }
+.ask-form label { display: block; }
+.ask-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.ask-row input { height: 54px; padding: 0 18px; font-size: 16px; border-radius: 14px; }
+.ask-row .quick-add-button { min-height: 54px; padding: 0 24px; border-radius: 14px; font-size: 14px; }
+.ask-answer { margin-top: 14px; padding: 18px 20px; border: 1px solid rgba(0,229,208,.25); border-radius: 16px; background: linear-gradient(120deg, rgba(0,229,208,.06), var(--panel)); }
+.ask-answer p { margin: 0; color: #dfe6ec; font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-answer.thinking p { color: var(--muted); }
+.cite { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin: 0 2px; padding: 0 4px; color: var(--cyan); border: 1px solid rgba(0,229,208,.35); border-radius: 6px; font-size: 10px; font-weight: 800; vertical-align: 2px; }
+.ask-sources { display: grid; gap: 8px; margin-top: 14px; }
+.ask-sources:empty { display: none; }
+.ask-source { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; width: 100%; padding: 10px 12px; color: var(--text); border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.02); text-align: left; cursor: pointer; }
+.ask-source:hover { border-color: var(--line-strong); }
+.ask-source b { color: var(--cyan); font-size: 11px; }
+.ask-source strong { display: block; font-size: 12px; }
+.ask-source small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 .plans-section { margin: 90px 0 60px; }
 .plans-grid { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 20px; align-items: start; margin-top: 22px; }
@@ -80,6 +97,8 @@
 
 @media (max-width: 560px) {
   .plans-section { margin: 56px 0 40px; }
+  .ask-section { margin-top: 56px; }
+  .ask-row input { font-size: 16px; }
   .plans-section .section-title { align-items: center; }
   .plans-grid .dictate-card { order: 0; } /* styles.css moves .new-card first on phones; here it already is */
   .dictate-button { grid-template-columns: 56px 1fr; min-height: 88px; }

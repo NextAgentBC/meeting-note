@@ -1,4 +1,5 @@
 import { utcToLocalParts } from "./calendar";
+import { resolveDatePhrase } from "./dates";
 import { addDays, cleanDate, cleanTime, scheduleFor, type Schedule, type TaskKind } from "./tasks";
 
 // Spoken plans ("next Tuesday at 3, call Cindy about the venue") → calendar entries and to-dos.
@@ -29,13 +30,14 @@ export const planJsonSchema = {
         properties: {
           kind: { type: "string", enum: ["event", "task"] },
           title: { type: "string" },
+          date_phrase: { type: "string" },
           date: { type: "string" },
           time: { type: "string" },
           duration_minutes: { type: "integer" },
           repeat: { type: "string" },
           notes: { type: "string" }
         },
-        required: ["kind", "title", "date", "time", "duration_minutes", "repeat", "notes"]
+        required: ["kind", "title", "date_phrase", "date", "time", "duration_minutes", "repeat", "notes"]
       }
     }
   },
@@ -95,6 +97,7 @@ ${transcript.trim().slice(0, 4000)}
 Rules:
 - One item per separate plan. "event" = happens at a set time (meeting, appointment, call, flight, class). "task" = something to get done, maybe by a deadline.
 - title: short, starting with the action, in the language they used (Chinese → Simplified Chinese). Keep people, places and things they named, e.g. "跟 Cindy 通电话确认场地".
+- date_phrase: the exact words they used for the day, copied from what they said ("明天", "下周二之前", "by Friday", "9月22号"), or "" if they didn't say one.
 - date: YYYY-MM-DD, copied from the reference dates.
   - A weekday with "next" (下周二, next Tuesday) is that day in next week. A weekday alone (周五, Friday) is the first one after today.
   - A deadline (周二之前, by Friday) uses the deadline's date. 月底 / end of the month uses the end of this month.
@@ -105,7 +108,7 @@ Rules:
 - notes: other useful details they said (address, what to bring, phone number), otherwise "".
 - Never invent a date, time, person or place. If they said nothing that is a plan, return {"items": []}.
 
-Return: {"items": [{"kind": "event", "title": "", "date": "", "time": "", "duration_minutes": 0, "repeat": "", "notes": ""}]}`
+Return: {"items": [{"kind": "event", "title": "", "date_phrase": "", "date": "", "time": "", "duration_minutes": 0, "repeat": "", "notes": ""}]}`
   };
 }
 
@@ -134,7 +137,8 @@ export function normalizePlan(raw: unknown, now: number, timeZone: string): Plan
 
     const kind: TaskKind = item.kind === "event" ? "event" : "task";
     const schedule = scheduleFor({
-      date: cleanDate(item.date),
+      // The day as said, worked out by rule when the words are familiar; otherwise the model's date.
+      date: resolveDatePhrase(text(item.date_phrase, 60), now, timeZone) ?? cleanDate(item.date),
       time: cleanTime(item.time),
       durationMinutes: Number(item.duration_minutes) > 0 ? Number(item.duration_minutes) : null,
       kind,

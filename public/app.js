@@ -1,5 +1,6 @@
 import { ensureSignedIn } from "./auth.js";
 import { initPlans, loadPlans } from "./plans.js";
+import "./ask.js";
 
 const CHUNK_MS = 3 * 60 * 1000;
 // Input quieter than this counts as nothing reaching the recorder. Normal speech
@@ -940,6 +941,14 @@ void ensureSignedIn().then(() => {
   void loadMeetings();
   void initPlans();
   void loadUsage();
+});
+// A passage in an Ask answer that came from a meeting opens that meeting.
+window.addEventListener("meetingnote:open-meeting", (event) => {
+  if (isRecording) {
+    showToast("Stop the recording before opening another meeting.");
+    return;
+  }
+  if (event.detail?.id) void openMeeting(event.detail.id);
 });
 // After signing in again mid-session, send whatever audio was waiting.
 window.addEventListener("meetingnote:signed-in", () => {

@@ -4,7 +4,9 @@ import { z } from "zod";
 import { extractJson, SummarySchema, summaryJsonSchema, toMarkdown } from "./summary";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { modelText, recordUsage, runModel } from "./ai";
+import { askRoutes } from "./ask";
 import { assistantRoutes, calendarFeed } from "./assistant";
+import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import {
   SEGMENT_TARGET_MS,
@@ -128,6 +130,7 @@ app.use("/api/*", sameOriginWrites);
 app.use("/api/*", requireOwner);
 app.route("/api/auth", authRoutes);
 app.route("/api", assistantRoutes);
+app.route("/api", askRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare" }));
 
@@ -598,6 +601,7 @@ async function transcribeChunk(env: Env, message: Extract<JobMessage, { type: "t
         (SELECT COUNT(*) FROM audio_chunks WHERE meeting_id = ? AND status = 'done'), updated_at = ? WHERE id = ?`
     ).bind(message.meetingId, now, message.meetingId)
   ]);
+  await safely("remember a transcript", () => rememberSource(env.DB, chunk.id, transcriptItems(meeting, chunk, transcript)));
   await recordEvent(
     env,
     message.meetingId,
@@ -674,6 +678,8 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
   await env.DB.prepare(
     "UPDATE meeting_segments SET status = 'done', notes_json = ?, headline = ?, last_error = NULL, updated_at = ? WHERE id = ?"
   ).bind(JSON.stringify(note), note.headline.slice(0, 300), now, segment.id).run();
+  const remembered = sectionItem(meeting, { id: segment.id, start_chunk: segment.start_chunk, updated_at: now }, note);
+  await safely("remember a section note", () => rememberSource(env.DB, segment.id, remembered ? [remembered] : []));
   await recordEvent(env, message.meetingId, "segment_done", `seq=${segment.seq};bullets=${note.bullets.length}`);
   await advance(env, message.meetingId);
 }
@@ -721,6 +727,8 @@ async function runFinal(env: Env, meetingId: string) {
     `UPDATE meetings SET status = 'ready', summary_status = 'done', summary_json = ?, summary_markdown = ?,
        last_error = NULL, updated_at = ? WHERE id = ?`
   ).bind(JSON.stringify(summary), markdown, now, meetingId).run();
+  const remembered = summaryItem(meeting, summary);
+  await safely("remember a meeting note", () => rememberSource(env.DB, meetingId, remembered ? [remembered] : []));
   await recordEvent(env, meetingId, "final_completed", `sections=${segmentRows.length}`);
 }
 
@@ -735,7 +743,7 @@ async function markJobFailed(env: Env, body: JobMessage, error: unknown) {
     await env.DB.prepare(
       "UPDATE meeting_segments SET status = 'failed', retry_count = retry_count + 1, last_error = ?, updated_at = ? WHERE id = ?"
     ).bind(detail.slice(0, 2000), now, body.segmentId).run();
-  } else {
+  } else if (body.type === "final" || body.type === "summarize") {
     await env.DB.prepare(
       "UPDATE meetings SET summary_status = 'failed', last_error = ?, updated_at = ? WHERE id = ?"
     ).bind(detail.slice(0, 2000), now, body.meetingId).run();
@@ -743,7 +751,7 @@ async function markJobFailed(env: Env, body: JobMessage, error: unknown) {
   await recordEvent(env, body.meetingId, "job_failed", `${body.type}: ${detail}`, body.type === "transcribe" ? body.chunkId : null);
 
   // A dead chunk or segment must not hold the rest of the meeting hostage.
-  if (body.type !== "final" && body.type !== "summarize") {
+  if (body.type === "transcribe" || body.type === "segment") {
     try {
       await advance(env, body.meetingId);
     } catch (advanceError) {
@@ -760,6 +768,7 @@ export default {
         const body = message.body;
         if (body.type === "transcribe") await transcribeChunk(env, body);
         else if (body.type === "segment") await runSegment(env, body);
+        else if (body.type === "remember") await rememberMeeting(env.DB, body.meetingId);
         else await runFinal(env, body.meetingId);
         message.ack();
       } catch (error) {

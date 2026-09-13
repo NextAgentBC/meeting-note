@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/auth.css" />
-    <link rel="stylesheet" href="/plans.css" />
+    <link rel="stylesheet" href="/assistant.css" />
   </head>
   <body class="auth-pending">
     <header class="topbar">
@@ -130,6 +130,20 @@
             <p id="mobileCaptureNote" class="mobile-capture-note hidden">On phones, keep this app open and use the microphone. Mobile browsers cannot capture audio from another app such as Zoom.</p>
           </form>
         </div>
+
+        <section id="askSection" class="ask-section">
+          <form id="askForm" class="ask-form">
+            <label for="askInput"><span class="eyebrow">Ask your meetings and plans</span></label>
+            <div class="ask-row">
+              <input id="askInput" name="question" placeholder="What did we decide about the venue? · 上周开会说了什么？" maxlength="500" autocomplete="off" enterkeyhint="search" required />
+              <button class="quick-add-button" type="submit">Ask</button>
+            </div>
+          </form>
+          <div id="askAnswer" class="ask-answer hidden" role="status" aria-live="polite">
+            <p id="askText"></p>
+            <div id="askSources" class="ask-sources"></div>
+          </div>
+        </section>
 
         <section id="plansSection" class="plans-section">
           <div class="section-title">

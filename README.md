@@ -67,12 +67,17 @@ Phones can't record another app's audio, so record calls from a computer.
   section that did transcribe.
 - **Your sign-in ran out mid-meeting:** a banner says so. Recording carries on, the audio waits on your
   device, and it uploads once you press **Sign in again**.
-- **You lost your passkey:** on the sign-in screen, choose **Lost your passkey? Use your recovery code**.
+- **Signing in on a new phone or computer:** on a device where you're already signed in, press **Add device**
+  (top right) and scan the code with the new one, or open the link on it. Press **Add this device** and
+  confirm with Face ID, a fingerprint or the screen lock. Your other devices keep working, and the code
+  works once, for ten minutes. (If both devices use the same Apple or Google account, the passkey may
+  already be there: just press **Sign in**.)
+- **You lost every device:** on the sign-in screen, choose **Lost every device? Use your recovery code**.
   It puts a new passkey on the device you're holding, signs you out everywhere else, and shows a new
   recovery code; the old one stops working.
 - **It asks you to sign in the very first time you open it:** someone set it up before you did. In the
   Cloudflare dashboard, open the `meeting-note` Worker → **Settings** → **Variables and Secrets** and add a
-  secret named `SETUP_CODE` with any code. Then choose **Lost your passkey? Use your recovery code** and
+  secret named `SETUP_CODE` with any code. Then choose **Lost every device? Use your recovery code** and
   type that code: their passkeys and sessions are removed and the app is yours.
 - **Today's AI allowance is used up:** transcription pauses until 00:00 UTC. Open the meeting afterwards
   and press **Retry**.

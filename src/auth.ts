@@ -10,6 +10,7 @@ import {
 import { Hono, type Context, type Next } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { renderSVG } from "uqr";
 import { z } from "zod";
 import type { Env } from "./types";
 
@@ -26,6 +27,8 @@ type AppContext = Context<{ Bindings: Env }>;
 
 const SESSION_DAYS = 30;
 const CHALLENGE_TTL_MS = 5 * 60_000;
+/** How long a link for adding a phone or computer works. */
+const DEVICE_LINK_TTL_MS = 10 * 60_000;
 const COOKIE = "session";
 const encoder = new TextEncoder();
 
@@ -207,16 +210,26 @@ async function readBody<T extends z.ZodTypeAny>(c: AppContext, schema: T): Promi
 const registerBody = z.discriminatedUnion("purpose", [
   z.object({ purpose: z.literal("setup"), setupCode: z.string().max(200).default(""), name: z.string().trim().min(1).max(80) }),
   z.object({ purpose: z.literal("owner-recover"), code: z.string().trim().min(1).max(200) }),
-  z.object({ purpose: z.literal("add-device") })
+  z.object({ purpose: z.literal("add-device") }),
+  z.object({ purpose: z.literal("link-device"), token: z.string().min(20).max(120) })
 ]);
 
 const verifyBody = z.object({ challengeId: z.string().min(1).max(100), response: z.record(z.string(), z.unknown()) });
 
 interface PendingRegistration {
-  purpose: "setup" | "owner-recover" | "add-device";
+  purpose: "setup" | "owner-recover" | "add-device" | "link-device";
   webauthnUserId: string;
   ownerId?: string;
   name?: string;
+  /** SHA-256 of the device link being used, for link-device. */
+  linkHash?: string;
+}
+
+async function credentialsToExclude(db: D1Database, ownerId: string) {
+  const { results } = await db.prepare("SELECT id, transports FROM credentials WHERE owner_id = ?")
+    .bind(ownerId)
+    .all<{ id: string; transports: string }>();
+  return results.map((row) => ({ id: row.id, transports: JSON.parse(row.transports) as AuthenticatorTransport[] }));
 }
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
@@ -261,13 +274,20 @@ authRoutes.post("/register/options", async (c) => {
     const bySetupCode = Boolean(setupCode) && (await secretsMatch(body.code, setupCode!));
     if (!byRecoveryCode && !bySetupCode) fail(403, "wrong_recovery_code", "That recovery code doesn't match.");
     pending = { purpose: "owner-recover", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id };
+  } else if (body.purpose === "link-device") {
+    // A new phone or computer, invited by a link from a device that is signed in. The link is
+    // checked here and used up when the passkey is saved, so cancelling Face ID doesn't waste it.
+    const linkHash = await sha256Hex(body.token);
+    const link = await db.prepare(
+      "SELECT o.id, o.name, o.webauthn_user_id FROM device_links l JOIN owners o ON o.id = l.owner_id WHERE l.token_hash = ? AND l.expires_at > ?"
+    ).bind(linkHash, Date.now()).first<OwnerRow>();
+    if (!link) fail(400, "link_expired", "This link has expired or has already been used. Make a new one on your signed-in device.");
+    exclude = await credentialsToExclude(db, link.id);
+    pending = { purpose: "link-device", ownerId: link.id, name: link.name, webauthnUserId: link.webauthn_user_id, linkHash };
   } else {
     const owner = await ownerForSession(c);
     if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
-    const { results } = await db.prepare("SELECT id, transports FROM credentials WHERE owner_id = ?")
-      .bind(owner.id)
-      .all<{ id: string; transports: string }>();
-    exclude = results.map((row) => ({ id: row.id, transports: JSON.parse(row.transports) as AuthenticatorTransport[] }));
+    exclude = await credentialsToExclude(db, owner.id);
     pending = { purpose: "add-device", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id };
   }
 
@@ -337,9 +357,20 @@ authRoutes.post("/register/verify", async (c) => {
     await db.batch([
       db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
       db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
+      db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
       db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
       insertCredential(ownerId)
     ]);
+  } else if (pending.purpose === "link-device") {
+    // Used up now, whether or not anything below fails: a link works once.
+    const link = await db.prepare("DELETE FROM device_links WHERE token_hash = ? AND expires_at > ? RETURNING owner_id")
+      .bind(pending.linkHash!, Date.now())
+      .first<{ owner_id: string }>();
+    if (!link || link.owner_id !== pending.ownerId) {
+      fail(400, "link_expired", "This link has expired or has already been used. Make a new one on your signed-in device.");
+    }
+    ownerId = link.owner_id;
+    await insertCredential(ownerId).run();
   } else {
     const owner = await ownerForSession(c);
     if (!owner || owner.id !== pending.ownerId) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
@@ -349,6 +380,25 @@ authRoutes.post("/register/verify", async (c) => {
 
   await startSession(c, ownerId);
   return c.json({ ok: true, name: pending.name ?? null, recoveryCode });
+});
+
+/**
+ * A one-time link, and its QR code, for adding a phone or computer. Only a signed-in device can make
+ * one. Opening it on the new device lets that device create its own passkey; nothing else changes.
+ */
+authRoutes.post("/device-link", async (c) => {
+  const owner = await ownerForSession(c);
+  if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  const token = randomToken(32);
+  const now = Date.now();
+  const expiresAt = now + DEVICE_LINK_TTL_MS;
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM device_links WHERE expires_at < ?").bind(now),
+    c.env.DB.prepare("INSERT INTO device_links (token_hash, owner_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
+      .bind(await sha256Hex(token), owner.id, expiresAt, now)
+  ]);
+  const url = `${new URL(c.req.url).origin}/#add-device=${token}`;
+  return c.json({ ok: true, url, qrSvg: renderSVG(url, { ecc: "M", border: 2 }), expiresAt: new Date(expiresAt).toISOString() });
 });
 
 authRoutes.post("/login/options", async (c) => {

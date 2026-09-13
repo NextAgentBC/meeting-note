@@ -23,7 +23,7 @@ transcribes and writes notes, and only the owner can sign in. Read this before c
 
 ```
 src/index.ts     API routes, the queue consumer, and advance(): the only code that moves a meeting on
-src/auth.ts      passkey setup / sign-in / owner recovery / add-a-device, sessions, same-origin check
+src/auth.ts      passkey setup / sign-in / owner recovery / device links (Add device), sessions, same-origin check
 src/segment.ts   five-minute section notes     src/summary.ts   the final merge and its JSON repair
 src/chinese.ts   Traditional → Simplified, character by character
 src/assistant.ts plans: tasks API, dictation, .ics and the /cal/<token>.ics feed, meeting to-dos
@@ -33,7 +33,8 @@ src/memory.ts    what gets remembered, and search (FTS5 + LIKE + time) src/ask.t
 src/recall/      hybrid-recall merge, time words, splitting (ported from nextclaw-cloud)
 src/ai.ts        runModel, modelText (every response shape), usage     src/settings.ts owner settings
 public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js, ask.js
-migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory
+migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory;
+                 0008 device links (Add device)
 e2e/             the sign-in flows in a real browser (own package.json)
 ```
 

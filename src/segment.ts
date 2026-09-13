@@ -130,7 +130,6 @@ export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string): str
   return `This is roughly five minutes of a longer meeting (${minutesLabel}). Summarise only what is in this excerpt. Do not speculate about what came before or after, and do not invent owners, deadlines, answers or promises. Quotes must be short verbatim excerpts with their zero-based [CHUNK n] number. If a field has nothing in this excerpt, return an empty array or an empty string.\n\n${body}`;
 }
 
-/** A transcript-grounded note used when the model output cannot be parsed. */
 /** A model can return valid JSON with nothing in it; that is no note at all. */
 export function segmentNoteHasContent(note: SegmentNote): boolean {
   return note.bullets.some((item) => item.trim())
@@ -141,6 +140,7 @@ export function segmentNoteHasContent(note: SegmentNote): boolean {
     || note.resources.some((item) => item.trim());
 }
 
+/** A transcript-grounded note used when the model output cannot be parsed. */
 export function fallbackSegmentNote(chunks: SegmentChunk[]): SegmentNote {
   const usable = chunks
     .map((chunk) => ({ sequence: chunk.sequence, text: (chunk.transcript_text || "").trim() }))

@@ -162,6 +162,17 @@ body.auth-pending main {
 .device-dialog #deviceLink {
   font-size: 12px;
 }
+.device-recovery {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.device-recovery > p:first-child {
+  margin: 0 0 10px;
+  color: #b3bdc6;
+  font-size: 13px;
+  line-height: 1.5;
+}
 .device-actions {
   display: flex;
   flex-wrap: wrap;

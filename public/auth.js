@@ -290,6 +290,22 @@ $("#addDeviceButton").addEventListener("click", () => {
   void makeDeviceLink();
 });
 $("#newDeviceLink").addEventListener("click", () => void makeDeviceLink());
+$("#newRecoveryCode").addEventListener("click", async (event) => {
+  if (!window.confirm("Make a new recovery code? The one you have now will stop working.")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const { recoveryCode } = await post("/api/auth/recovery-code");
+    $("#newRecoveryCodeValue").textContent = recoveryCode;
+    show($("#newRecoveryCodeValue"), true);
+    show($("#newRecoveryCodeHint"), true);
+  } catch (error) {
+    $("#newRecoveryCodeHint").textContent = messageFor(error);
+    show($("#newRecoveryCodeHint"), true);
+  } finally {
+    button.disabled = false;
+  }
+});
 $("#copyDeviceLink").addEventListener("click", async (event) => {
   try {
     await navigator.clipboard.writeText($("#deviceLink").value);
@@ -303,6 +319,9 @@ $("#closeDeviceDialog").addEventListener("click", () => {
   clearTimeout(deviceLinkTimer);
   $("#deviceQr").innerHTML = "";
   $("#deviceLink").value = "";
+  $("#newRecoveryCodeValue").textContent = "";
+  show($("#newRecoveryCodeValue"), false);
+  show($("#newRecoveryCodeHint"), false);
   if (typeof dialog.close === "function") dialog.close();
   else dialog.removeAttribute("open");
 });

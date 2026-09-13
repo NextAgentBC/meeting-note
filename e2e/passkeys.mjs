@@ -77,7 +77,7 @@ try {
   }
   await owner.locator("#ownerName").fill("Test Owner");
   await owner.getByRole("button", { name: /Create my passkey/ }).click();
-  const recoveryCode = await saveRecoveryCode(owner, "02-recovery-code");
+  let recoveryCode = await saveRecoveryCode(owner, "02-recovery-code");
   await owner.getByRole("heading", { name: "Recent meetings" }).waitFor();
   await shot(owner, "03-dashboard");
 
@@ -179,6 +179,22 @@ try {
   await latecomer.goto(deviceLink);
   await latecomer.getByRole("button", { name: /Add this device/ }).click();
   await latecomer.getByText("expired or has already been used").waitFor();
+
+  step("a signed-in device makes a new recovery code, and the old one stops working");
+  await owner.getByRole("button", { name: "Add device" }).click();
+  owner.once("dialog", (dialog) => dialog.accept());
+  await owner.getByRole("button", { name: "Make a new recovery code" }).click();
+  await owner.locator("#newRecoveryCodeValue:not(.hidden)").waitFor();
+  const replacedCode = recoveryCode;
+  recoveryCode = (await owner.locator("#newRecoveryCodeValue").innerText()).trim();
+  if (!CODE_SHAPE.test(recoveryCode) || recoveryCode === replacedCode) throw new Error(`unexpected new recovery code: ${recoveryCode}`);
+  await owner.getByRole("button", { name: "Close" }).click();
+  const staleCode = await owner.evaluate(async (code) => (await fetch("/api/auth/register/options", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ purpose: "owner-recover", code })
+  })).status, replacedCode);
+  if (staleCode !== 403) throw new Error(`the replaced recovery code still worked (${staleCode})`);
 
   step("both devices sign in with their own passkeys");
   await phone.getByRole("button", { name: "Sign out" }).click();

@@ -59,6 +59,8 @@
 
 **想在手机上也用（或者换了电脑）怎么登录？** 在已经登录的那台设备上，点右上角 **Add device**，屏幕上会出现一个二维码。用新手机的相机扫一下（或者把下面的链接发到新设备上打开），点 **Add this device**，再用 Face ID、指纹或锁屏密码确认，就登录好了。原来的设备照样能用。这个二维码只能用一次，10 分钟内有效。如果两台设备用的是同一个 Apple ID 或 Google 账号，新设备可能已经有通行密钥，直接点 **Sign in** 试试。
 
+**恢复码忘了截图，或者弄丢了？** 在已经登录的设备上点右上角 **Add device**，再点 **Make a new recovery code**，马上截图保存。旧的恢复码会作废。
+
 **所有设备都丢了怎么办？** 在登录页点 **Lost every device? Use your recovery code**，输入恢复码。恢复后会显示一个新的恢复码，旧的作废，记得再截图。其他设备上的登录也会全部失效。
 
 **第一次打开就让我 Sign in，没有 Set up？** 说明有人抢在你前面认领了，很少见。进 Cloudflare 后台，打开 `meeting-note` 这个 Worker，依次点 **Settings（设置）→ Variables and Secrets（变量和机密）**，添加一个名为 `SETUP_CODE` 的机密（Secret），值设成一串你记得住的字。回到 Meeting Note，点 **Lost every device? Use your recovery code**，输入这串字，对方的登录就全部失效，这份 Meeting Note 归你。

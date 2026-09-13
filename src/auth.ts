@@ -401,6 +401,18 @@ authRoutes.post("/device-link", async (c) => {
   return c.json({ ok: true, url, qrSvg: renderSVG(url, { ecc: "M", border: 2 }), expiresAt: new Date(expiresAt).toISOString() });
 });
 
+/**
+ * A new recovery code for the signed-in owner, for when the one shown at setup was never saved or has
+ * been lost. The old code stops working at once.
+ */
+authRoutes.post("/recovery-code", async (c) => {
+  const owner = await ownerForSession(c);
+  if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  const recoveryCode = newRecoveryCode();
+  await c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id).run();
+  return c.json({ ok: true, recoveryCode });
+});
+
 authRoutes.post("/login/options", async (c) => {
   const options = await generateAuthenticationOptions({
     rpID: relyingParty(c).rpID,

@@ -1,4 +1,4 @@
-const CACHE = "meetingnote-shell-v12";
+const CACHE = "meetingnote-shell-v13";
 const SHELL = [
   "/",
   "/index.html",

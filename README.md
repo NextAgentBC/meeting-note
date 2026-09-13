@@ -72,6 +72,8 @@ Phones can't record another app's audio, so record calls from a computer.
   confirm with Face ID, a fingerprint or the screen lock. Your other devices keep working, and the code
   works once, for ten minutes. (If both devices use the same Apple or Google account, the passkey may
   already be there: just press **Sign in**.)
+- **You didn't save the recovery code, or lost it:** on a signed-in device, press **Add device**, then
+  **Make a new recovery code**. The old one stops working.
 - **You lost every device:** on the sign-in screen, choose **Lost every device? Use your recovery code**.
   It puts a new passkey on the device you're holding, signs you out everywhere else, and shows a new
   recovery code; the old one stops working.

@@ -684,7 +684,7 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
     const result = await runModel(env, env.SUMMARY_MODEL, {
       messages: [
         { role: "system", content: "You are a precise bilingual meeting analyst. You only report what participants actually said in the transcript, never any context notes given alongside it. Write in the language the instructions name. Always give a headline, even for a short excerpt." },
-        { role: "user", content: segmentPrompt(usable, minutesLabel, meeting.started_at, "UTC", meeting.language) }
+        { role: "user", content: segmentPrompt(usable, minutesLabel, meeting.language) }
       ],
       response_format: { type: "json_schema", json_schema: { name: "segment_note", strict: true, schema: segmentJsonSchema } },
       max_tokens: 900,

@@ -123,20 +123,18 @@ export interface SegmentChunk {
   transcript_text: string | null;
 }
 
-export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string, meetingStart: string, timeZone = "UTC", meetingLanguage = "auto"): string {
+export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string, meetingLanguage = "auto"): string {
   const body = chunks
     .map((chunk) => `[CHUNK ${chunk.sequence}]\n${(chunk.transcript_text ?? "").trim()}`)
     .join("\n\n");
   const language = noteLanguage(body, meetingLanguage);
   return `This is roughly five minutes of a longer meeting (${minutesLabel}). Summarise only what is in this excerpt. Do not speculate about what came before or after, and do not invent owners, deadlines, answers or promises.
 
-(Context only, not something anyone said — never report this as a fact, bullet or decision: the meeting started ${meetingStart}, time zone ${timeZone}. Use it only to resolve relative dates such as "next Friday" into the bracketed date in due.)
-
 Extraction rules:
 - bullets MUST contain 3-6 concrete facts (at least 1 only when the excerpt is extremely short).
 - quotes MUST contain 1-2 short verbatim excerpts with their zero-based [CHUNK n] number.
 - decisions include choices the speakers accepted, even when expressed conversationally (for example “就这样定了” / “那就用第一版”, or "let's go with that" / "that settles it").
-- action_items include explicit commitments and agreed next steps (for example “我明天发”, “把工具包加上海报”, “按两周排进去”, "I'll send it", "let's do that", or a request followed by acceptance such as “没问题” or "sure, I will"). A proposal or question by itself is not an action. due: the deadline as said, followed by the date in brackets when you can tell it from the meeting start time above, e.g. 下周二之前 (2026-09-15) or next Friday (2026-09-19). Use owner "Unassigned" and due "" only when the transcript does not say them.
+- action_items include explicit commitments and agreed next steps (for example “我明天发”, “把工具包加上海报”, “按两周排进去”, "I'll send it", "let's do that", or a request followed by acceptance such as “没问题” or "sure, I will"). A proposal or question by itself is not an action. due: the deadline in the words used, e.g. 下周二之前 or next Friday; don't work out a calendar date (models get the weekday arithmetic wrong). Use owner "Unassigned" and due "" only when the transcript does not say them.
 - questions include substantive questions and their stated answers, not greetings or rhetorical filler.
 - Correct obvious product-name ASR variants in summaries, such as chatGDP/chatsdp → ChatGPT, cloud flyer → Cloudflare, and deep seek → DeepSeek. Keep quotes verbatim.
 - Treat unclear or nonsensical ASR phrases as uncertain and omit them; never invent a meaning for them.

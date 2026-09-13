@@ -1,8 +1,10 @@
 import { localDateTimeToUtc } from "./calendar";
+import { deleteVectors, queryVectors, queueEmbed } from "./embed";
 import { buildFtsQuery, isJunk, mergeHits, splitForIndex, type MergedHit, type RouteResult, type TimeRange } from "./recall";
 import { parseSegmentNote, type SegmentNote } from "./segment";
 import { SummarySchema, type MeetingSummary } from "./summary";
 import type { TaskRow } from "./tasks";
+import type { Env } from "./types";
 
 // Memory: short passages copied from everything the owner records or plans, so a question
 // like "what did we decide about the venue?" can find them again. See migrations/0007_memory.sql.
@@ -142,8 +144,13 @@ export function forgetSource(db: D1Database, sourceId: string): D1PreparedStatem
   return db.prepare("DELETE FROM memory_items WHERE source_id = ?").bind(sourceId);
 }
 
-/** Replaces everything remembered from one source, e.g. a chunk transcribed again. */
-export async function rememberSource(db: D1Database, sourceId: string, items: MemoryItem[]): Promise<void> {
+/**
+ * Replaces everything remembered from one source, e.g. a chunk transcribed again. Embedding for
+ * whatever is kept is queued in the background (a no-op without MEMORY_VECTORS); whatever is
+ * dropped has its vector deleted too, alongside the row.
+ */
+export async function rememberSource(env: Env, sourceId: string, items: MemoryItem[]): Promise<void> {
+  const db = env.DB;
   const keep = new Set(items.map((item) => item.id));
   const { results } = await db.prepare("SELECT id FROM memory_items WHERE source_id = ?").bind(sourceId).all<{ id: string }>();
   const stale = results.filter((row) => !keep.has(row.id));
@@ -152,6 +159,8 @@ export async function rememberSource(db: D1Database, sourceId: string, items: Me
     ...items.map((item) => upsertMemory(db, item))
   ];
   if (statements.length) await db.batch(statements);
+  if (stale.length) await deleteVectors(env, stale.map((row) => row.id));
+  if (items.length) await queueEmbed(env, items.map((item) => item.id));
 }
 
 /** Memory is a convenience: a failure to remember must never fail the recording or the plan. */
@@ -188,10 +197,12 @@ export interface SearchResult extends MergedHit {
 }
 
 /**
- * Three searches, merged: full-text on words of three or more characters, LIKE for shorter
- * (mostly Chinese) words, and whatever falls in a time range the question mentioned.
+ * Up to four searches, merged: full-text on words of three or more characters, LIKE for shorter
+ * (mostly Chinese) words, whatever falls in a time range the question mentioned, and — when
+ * MEMORY_VECTORS is bound — nearest neighbours of the question's own embedding.
  */
-export async function searchMemory(db: D1Database, query: { terms: string[]; range?: TimeRange; limit?: number }): Promise<SearchResult[]> {
+export async function searchMemory(env: Env, query: { terms: string[]; text?: string; range?: TimeRange; limit?: number }): Promise<SearchResult[]> {
+  const db = env.DB;
   const rows = new Map<string, MemoryRow>();
   const routes: RouteResult[] = [];
   const terms = [...new Set(query.terms.map((term) => term.trim()).filter(Boolean))].slice(0, 12);
@@ -240,6 +251,27 @@ export async function searchMemory(db: D1Database, query: { terms: string[]; ran
     for (const row of results) rows.set(row.id, row);
   }
 
+  const embedText = (query.text ?? terms.join(" ")).trim();
+  if (env.MEMORY_VECTORS && embedText) {
+    try {
+      const candidates = await queryVectors(env, embedText);
+      if (candidates.length) {
+        const placeholders = candidates.map(() => "?").join(",");
+        const { results } = await db.prepare(`SELECT ${COLUMNS} FROM memory_items m WHERE m.id IN (${placeholders})`)
+          .bind(...candidates.map((candidate) => candidate.id)).all<MemoryRow>();
+        const byId = new Map(results.map((row) => [row.id, row]));
+        const hits = candidates.filter((candidate) => byId.has(candidate.id));
+        routes.push({
+          route: "vector",
+          hits: hits.map((candidate) => ({ id: candidate.id, score: candidate.score, text: byId.get(candidate.id)!.text, supersededBy: byId.get(candidate.id)!.superseded_by }))
+        });
+        for (const row of results) rows.set(row.id, row);
+      }
+    } catch (error) {
+      console.error("Memory: vector search failed; continuing with full-text only", error);
+    }
+  }
+
   return mergeHits(routes, { limit: query.limit ?? 12 })
     .map((hit) => ({ ...hit, row: rows.get(hit.id)! }))
     .filter((hit) => hit.row);
@@ -248,7 +280,8 @@ export async function searchMemory(db: D1Database, query: { terms: string[]; ran
 // ── Catching up ─────────────────────────────────────────────────────────────
 
 /** Remembers a whole meeting again: for copies that recorded meetings before memory existed. */
-export async function rememberMeeting(db: D1Database, meetingId: string): Promise<void> {
+export async function rememberMeeting(env: Env, meetingId: string): Promise<void> {
+  const db = env.DB;
   const meeting = await db.prepare("SELECT id, title, started_at, summary_json FROM meetings WHERE id = ?")
     .bind(meetingId).first<{ id: string; title: string; started_at: string; summary_json: string | null }>();
   if (!meeting) return;
@@ -257,7 +290,7 @@ export async function rememberMeeting(db: D1Database, meetingId: string): Promis
     "SELECT id, sequence, created_at, transcript_text FROM audio_chunks WHERE meeting_id = ? AND status = 'done' ORDER BY sequence"
   ).bind(meetingId).all<{ id: string; sequence: number; created_at: string; transcript_text: string | null }>();
   for (const chunk of chunks.results) {
-    await rememberSource(db, chunk.id, transcriptItems(meeting, chunk, chunk.transcript_text ?? ""));
+    await rememberSource(env, chunk.id, transcriptItems(meeting, chunk, chunk.transcript_text ?? ""));
   }
 
   const segments = await db.prepare(
@@ -266,10 +299,10 @@ export async function rememberMeeting(db: D1Database, meetingId: string): Promis
   for (const segment of segments.results) {
     const note = parseSegmentNote(segment.notes_json);
     const item = note ? sectionItem(meeting, segment, note) : null;
-    await rememberSource(db, segment.id, item ? [item] : []);
+    await rememberSource(env, segment.id, item ? [item] : []);
   }
 
   const summary = meeting.summary_json ? SummarySchema.safeParse(JSON.parse(meeting.summary_json)) : null;
   const item = summary?.success ? summaryItem(meeting, summary.data) : null;
-  await rememberSource(db, meeting.id, item ? [item] : []);
+  await rememberSource(env, meeting.id, item ? [item] : []);
 }

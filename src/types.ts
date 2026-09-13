@@ -19,6 +19,14 @@ export interface Env {
   SEGMENT_TARGET_MINUTES: string;
   /** Secret chosen at deploy time; needed once to claim the app, and to recover the owner. */
   SETUP_CODE?: string;
+  /**
+   * Semantic search over memory_items (src/embed.ts). Optional: this binding doesn't exist in the
+   * public one-click-deploy template (Vectorize indexes can't be provisioned by that button), only
+   * in a hand-configured copy. Every use checks for it first; absent, search stays full-text only.
+   */
+  MEMORY_VECTORS?: Vectorize;
+  /** Multilingual embedding model for MEMORY_VECTORS. Falls back to bge-m3 (1024 dimensions). */
+  EMBED_MODEL?: string;
 }
 
 export type JobMessage =
@@ -29,7 +37,11 @@ export type JobMessage =
   | { type: "final"; meetingId: string }
   | { type: "summarize"; meetingId: string }
   // Copies a meeting recorded before memory existed into it.
-  | { type: "remember"; meetingId: string };
+  | { type: "remember"; meetingId: string }
+  // Embeds memory rows that are new or whose text changed, into MEMORY_VECTORS.
+  | { type: "embed"; ids: string[] }
+  // Extracts durable facts (hours, prices, policies, ...) from a meeting's finished note.
+  | { type: "facts"; meetingId: string };
 
 export interface MeetingRow {
   id: string;

@@ -15,7 +15,7 @@
     "run_worker_first": ["/api/*", "/cal/*"]
   },
 
-  // Workers AI: Whisper transcribes, Llama writes the notes.
+  // Workers AI: Whisper transcribes, GLM writes the notes.
   "ai": { "binding": "AI" },
 
   // D1: meetings, transcripts, notes, AI usage, and the owner's passkeys.
@@ -49,8 +49,10 @@
 
   "vars": {
     "ASR_MODEL": "@cf/openai/whisper-large-v3-turbo",
-    "SUMMARY_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    "FINAL_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    // GLM-4.7-flash writes clean Simplified Chinese and English. Avoid Llama 3.3 here: with a JSON
+    // schema it garbles Chinese characters.
+    "SUMMARY_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "FINAL_MODEL": "@cf/zai-org/glm-4.7-flash",
     // Turns dictated plans into dated calendar entries.
     "PLAN_MODEL": "@cf/zai-org/glm-4.7-flash",
     // Answers questions about past meetings and plans.

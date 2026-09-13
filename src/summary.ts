@@ -29,6 +29,16 @@ export const SummarySchema = z.object({
 
 export type MeetingSummary = z.infer<typeof SummarySchema>;
 
+/** An overview plus at least one detail; anything less falls back to the merged section notes. */
+export function summaryHasContent(summary: MeetingSummary): boolean {
+  return Boolean(summary.overview.trim()) && (
+    summary.key_points.some((item) => item.trim())
+    || summary.action_items.some((item) => item.task.trim())
+    || summary.audience_questions.some((item) => item.question.trim())
+    || summary.chapters.some((chapter) => chapter.summary.trim())
+  );
+}
+
 /**
  * Remove reasoning blocks some models emit before their answer.
  *

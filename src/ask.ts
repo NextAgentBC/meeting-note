@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { isDailyLimitError, modelText, recordUsage, runModel } from "./ai";
+import { isDailyLimitError, modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { ownerTimeZone } from "./assistant";
 import { utcToLocalParts } from "./calendar";
 import { deepSimplify, simplifyEnabled } from "./chinese";
@@ -38,7 +38,7 @@ const answerJsonSchema = {
 
 /** maxTokens includes any reasoning the model does before answering (glm-4.7-flash thinks first). */
 async function runJson(env: Env, model: string, kind: string, messages: Array<{ role: string; content: string }>, schema: object, maxTokens: number): Promise<unknown> {
-  const request = { messages, max_tokens: maxTokens, temperature: 0.1 };
+  const request = { messages, max_tokens: maxTokens, temperature: 0.1, ...modelOptions(model) };
   let result: unknown;
   try {
     result = await runModel(env, model, { ...request, response_format: { type: "json_schema", json_schema: { name: kind, strict: true, schema } } });

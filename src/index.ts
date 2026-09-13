@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { extractJson, SummarySchema, summaryJsonSchema, toMarkdown } from "./summary";
+import { extractJson, SummarySchema, summaryHasContent, summaryJsonSchema, toMarkdown } from "./summary";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
-import { modelText, recordUsage, runModel } from "./ai";
+import { modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { askRoutes } from "./ask";
 import { assistantRoutes, calendarFeed } from "./assistant";
 import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
@@ -18,6 +18,7 @@ import {
   planSegment,
   segmentPrompt,
   segmentsToMarkdown,
+  segmentNoteHasContent,
   segmentsHaveContent,
   segmentsToPromptText,
   type SegmentNote,
@@ -654,12 +655,14 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
       ],
       response_format: { type: "json_schema", json_schema: { name: "segment_note", strict: true, schema: segmentJsonSchema } },
       max_tokens: 900,
-      temperature: 0.1
+      temperature: 0.1,
+      ...modelOptions(env.SUMMARY_MODEL)
     });
     await recordUsage(env, message.meetingId, "segment", env.SUMMARY_MODEL, result);
 
     try {
       note = SegmentNoteSchema.parse(extractJson(modelText(result)));
+      if (!segmentNoteHasContent(note)) throw new Error("The model returned an empty section note");
     } catch (error) {
       note = fallbackSegmentNote(usable);
       await recordEvent(env, message.meetingId, "segment_fallback", error instanceof Error ? error.message : String(error));
@@ -709,11 +712,13 @@ async function runFinal(env: Env, meetingId: string) {
       ],
       response_format: { type: "json_schema", json_schema: { name: "meeting_summary", strict: true, schema: summaryJsonSchema } },
       max_tokens: 2000,
-      temperature: 0.1
+      temperature: 0.1,
+      ...modelOptions(finalModel(env))
     });
     await recordUsage(env, meetingId, "final", finalModel(env), result);
     try {
       summary = SummarySchema.parse(extractJson(modelText(result)));
+      if (!summaryHasContent(summary)) throw new Error("The model returned an empty meeting note");
     } catch (error) {
       summary = deterministic;
       await recordEvent(env, meetingId, "final_fallback", error instanceof Error ? error.message : String(error));

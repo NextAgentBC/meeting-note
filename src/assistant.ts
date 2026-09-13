@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { isDailyLimitError, modelText, recordUsage, runModel } from "./ai";
+import { isDailyLimitError, modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { sha256Hex } from "./auth";
 import { buildEventIcs, buildFeedIcs, icsFilename, type CalendarTask } from "./calendar";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
@@ -322,8 +322,9 @@ async function extractPlans(env: Env, transcript: string, now: number, timeZone:
   const { system, user } = planPrompt(transcript, now, timeZone);
   const request = {
     messages: [{ role: "system", content: system }, { role: "user", content: user }],
-    max_tokens: 2500, // includes any reasoning before the answer
-    temperature: 0.1
+    max_tokens: 2500,
+    temperature: 0.1,
+    ...modelOptions(planModel(env))
   };
   const model = planModel(env);
   let result: unknown;

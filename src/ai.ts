@@ -6,6 +6,14 @@ export function runModel(env: Env, model: string, input: unknown): Promise<unkno
 }
 
 /**
+ * GLM thinks before it answers, and the thinking counts against max_tokens. The answers here are
+ * short JSON objects, so switch thinking off and leave the whole budget for the answer.
+ */
+export function modelOptions(model: string): Record<string, unknown> {
+  return /glm-/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : {};
+}
+
+/**
  * The text a Workers AI text model answered with. Models disagree on the shape: most put a
  * string, or JSON they already parsed, in `response`; OpenAI-style models such as gpt-oss and
  * Kimi answer in `choices[0].message.content`; Responses-style ones in an `output` list.

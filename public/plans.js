@@ -105,6 +105,9 @@ function rowHtml(task) {
     task.repeatHint ? `repeats ${task.repeatHint}` : "",
     task.assignee ? `for ${task.assignee}` : ""
   ].filter(Boolean).join(" · ");
+  const origin = task.meetingId && task.meetingTitle
+    ? `<button class="plan-origin" type="button" data-action="open-meeting" data-meeting="${escapeHtml(task.meetingId)}">From “${escapeHtml(task.meetingTitle)}”</button>`
+    : "";
   const calendarLinks = !suggested && task.status !== "done" && task.googleCalendarUrl
     ? `<a class="quick-add-button ghost" href="${escapeHtml(task.googleCalendarUrl)}" target="_blank" rel="noopener">Google</a>
        <a class="quick-add-button ghost" href="${escapeHtml(task.icsUrl)}">Apple · Outlook</a>`
@@ -118,6 +121,7 @@ function rowHtml(task) {
         <strong>${escapeHtml(task.title)}</strong>
         <small class="${task.date ? "" : "missing"}">${escapeHtml(meta)}</small>
         ${task.notes ? `<p class="plan-notes">${escapeHtml(task.notes)}</p>` : ""}
+        ${origin}
       </div>
       <div class="plan-actions">
         ${suggested ? '<button class="quick-add-button" type="button" data-action="confirm">Add</button>' : calendarLinks}
@@ -205,7 +209,9 @@ $("#plansSection").addEventListener("click", (event) => {
   const task = tasks.find((item) => item.id === id);
   const action = button.dataset.action;
 
-  if (action === "edit") {
+  if (action === "open-meeting") {
+    window.dispatchEvent(new CustomEvent("meetingnote:open-meeting", { detail: { id: button.dataset.meeting } }));
+  } else if (action === "edit") {
     editingId = id;
     render();
     $(`[data-id="${CSS.escape(id)}"] input[name="title"]`)?.focus();

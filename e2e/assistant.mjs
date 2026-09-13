@@ -205,6 +205,13 @@ try {
     };
 
     await page.reload();
+    const fromMeeting = page.locator("#suggestedList .plan-row", { hasText: "From “Weekly planning”" });
+    await fromMeeting.first().waitFor();
+    const meetingTodos = await fromMeeting.locator("strong").allInnerTexts();
+    console.log(`  to-dos suggested from the meeting: ${meetingTodos.join(" | ")}`);
+    expect(meetingTodos.some((title) => /海报|poster/i.test(title)), "the poster to-do wasn't suggested from the meeting");
+    await shot(page, "08-meeting-todos");
+
     const venue = await ask("讲座的场地定在哪里？");
     expect(/图书馆|library/i.test(venue.answer) && venue.sources.some((s) => s.includes("Weekly planning")), "Ask didn't find the venue in the meeting");
     await shot(page, "07-ask");

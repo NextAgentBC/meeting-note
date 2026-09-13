@@ -5,7 +5,7 @@ import { extractJson, SummarySchema, summaryHasContent, summaryJsonSchema, toMar
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { askRoutes } from "./ask";
-import { assistantRoutes, calendarFeed } from "./assistant";
+import { assistantRoutes, calendarFeed, suggestTasksFromMeeting } from "./assistant";
 import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import {
@@ -734,6 +734,7 @@ async function runFinal(env: Env, meetingId: string) {
   ).bind(JSON.stringify(summary), markdown, now, meetingId).run();
   const remembered = summaryItem(meeting, summary);
   await safely("remember a meeting note", () => rememberSource(env.DB, meetingId, remembered ? [remembered] : []));
+  await safely("suggest the meeting's to-dos", () => suggestTasksFromMeeting(env, meeting, summary.action_items));
   await recordEvent(env, meetingId, "final_completed", `sections=${segmentRows.length}`);
 }
 

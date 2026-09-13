@@ -67,6 +67,7 @@
 .plan-main small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .plan-main small.missing { color: var(--amber); }
 .plan-notes { margin: 5px 0 0; color: #aab5bf; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.plan-origin { display: inline-block; margin-top: 5px; padding: 0; color: var(--cyan); border: 0; background: none; font-size: 11px; text-align: left; cursor: pointer; }
 .plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 290px; }
 .plan-actions .quick-add-button { min-height: 32px; padding: 0 10px; font-size: 11px; }
 .plan-remove { min-height: 32px; padding: 0 8px; color: var(--muted); border: 0; background: none; font-size: 16px; cursor: pointer; }

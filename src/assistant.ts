@@ -6,6 +6,7 @@ import { sha256Hex } from "./auth";
 import { buildEventIcs, buildFeedIcs, icsFilename, type CalendarTask } from "./calendar";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { dictationItem, planItem, rememberSource, safely } from "./memory";
+import { resolveDatePhrase } from "./dates";
 import { DICTATION_TRANSCRIBE_PROMPT, normalizePlan, planJsonSchema, planPrompt, type PlanDraft } from "./plans";
 import { extractJson } from "./summary";
 import { cleanDate, cleanTime, scheduleFor, taskView, toCalendarTask, validTimeZone, type TaskRow } from "./tasks";
@@ -117,10 +118,10 @@ function calendarTaskWithLink(c: AppContext, row: TaskRow): CalendarTask | null 
 
 assistantRoutes.get("/tasks", async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM tasks
-      WHERE status IN ('suggested', 'confirmed') OR (status = 'done' AND updated_at > ?)
-      ORDER BY CASE status WHEN 'suggested' THEN 0 WHEN 'confirmed' THEN 1 ELSE 2 END,
-               due_date IS NULL, due_date, starts_at, created_at
+    `SELECT t.*, m.title AS meeting_title FROM tasks t LEFT JOIN meetings m ON m.id = t.meeting_id
+      WHERE t.status IN ('suggested', 'confirmed') OR (t.status = 'done' AND t.updated_at > ?)
+      ORDER BY CASE t.status WHEN 'suggested' THEN 0 WHEN 'confirmed' THEN 1 ELSE 2 END,
+               t.due_date IS NULL, t.due_date, t.starts_at, t.created_at
       LIMIT 300`
   ).bind(isoDaysAgo(14)).all<TaskRow>();
   return c.json({ ok: true, tasks: results.map(taskView) });
@@ -258,6 +259,47 @@ assistantRoutes.get("/tasks/:id/event.ics", async (c) => {
     }
   });
 });
+
+/**
+ * A finished meeting's to-dos, offered as suggestions. Dates come from the words in the note
+ * ("下周二之前", "by Friday"), counted from the day of the meeting. Each to-do is suggested once per
+ * meeting: its id comes from the meeting and the wording, so a rebuilt note doesn't repeat it or
+ * undo an edit.
+ */
+export async function suggestTasksFromMeeting(
+  env: Env,
+  meeting: { id: string; started_at: string },
+  items: Array<{ task: string; owner: string; due: string }>
+): Promise<void> {
+  const timeZone = await ownerTimeZone(env);
+  const meetingTime = Date.parse(meeting.started_at) || Date.now();
+  const now = isoNow();
+  const statements: D1PreparedStatement[] = [];
+  for (const item of items.slice(0, 30)) {
+    const title = item.task.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!title) continue;
+    const id = `meeting-${(await sha256Hex(`${meeting.id}|${title.toLowerCase()}`)).slice(0, 24)}`;
+    const due = item.due?.trim() ?? "";
+    const time = /(\d{1,2}):(\d{2})/.exec(due);
+    const schedule = scheduleFor({
+      date: due ? resolveDatePhrase(due, meetingTime, timeZone) ?? cleanDate(due.slice(0, 10)) : null,
+      time: time ? cleanTime(time[0]) : null,
+      kind: time ? "event" : "task",
+      timeZone,
+      now: meetingTime
+    });
+    const assignee = item.owner && !/^(unassigned|无|none|n\/a|全体.*)$/i.test(item.owner.trim()) ? item.owner.trim().slice(0, 80) : "";
+    statements.push(env.DB.prepare(
+      `INSERT INTO tasks
+         (id, title, notes, kind, status, all_day, due_date, starts_at, ends_at, timezone, repeat_hint, assignee,
+          source, dictation_id, meeting_id, segment_seq, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, '', ?, 'meeting', NULL, ?, NULL, ?, ?)
+       ON CONFLICT(id) DO NOTHING`
+    ).bind(id, title, due && !schedule.due_date ? `Due: ${due}` : "", time ? "event" : "task", schedule.all_day, schedule.due_date,
+      schedule.starts_at, schedule.ends_at, timeZone, assignee, meeting.id, now, now));
+  }
+  if (statements.length) await env.DB.batch(statements);
+}
 
 // ── Calendar feed and settings ───────────────────────────────────────────────
 

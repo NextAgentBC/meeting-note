@@ -22,6 +22,8 @@ export interface TaskRow {
   segment_seq: number | null;
   created_at: string;
   updated_at: string;
+  /** Only when read with the meeting it came from. */
+  meeting_title?: string | null;
 }
 
 /** The columns that say when something happens. */
@@ -149,6 +151,7 @@ export function taskView(row: TaskRow) {
     assignee: row.assignee,
     source: row.source,
     meetingId: row.meeting_id,
+    meetingTitle: row.meeting_title ?? null,
     dictationId: row.dictation_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

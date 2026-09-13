@@ -141,6 +141,17 @@ try {
     console.log(`  transcript: ${transcript.slice(0, 240)}`);
     console.log(`  note: ${(detail.meeting?.summaryMarkdown ?? "(none yet)").slice(0, 400).replace(/\n+/g, " ⏎ ")}`);
     if (!transcript) throw new Error(`no transcript: status ${detail.meeting?.status}, note ${detail.meeting?.summaryStatus}`);
+
+    step("the note can be written again from the saved transcript");
+    const rebuilt = await owner.evaluate(async (id) => (await fetch(`/api/meetings/${id}/rebuild-note`, { method: "POST" })).status, meetingId);
+    if (rebuilt !== 200) throw new Error(`rebuild-note returned ${rebuilt}`);
+    const again = Date.now() + 5 * 60_000;
+    do {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      detail = await owner.evaluate(async (id) => (await fetch(`/api/meetings/${id}`)).json(), meetingId);
+    } while (Date.now() < again && detail.meeting?.status !== "ready");
+    if (!detail.meeting?.summaryMarkdown) throw new Error(`the rewritten note never arrived: ${detail.meeting?.status}`);
+    console.log(`  rewritten note: ${detail.meeting.summaryMarkdown.slice(0, 160).replace(/\n+/g, " ⏎ ")}`);
   }
 
   step("the session runs out mid-use: a banner offers to sign in again, in place");

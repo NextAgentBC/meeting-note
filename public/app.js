@@ -574,6 +574,7 @@ async function stopRecording() {
 
 async function openMeeting(id) {
   activeMeeting = { id };
+  $("#rebuildNoteButton").classList.add("hidden");
   showMeetingView();
   recorderPanel.classList.add("hidden");
   await refreshActiveMeeting();
@@ -686,6 +687,7 @@ async function refreshActiveMeeting() {
       // Nothing should be able to hold the note hostage indefinitely.
       $("#forceSummaryButton").classList.toggle("hidden", writtenSegments === 0 || activeMeeting.forceSummary === true);
     } else if (activeMeeting.status === "ready") {
+      $("#rebuildNoteButton").classList.remove("hidden");
       progressPanel.classList.add("hidden");
       $("#retryFinalizeButton").classList.add("hidden");
       $("#forceSummaryButton").classList.add("hidden");
@@ -849,6 +851,25 @@ async function retryActiveFinalization() {
   }
 }
 
+/** Writes the note again from the saved transcript; the recording and transcript are kept. */
+async function rebuildNote() {
+  if (!activeMeeting?.id) return;
+  if (!window.confirm("Write this note again from the saved transcript? The current note is replaced.")) return;
+  const button = $("#rebuildNoteButton");
+  button.disabled = true;
+  try {
+    await apiWithRetry(`/api/meetings/${activeMeeting.id}/rebuild-note`, { method: "POST" });
+    button.classList.add("hidden");
+    showToast("Writing the note again. It takes a minute or two.", 7000);
+    startPolling(activeMeeting.id);
+    await refreshActiveMeeting();
+  } catch (error) {
+    showToast(`Could not rewrite the note: ${error.message}`, 9000);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function forceSummary() {
   if (!activeMeeting?.id) return;
   const button = $("#forceSummaryButton");
@@ -892,6 +913,7 @@ form.addEventListener("submit", beginMeeting);
 stopButton.addEventListener("click", stopRecording);
 $("#homeButton").addEventListener("click", goHome);
 $("#forceSummaryButton").addEventListener("click", forceSummary);
+$("#rebuildNoteButton").addEventListener("click", rebuildNote);
 $("#backButton").addEventListener("click", goHome);
 $("#refreshButton").addEventListener("click", loadMeetings);
 $("#retryFinalizeButton").addEventListener("click", retryActiveFinalization);

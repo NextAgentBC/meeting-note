@@ -125,7 +125,7 @@ function memoryRowHtml(item) {
 }
 
 function factRowHtml(fact) {
-  const earlier = Number(fact.earlierVersions ?? fact.history ?? fact.previousCount ?? 0);
+  const earlier = Number(fact.priorVersions ?? 0);
   const source = [fact.meetingTitle, shortDate(fact.occurredAt)].filter(Boolean).join(" · ");
   return `
     <div class="memory-row" data-id="${escapeHtml(fact.id)}">

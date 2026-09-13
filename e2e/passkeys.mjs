@@ -165,7 +165,7 @@ try {
   await owner.getByText("E2E check").waitFor();
 
   step("sign out, then back in with nothing but the passkey");
-  await owner.getByRole("link", { name: "Me", exact: true }).click();
+  await owner.locator('#tabbar a[data-tab="me"]').click();
   await owner.getByRole("button", { name: "Sign out" }).click();
   await owner.getByRole("heading", { name: "Sign in" }).waitFor();
   await shot(owner, "05-sign-in");
@@ -173,7 +173,7 @@ try {
   await owner.getByText("E2E check").waitFor();
 
   step("a phone joins through Add device, and the first device keeps working");
-  await owner.getByRole("link", { name: "Me", exact: true }).click();
+  await owner.locator('#tabbar a[data-tab="me"]').click();
   await owner.getByRole("button", { name: /Add a phone or computer/ }).click();
   await owner.waitForFunction(() => document.querySelector("#deviceLink")?.value.includes("#add-device="));
   const deviceLink = await owner.locator("#deviceLink").inputValue();
@@ -210,7 +210,7 @@ try {
   if (staleCode !== 403) throw new Error(`the replaced recovery code still worked (${staleCode})`);
 
   step("both devices sign in with their own passkeys");
-  await phone.getByRole("link", { name: "Me", exact: true }).click();
+  await phone.locator('#tabbar a[data-tab="me"]').click();
   await phone.getByRole("button", { name: "Sign out" }).click();
   await phone.getByRole("button", { name: /Sign in with your passkey/ }).click();
   await phone.getByText("E2E check").waitFor();

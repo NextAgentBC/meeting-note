@@ -74,7 +74,8 @@ try {
   await page.getByRole("button", { name: /I've saved it/ }).click();
   await page.locator("#tabbar").waitFor();
   const tab = async (name) => {
-    await page.locator("#tabbar").getByRole("link", { name, exact: true }).click();
+    // By data-tab: a tab's accessible name also carries its badge count ("Plans 3").
+    await page.locator(`#tabbar a[data-tab="${name.toLowerCase()}"]`).click();
     await page.waitForFunction((title) => document.querySelector("#viewTitle")?.textContent === title, name);
   };
   await tab("Plans");
@@ -245,6 +246,25 @@ try {
     await page.locator("#activeMeetingTitle", { hasText: "Weekly planning" }).waitFor();
     await page.getByRole("button", { name: "Back to meetings" }).click();
     await tab("Memory");
+
+    step("durable facts from the meeting show on the Memory tab, and can be forgotten");
+    let facts = [];
+    for (let attempt = 0; attempt < 12 && !facts.length; attempt += 1) {
+      await tab("Meetings");
+      await tab("Memory");
+      await page.waitForTimeout(2500);
+      facts = await page.locator("#factsList .memory-row strong").allInnerTexts();
+    }
+    console.log(`  facts: ${facts.join(" | ") || "(none)"}`);
+    expect(facts.length > 0, "no durable facts were extracted from the meeting");
+    const recent = await page.locator("#memoryList .memory-row").count();
+    expect(recent > 0, "the Recently remembered list is empty");
+    page.once("dialog", (dialog) => dialog.accept());
+    const firstFact = page.locator("#factsList .memory-row").first();
+    const forgotten = await firstFact.locator("strong").innerText();
+    await firstFact.getByRole("button", { name: /Forget/ }).click();
+    await page.waitForFunction((text) => ![...document.querySelectorAll("#factsList .memory-row strong")].some((node) => node.textContent === text), forgotten);
+    await shot(page, "09-memory");
 
     if (WAV) {
       const tomorrow = await ask("明天有什么安排？");

@@ -6,7 +6,10 @@ import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { askRoutes } from "./ask";
 import { assistantRoutes, calendarFeed, suggestTasksFromMeeting } from "./assistant";
+import { runEmbed } from "./embed";
+import { queueFacts, runFacts } from "./facts";
 import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
+import { memoryRoutes } from "./memory-routes";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import {
   SEGMENT_TARGET_MS,
@@ -132,6 +135,7 @@ app.use("/api/*", requireOwner);
 app.route("/api/auth", authRoutes);
 app.route("/api", assistantRoutes);
 app.route("/api", askRoutes);
+app.route("/api", memoryRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare" }));
 
@@ -633,7 +637,7 @@ async function transcribeChunk(env: Env, message: Extract<JobMessage, { type: "t
         (SELECT COUNT(*) FROM audio_chunks WHERE meeting_id = ? AND status = 'done'), updated_at = ? WHERE id = ?`
     ).bind(message.meetingId, now, message.meetingId)
   ]);
-  await safely("remember a transcript", () => rememberSource(env.DB, chunk.id, transcriptItems(meeting, chunk, transcript)));
+  await safely("remember a transcript", () => rememberSource(env, chunk.id, transcriptItems(meeting, chunk, transcript)));
   await recordEvent(
     env,
     message.meetingId,
@@ -713,7 +717,7 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
     "UPDATE meeting_segments SET status = 'done', notes_json = ?, headline = ?, last_error = NULL, updated_at = ? WHERE id = ?"
   ).bind(JSON.stringify(note), note.headline.slice(0, 300), now, segment.id).run();
   const remembered = sectionItem(meeting, segment, note);
-  await safely("remember a section note", () => rememberSource(env.DB, segment.id, remembered ? [remembered] : []));
+  await safely("remember a section note", () => rememberSource(env, segment.id, remembered ? [remembered] : []));
   await recordEvent(env, message.meetingId, "segment_done", `seq=${segment.seq};bullets=${note.bullets.length}`);
   await advance(env, message.meetingId);
 }
@@ -794,14 +798,23 @@ async function runFinal(env: Env, meetingId: string) {
        last_error = NULL, updated_at = ? WHERE id = ?`
   ).bind(JSON.stringify(summary), markdown, now, meetingId).run();
   const remembered = summaryItem(meeting, summary);
-  await safely("remember a meeting note", () => rememberSource(env.DB, meetingId, remembered ? [remembered] : []));
+  await safely("remember a meeting note", () => rememberSource(env, meetingId, remembered ? [remembered] : []));
   await safely("suggest the meeting's to-dos", () => suggestTasksFromMeeting(env, meeting, summary.action_items));
+  await safely("queue the meeting's durable facts", () => queueFacts(env, meetingId));
   await recordEvent(env, meetingId, "final_completed", `sections=${segmentRows.length}`);
 }
 
 async function markJobFailed(env: Env, body: JobMessage, error: unknown) {
   const detail = error instanceof Error ? error.message : String(error);
   const now = isoNow();
+
+  // Embedding has no single meeting to blame it on (its ids can span several, or none), and no
+  // status column of its own: the backlog scan or the next write queues it again regardless.
+  if (body.type === "embed") {
+    console.error("Embedding failed permanently", body.ids, detail);
+    return;
+  }
+
   if (body.type === "transcribe") {
     await env.DB.prepare(
       "UPDATE audio_chunks SET status = 'failed', retry_count = retry_count + 1, last_error = ?, updated_at = ? WHERE id = ?"
@@ -835,7 +848,9 @@ export default {
         const body = message.body;
         if (body.type === "transcribe") await transcribeChunk(env, body);
         else if (body.type === "segment") await runSegment(env, body);
-        else if (body.type === "remember") await rememberMeeting(env.DB, body.meetingId);
+        else if (body.type === "remember") await rememberMeeting(env, body.meetingId);
+        else if (body.type === "embed") await runEmbed(env, body.ids);
+        else if (body.type === "facts") await runFacts(env, body.meetingId);
         else await runFinal(env, body.meetingId);
         message.ack();
       } catch (error) {

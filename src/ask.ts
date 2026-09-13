@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { isDailyLimitError, modelOptions, modelText, parseModelJson, recordUsage, runModel } from "./ai";
+import { embedBacklog } from "./embed";
 import { getSetting, ownerTimeZone, setSetting } from "./settings";
 import { utcToLocalParts } from "./calendar";
 import { deepSimplify, simplifyEnabled } from "./chinese";
@@ -138,7 +139,7 @@ askRoutes.post("/ask", async (c) => {
   }
   if (!terms.length) terms = [...signals.tags, ...signals.cleaned.split(/\s+/)];
 
-  const hits = await searchMemory(env.DB, { terms, range: signals.range, limit: MAX_PASSAGES });
+  const hits = await searchMemory(env, { terms, text: question, range: signals.range, limit: MAX_PASSAGES });
   const plans = signals.range ? await plansIn(env.DB, signals.range, timeZone) : [];
   if (!hits.length && !plans.length) {
     return c.json({ ok: true, answer: `I couldn't find anything about that in your meetings or plans.${catchUpNote}`, sources: [], searched: terms });
@@ -206,16 +207,22 @@ async function queueRemember(env: Env, meetingIds: string[]): Promise<void> {
 
 /**
  * Meetings recorded before memory existed, copied in once, in the background. The marker is written
- * only after every job is queued, so a failed send is simply tried again next time.
+ * only after every job is queued, so a failed send is simply tried again next time. Also catches up
+ * embedding (its own, separate once-only marker — see embedBacklog), so a copy that only gets
+ * MEMORY_VECTORS bound later still backfills its existing memory.
  */
 export async function catchUpMemory(env: Env): Promise<boolean> {
-  if (await getSetting(env.DB, "memory_backfill_queued_at")) return false;
-  const { results } = await env.DB.prepare(
-    "SELECT id FROM meetings m WHERE NOT EXISTS (SELECT 1 FROM memory_items i WHERE i.meeting_id = m.id) ORDER BY created_at DESC LIMIT 1000"
-  ).all<{ id: string }>();
-  await queueRemember(env, results.map((row) => row.id));
-  await setSetting(env.DB, "memory_backfill_queued_at", new Date().toISOString());
-  return results.length > 0;
+  let queued = false;
+  if (!(await getSetting(env.DB, "memory_backfill_queued_at"))) {
+    const { results } = await env.DB.prepare(
+      "SELECT id FROM meetings m WHERE NOT EXISTS (SELECT 1 FROM memory_items i WHERE i.meeting_id = m.id) ORDER BY created_at DESC LIMIT 1000"
+    ).all<{ id: string }>();
+    await queueRemember(env, results.map((row) => row.id));
+    await setSetting(env.DB, "memory_backfill_queued_at", new Date().toISOString());
+    queued = results.length > 0;
+  }
+  if (await embedBacklog(env)) queued = true;
+  return queued;
 }
 
 /** Called when the app opens, so older meetings are searchable before the first question. */

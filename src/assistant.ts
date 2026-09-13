@@ -82,8 +82,8 @@ function draftToRow(draft: PlanDraft, extra: Pick<TaskRow, "timezone" | "source"
 }
 
 /** Plans are remembered once confirmed; a suggestion or a cancelled plan is forgotten. */
-async function rememberPlan(db: D1Database, row: TaskRow): Promise<void> {
-  await safely("remember a plan", () => rememberSource(db, row.id, row.status === "confirmed" || row.status === "done" ? [planItem(row)] : []));
+async function rememberPlan(env: Env, row: TaskRow): Promise<void> {
+  await safely("remember a plan", () => rememberSource(env, row.id, row.status === "confirmed" || row.status === "done" ? [planItem(row)] : []));
 }
 
 function calendarTaskWithLink(c: AppContext, row: TaskRow): CalendarTask | null {
@@ -152,7 +152,7 @@ assistantRoutes.post("/tasks", async (c) => {
     updated_at: now
   };
   await insertTask(c.env.DB, row).run();
-  await rememberPlan(c.env.DB, row);
+  await rememberPlan(c.env, row);
   return c.json({ ok: true, task: taskView(row) }, 201);
 });
 
@@ -165,7 +165,7 @@ assistantRoutes.post("/tasks/confirm", async (c) => {
   ));
   const placeholders = parsed.data.ids.map(() => "?").join(", ");
   const { results } = await c.env.DB.prepare(`SELECT * FROM tasks WHERE id IN (${placeholders})`).bind(...parsed.data.ids).all<TaskRow>();
-  for (const row of results) await rememberPlan(c.env.DB, row);
+  for (const row of results) await rememberPlan(c.env, row);
   return c.json({ ok: true, tasks: results.map(taskView) });
 });
 
@@ -212,7 +212,7 @@ assistantRoutes.patch("/tasks/:id", async (c) => {
     `UPDATE tasks SET title = ?, notes = ?, kind = ?, status = ?, all_day = ?, due_date = ?, starts_at = ?, ends_at = ?,
        timezone = ?, updated_at = ? WHERE id = ?`
   ).bind(next.title, next.notes, next.kind, next.status, next.all_day, next.due_date, next.starts_at, next.ends_at, next.timezone, next.updated_at, row.id).run();
-  await rememberPlan(c.env.DB, next);
+  await rememberPlan(c.env, next);
   return c.json({ ok: true, task: taskView(next) });
 });
 
@@ -220,7 +220,7 @@ assistantRoutes.patch("/tasks/:id", async (c) => {
 assistantRoutes.delete("/tasks/:id", async (c) => {
   const row = await findTask(c.env.DB, c.req.param("id"));
   if (!row) return c.json({ ok: true, removed: "already_gone" });
-  await safely("forget a plan", () => rememberSource(c.env.DB, row.id, []));
+  await safely("forget a plan", () => rememberSource(c.env, row.id, []));
   if (row.status === "suggested") {
     await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(row.id).run();
     return c.json({ ok: true, removed: "deleted" });
@@ -416,7 +416,7 @@ assistantRoutes.post("/dictations", async (c) => {
     ...rows.map((row) => insertTask(env.DB, row))
   ]);
   await safely("remember a dictation", () =>
-    rememberSource(env.DB, dictationId, [dictationItem({ id: dictationId, transcript, created_at: new Date(now).toISOString() })])
+    rememberSource(env, dictationId, [dictationItem({ id: dictationId, transcript, created_at: new Date(now).toISOString() })])
   );
 
   return c.json({

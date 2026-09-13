@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { isDailyLimitError, modelOptions, modelText, recordUsage, runModel } from "./ai";
+import { isDailyLimitError, modelOptions, modelText, parseModelJson, recordUsage, runModel } from "./ai";
 import { getSetting, ownerTimeZone, setSetting } from "./settings";
 import { utcToLocalParts } from "./calendar";
 import { deepSimplify, simplifyEnabled } from "./chinese";
 import { searchMemory, type SearchResult } from "./memory";
 import { querySignals, type TimeRange } from "./recall";
-import { extractJson } from "./summary";
 import type { TaskRow } from "./tasks";
+import type { JobMessage } from "./types";
 import type { Env } from "./types";
 
 // "Ask": questions about the owner's own meetings and plans, answered only from what was
@@ -36,8 +36,12 @@ const answerJsonSchema = {
   required: ["answer", "sources"]
 } as const;
 
-/** maxTokens includes any reasoning the model does before answering (glm-4.7-flash thinks first). */
-async function runJson(env: Env, model: string, kind: string, messages: Array<{ role: string; content: string }>, schema: object, maxTokens: number): Promise<unknown> {
+/**
+ * Asks for JSON and returns it parsed, with the raw text for when it isn't JSON after all (a model
+ * that rejects the schema and is asked again without one may just write prose).
+ * maxTokens includes any reasoning the model does before answering.
+ */
+async function runJson(env: Env, model: string, kind: string, messages: Array<{ role: string; content: string }>, schema: object, maxTokens: number): Promise<{ parsed: unknown; text: string }> {
   const request = { messages, max_tokens: maxTokens, temperature: 0.1, ...modelOptions(model) };
   let result: unknown;
   try {
@@ -47,7 +51,12 @@ async function runJson(env: Env, model: string, kind: string, messages: Array<{ 
     result = await runModel(env, model, request);
   }
   await recordUsage(env, null, kind, model, result);
-  return extractJson(modelText(result));
+  const text = modelText(result);
+  try {
+    return { parsed: parseModelJson(text), text };
+  } catch {
+    return { parsed: null, text };
+  }
 }
 
 /** Words to search a bilingual transcript for: the question's names and topics, in both languages. */
@@ -58,8 +67,9 @@ async function searchTerms(env: Env, question: string): Promise<string[]> {
       role: "user",
       content: `A person asks about their own meetings and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nThe transcripts mix Chinese and English. Give 4 to 10 short search words: the names, places, things and topics in the question, each in English AND in Simplified Chinese. Use single words, not phrases: for Chinese, mostly two-character words (海报, 场地, 预算). Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
     }
-  ], termsJsonSchema, 800) as { terms?: unknown } | null;
-  const terms = Array.isArray(parsed?.terms) ? parsed.terms : [];
+  ], termsJsonSchema, 800);
+  const found = parsed.parsed as { terms?: unknown } | null;
+  const terms = Array.isArray(found?.terms) ? found.terms : [];
   return terms.filter((term): term is string => typeof term === "string").map((term) => term.trim()).filter((term) => term && term.length <= 40).slice(0, 10);
 }
 
@@ -84,16 +94,25 @@ export function answerLanguage(question: string): string {
   return /[\u3400-\u9fff]/.test(question) ? "用简体中文回答。" : "Answer in English, even where the passages are in Chinese.";
 }
 
-async function plansIn(db: D1Database, range: TimeRange): Promise<TaskRow[]> {
+/**
+ * The plans falling in a range. Timed plans compare as instants; all-day plans by date as the owner
+ * counts dates: in Shanghai, "tomorrow" starts at 16:00 UTC today, so UTC dates would pick today.
+ */
+export function localDateWindow(range: TimeRange, timeZone: string): { from: string; to: string } {
+  return { from: utcToLocalParts(range.from, timeZone).date, to: utcToLocalParts(range.to, timeZone).date };
+}
+
+async function plansIn(db: D1Database, range: TimeRange, timeZone: string): Promise<TaskRow[]> {
   const from = new Date(range.from).toISOString();
   const to = new Date(range.to).toISOString();
+  const days = localDateWindow(range, timeZone);
   const { results } = await db.prepare(
     `SELECT * FROM tasks
       WHERE status IN ('confirmed', 'suggested', 'done')
         AND ((starts_at IS NOT NULL AND starts_at >= ? AND starts_at < ?)
           OR (starts_at IS NULL AND due_date >= ? AND due_date < ?))
       ORDER BY due_date, starts_at LIMIT 30`
-  ).bind(from, to, from.slice(0, 10), to.slice(0, 10)).all<TaskRow>();
+  ).bind(from, to, days.from, days.to).all<TaskRow>();
   return results;
 }
 
@@ -106,17 +125,7 @@ askRoutes.post("/ask", async (c) => {
   const timeZone = await ownerTimeZone(env, c.req.header("x-timezone"));
   const signals = querySignals(question, now, timeZone);
 
-  // Meetings recorded before memory existed are copied in once, in the background, the first time
-  // anyone asks. The answer below still goes ahead with whatever is already remembered.
-  let catchingUp = false;
-  if (!(await getSetting(env.DB, "memory_backfill_queued_at"))) {
-    await setSetting(env.DB, "memory_backfill_queued_at", new Date(now).toISOString());
-    const { results } = await env.DB.prepare(
-      "SELECT id FROM meetings m WHERE NOT EXISTS (SELECT 1 FROM memory_items i WHERE i.meeting_id = m.id) LIMIT 200"
-    ).all<{ id: string }>();
-    for (const meeting of results) await env.JOBS.send({ type: "remember", meetingId: meeting.id });
-    catchingUp = results.length > 0;
-  }
+  const catchingUp = await catchUpMemory(env);
   const catchUpNote = catchingUp ? " (Older meetings are still being added; ask again in a minute if something is missing.)" : "";
 
   let terms: string[];
@@ -130,7 +139,7 @@ askRoutes.post("/ask", async (c) => {
   if (!terms.length) terms = [...signals.tags, ...signals.cleaned.split(/\s+/)];
 
   const hits = await searchMemory(env.DB, { terms, range: signals.range, limit: MAX_PASSAGES });
-  const plans = signals.range ? await plansIn(env.DB, signals.range) : [];
+  const plans = signals.range ? await plansIn(env.DB, signals.range, timeZone) : [];
   if (!hits.length && !plans.length) {
     return c.json({ ok: true, answer: `I couldn't find anything about that in your meetings or plans.${catchUpNote}`, sources: [], searched: terms });
   }
@@ -142,9 +151,9 @@ askRoutes.post("/ask", async (c) => {
     return `- ${task.title} (${when}${task.status === "suggested" ? ", not yet confirmed" : task.status === "done" ? ", done" : ""})`;
   }).join("\n");
 
-  let answer: { answer?: unknown; sources?: unknown } | null;
+  let reply: { parsed: unknown; text: string };
   try {
-    answer = await runJson(env, askModel(env), "ask", [
+    reply = await runJson(env, askModel(env), "ask", [
       {
         role: "system",
         content: "You answer questions about the user's own meetings and plans using only the numbered passages and plan list. Cite the passages you used like [2]. If they don't contain the answer, say so plainly instead of guessing. Answer in the language of the question; for Chinese, use Simplified Chinese. Be brief. Output JSON only."
@@ -153,16 +162,20 @@ askRoutes.post("/ask", async (c) => {
         role: "user",
         content: `Now: ${local.date} ${local.time} (${timeZone}).\nQuestion: ${question}\n\nPassages:\n${passages || "(none)"}${planLines ? `\n\nPlans in that period:\n${planLines}` : ""}\n\n${answerLanguage(question)}\nReturn {"answer": "...", "sources": [passage numbers used]}`
       }
-    ], answerJsonSchema, 2000) as typeof answer;
+    ], answerJsonSchema, 2000);
   } catch (error) {
     if (isDailyLimitError(error)) return c.json({ ok: false, error: "Today's free AI allowance is used up. It comes back at 00:00 UTC." }, 429);
     throw error;
   }
 
-  const text = typeof answer?.answer === "string" && answer.answer.trim() ? answer.answer.trim() : "I couldn't put an answer together from what was found.";
-  const cited = Array.isArray(answer?.sources)
-    ? [...new Set(answer.sources.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= hits.length))]
-    : [];
+  const answer = reply.parsed as { answer?: unknown; sources?: unknown } | null;
+  // Prose instead of JSON still answers the question; its [n] markers say which passages it used.
+  const prose = reply.text.trim().startsWith("{") ? "" : reply.text.trim();
+  const text = typeof answer?.answer === "string" && answer.answer.trim()
+    ? answer.answer.trim()
+    : prose.slice(0, 2000) || "I couldn't put an answer together from what was found.";
+  const numbers = Array.isArray(answer?.sources) ? answer.sources.map(Number) : [...text.matchAll(/\[(\d{1,2})\]/g)].map((match) => Number(match[1]));
+  const cited = [...new Set(numbers.filter((n) => Number.isInteger(n) && n >= 1 && n <= hits.length))];
   const shown = cited.length ? cited : hits.slice(0, 3).map((_, index) => index + 1);
 
   return c.json({
@@ -185,9 +198,36 @@ askRoutes.post("/ask", async (c) => {
   });
 });
 
-/** Makes every meeting searchable again, in the background. */
+async function queueRemember(env: Env, meetingIds: string[]): Promise<void> {
+  for (let start = 0; start < meetingIds.length; start += 100) {
+    await env.JOBS.sendBatch(meetingIds.slice(start, start + 100).map((meetingId) => ({ body: { type: "remember", meetingId } satisfies JobMessage })));
+  }
+}
+
+/**
+ * Meetings recorded before memory existed, copied in once, in the background. The marker is written
+ * only after every job is queued, so a failed send is simply tried again next time.
+ */
+export async function catchUpMemory(env: Env): Promise<boolean> {
+  if (await getSetting(env.DB, "memory_backfill_queued_at")) return false;
+  const { results } = await env.DB.prepare(
+    "SELECT id FROM meetings m WHERE NOT EXISTS (SELECT 1 FROM memory_items i WHERE i.meeting_id = m.id) ORDER BY created_at DESC LIMIT 1000"
+  ).all<{ id: string }>();
+  await queueRemember(env, results.map((row) => row.id));
+  await setSetting(env.DB, "memory_backfill_queued_at", new Date().toISOString());
+  return results.length > 0;
+}
+
+/** Called when the app opens, so older meetings are searchable before the first question. */
+askRoutes.post("/memory/catch-up", async (c) => c.json({ ok: true, queued: await catchUpMemory(c.env) }));
+
+/**
+ * Rebuilds the search index from memory_items (after restoring a database, say: the index is a
+ * virtual table that exports don't carry) and remembers every meeting again, in the background.
+ */
 askRoutes.post("/memory/rebuild", async (c) => {
+  await c.env.DB.prepare("INSERT INTO memory_fts (memory_fts) VALUES ('rebuild')").run();
   const { results } = await c.env.DB.prepare("SELECT id FROM meetings").all<{ id: string }>();
-  for (const meeting of results) await c.env.JOBS.send({ type: "remember", meetingId: meeting.id });
+  await queueRemember(c.env, results.map((row) => row.id));
   return c.json({ ok: true, meetings: results.length });
 });

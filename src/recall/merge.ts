@@ -163,8 +163,8 @@ export function mmrRerank(
   const selected: MergedHit[] = [];
   // Workers Free allows 10 ms of CPU per request: only the strongest candidates compete for
   // diversity, and each text is tokenised once rather than on every comparison.
-  const pool = [...items].sort((a, b) => b.score - a.score).slice(0, Math.max(k * 3, 20));
-  const tokenSets = new Map(pool.map((item) => [item.id, tokens(item.text)]));
+  const pool = [...items].sort((a, b) => b.score - a.score).slice(0, Math.max(k * 2, 12));
+  const tokenSets = new Map(pool.map((item) => [item.id, tokens(item.text.slice(0, 1000))]));
   while (selected.length < k && pool.length > 0) {
     let bestIdx = 0;
     let bestScore = -Infinity;

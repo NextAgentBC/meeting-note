@@ -1,5 +1,5 @@
 import { utcToLocalParts } from "./calendar";
-import { resolveDatePhrase } from "./dates";
+import { clockTimeIn, isoDateIn, resolveDatePhrase } from "./dates";
 import { addDays, cleanDate, cleanTime, scheduleFor, type Schedule, type TaskKind } from "./tasks";
 
 // Spoken plans ("next Tuesday at 3, call Cindy about the venue") → calendar entries and to-dos.
@@ -110,6 +110,18 @@ Rules:
 
 Return: {"items": [{"kind": "event", "title": "", "date_phrase": "", "date": "", "time": "", "duration_minutes": 0, "repeat": "", "notes": ""}]}`
   };
+}
+
+/**
+ * When a meeting's to-do is due, from the words in the note ("下周二之前 (2026-09-15)", "Friday 3pm"),
+ * counted from the meeting. Only a real clock time makes it an event.
+ */
+export function meetingTodoSchedule(due: string, meetingTime: number, timeZone: string): Schedule & { kind: TaskKind } {
+  const words = due.trim();
+  const time = words ? clockTimeIn(words) : null;
+  const kind: TaskKind = time ? "event" : "task";
+  const date = words ? resolveDatePhrase(words, meetingTime, timeZone) ?? isoDateIn(words) : null;
+  return { kind, ...scheduleFor({ date, time, kind, timeZone, now: meetingTime }) };
 }
 
 export interface PlanDraft extends Schedule {

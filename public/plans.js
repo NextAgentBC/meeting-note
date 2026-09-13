@@ -6,6 +6,9 @@ const MAX_DICTATION_MS = 2 * 60 * 1000;
 const GROUPS = ["Overdue", "Today", "Tomorrow", "Next 7 days", "Later", "No date yet", "Done"];
 
 let tasks = [];
+// One place that says what the dictate button is doing, set before any await, so a second tap during
+// the microphone prompt or an upload can't start a second recording.
+let phase = "idle"; // idle | starting | recording | stopping | sending
 let dictation = null; // the recording in progress
 let pendingUpload = null; // a recording that didn't reach the server, kept for "try again"
 let editingId = null;
@@ -115,7 +118,7 @@ function rowHtml(task) {
   return `
     <article class="plan-row ${escapeHtml(task.status)}" data-id="${escapeHtml(task.id)}">
       ${suggested
-        ? `<span class="plan-kind" aria-hidden="true">${task.kind === "event" ? "◷" : "◇"}</span>`
+        ? `<span class="plan-kind" role="img" aria-label="${task.kind === "event" ? "Event" : "To-do"}" title="${task.kind === "event" ? "Event" : "To-do"}">${task.kind === "event" ? "◷" : "◇"}</span>`
         : `<button class="plan-check" type="button" data-action="toggle" aria-label="${task.status === "done" ? "Mark as not done" : "Mark as done"}">${task.status === "done" ? "✓" : ""}</button>`}
       <div class="plan-main">
         <strong>${escapeHtml(task.title)}</strong>
@@ -175,7 +178,7 @@ export async function loadPlans() {
   try {
     const data = await api("/api/tasks");
     tasks = data.tasks;
-    render();
+    if (!editingId) render(); // a background refresh mustn't throw away an edit in progress
   } catch (error) {
     if (error.status !== 401) $("#taskList").innerHTML = `<p class="empty-state">Couldn't load your plans: ${escapeHtml(error.message)}</p>`;
   }
@@ -187,6 +190,8 @@ export function initPlans() {
     started = true;
     const zone = browserTimeZone();
     if (zone) void api("/api/settings/timezone", { method: "PUT", ...json({ timezone: zone }) }).catch(() => undefined);
+    // Meetings recorded before memory existed become searchable in the background.
+    void api("/api/memory/catch-up", { method: "POST" }).catch(() => undefined);
   }
   return loadPlans();
 }
@@ -256,7 +261,9 @@ $("#confirmAllButton").addEventListener("click", (event) => {
   const ids = tasks.filter((task) => task.status === "suggested").map((task) => task.id);
   if (!ids.length) return;
   void act(event.currentTarget, async () => {
-    await api("/api/tasks/confirm", { method: "POST", ...json({ ids }) });
+    for (let start = 0; start < ids.length; start += 50) {
+      await api("/api/tasks/confirm", { method: "POST", ...json({ ids: ids.slice(start, start + 50) }) });
+    }
     await loadPlans();
   });
 });
@@ -292,6 +299,11 @@ function showResult(message, transcript) {
   $("#dictateResult").classList.remove("hidden");
 }
 
+/** Whether a spoken plan is being recorded or sent; a meeting mustn't start over it. */
+export function isDictating() {
+  return phase !== "idle";
+}
+
 async function startDictation() {
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     toast("This browser can't record audio. Type the plan instead.");
@@ -301,6 +313,7 @@ async function startDictation() {
     toast("Stop the meeting recording first.");
     return;
   }
+  phase = "starting";
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -308,26 +321,39 @@ async function startDictation() {
       video: false
     });
   } catch (error) {
+    phase = "idle";
     toast(error.name === "NotAllowedError" ? "Microphone permission was declined. Nothing was recorded." : `Couldn't use the microphone: ${error.message}`, 7000);
     return;
   }
 
   const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type)) || "";
-  const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 48_000 });
   const parts = [];
-  recorder.ondataavailable = (event) => {
-    if (event.data.size) parts.push(event.data);
-  };
-  recorder.start(1000);
-
-  const context = new AudioContext();
-  if (context.state === "suspended") await context.resume().catch(() => undefined);
-  const analyser = context.createAnalyser();
-  analyser.fftSize = 512;
-  context.createMediaStreamSource(stream).connect(analyser);
+  let recorder;
+  let context;
+  let analyser;
+  try {
+    recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 48_000 });
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) parts.push(event.data);
+    };
+    recorder.start(1000);
+    context = new AudioContext();
+    if (context.state === "suspended") await context.resume().catch(() => undefined);
+    analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    context.createMediaStreamSource(stream).connect(analyser);
+  } catch (error) {
+    stream.getTracks().forEach((track) => track.stop());
+    await context?.close().catch(() => undefined);
+    phase = "idle";
+    toast(`Couldn't start recording: ${error.message}`, 7000);
+    return;
+  }
   const samples = new Uint8Array(analyser.fftSize);
 
   dictation = { recorder, stream, parts, mimeType, context, startedAt: Date.now(), frame: 0 };
+  phase = "recording";
+  $("#dictateButton").setAttribute("aria-pressed", "true");
   document.body.classList.add("dictating");
   $("#dictateLabel").textContent = "Listening… tap when you're done";
   $("#dictateCancel").classList.remove("hidden");
@@ -357,6 +383,8 @@ async function startDictation() {
 async function stopCapture() {
   const current = dictation;
   dictation = null;
+  phase = "stopping";
+  $("#dictateButton").setAttribute("aria-pressed", "false");
   cancelAnimationFrame(current.frame);
   if (current.recorder.state !== "inactive") {
     await new Promise((resolve) => {
@@ -378,6 +406,7 @@ async function finishDictation() {
   const durationMs = Date.now() - current.startedAt;
   const blob = new Blob(current.parts, { type: current.recorder.mimeType || current.mimeType || "audio/webm" });
   if (durationMs < 1000 || blob.size < 500) {
+    phase = "idle";
     resetDictateButton();
     showResult("That was too short. Tap, say your plan, then tap again.", "");
     return;
@@ -386,6 +415,7 @@ async function finishDictation() {
 }
 
 async function sendDictation(upload) {
+  phase = "sending";
   pendingUpload = upload;
   const button = $("#dictateButton");
   button.disabled = true;
@@ -414,20 +444,27 @@ async function sendDictation(upload) {
     button.disabled = false;
     document.body.classList.remove("dictate-busy");
     resetDictateButton();
+    phase = "idle";
   }
 }
 
 $("#dictateButton").addEventListener("click", () => {
-  if (dictation) void finishDictation();
-  else void startDictation();
+  if (phase === "recording") void finishDictation();
+  else if (phase === "idle") void startDictation();
+  // starting, stopping or sending: the tap is ignored
 });
-$("#dictateCancel").addEventListener("click", async () => {
-  if (!dictation) return;
+
+/** Stops a spoken plan without sending it. */
+export async function cancelDictation() {
+  if (phase !== "recording") return;
   await stopCapture();
+  phase = "idle";
   resetDictateButton();
-});
+}
+
+$("#dictateCancel").addEventListener("click", () => void cancelDictation());
 $("#dictateRetry").addEventListener("click", () => {
-  if (pendingUpload) void sendDictation(pendingUpload);
+  if (pendingUpload && phase === "idle") void sendDictation(pendingUpload);
 });
 
 // ── Calendar sync ───────────────────────────────────────────────────────────

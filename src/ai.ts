@@ -1,4 +1,4 @@
-import { stripThinking } from "./summary";
+import { extractJson, stripThinking } from "./summary";
 import type { Env } from "./types";
 
 export function runModel(env: Env, model: string, input: unknown): Promise<unknown> {
@@ -53,6 +53,19 @@ function usageOf(result: unknown): { neurons: number; raw: string | null } {
     neurons: Number.isFinite(neurons) ? neurons : 0,
     raw: JSON.stringify(usage).slice(0, 500)
   };
+}
+
+/** A model's JSON, including a bare list, which extractJson (written for objects) would mangle. */
+export function parseModelJson(text: string): unknown {
+  const trimmed = stripThinking(text).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // fall through to extraction and repair
+    }
+  }
+  return extractJson(trimmed);
 }
 
 /** Never let accounting failures take down a job that otherwise succeeded. */

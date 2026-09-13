@@ -300,3 +300,31 @@ describe("icsFilename", () => {
     expect(filename).toContain("abc123");
   });
 });
+
+describe("a big feed stays cheap to build", () => {
+  it("folds 500 long bilingual plans in well under the free plan's 10 ms budget", () => {
+    const tasks: CalendarTask[] = Array.from({ length: 500 }, (_, index) =>
+      makeTask({
+        id: `task-${index}`,
+        title: `周会：确认场地、投影仪和麦克风 · Venue check ${index}`,
+        notes: "带上报名表和海报。Bring the sign-up sheets, the poster and the spare HDMI adapter. ".repeat(2),
+        status: "confirmed",
+        startsAt: BASE_STARTS_AT + index * 3_600_000
+      })
+    );
+    buildFeedIcs(tasks, { domain: "example.com", calendarName: "Meeting Note", timezone: VANCOUVER }); // warm up
+    const started = performance.now();
+    const feed = buildFeedIcs(tasks, { domain: "example.com", calendarName: "Meeting Note", timezone: VANCOUVER });
+    const elapsed = performance.now() - started;
+    expect(feed.split("\r\n").every((line) => new TextEncoder().encode(line).length <= 75)).toBe(true);
+    // About 3 ms alone; encoding each character separately took about 100 ms at this size.
+    // Generous, because the suite runs files in parallel.
+    expect(elapsed).toBeLessThan(30);
+  });
+
+  it("tells calendars an edited event changed", () => {
+    const ics = buildEventIcs(makeTask({ startsAt: BASE_STARTS_AT, updatedAt: Date.UTC(2026, 8, 12, 20, 0, 0) }), { domain: "example.com" });
+    expect(ics).toContain("LAST-MODIFIED:20260912T200000Z");
+    expect(ics).toMatch(/SEQUENCE:\d+/);
+  });
+});

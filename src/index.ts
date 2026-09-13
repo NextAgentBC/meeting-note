@@ -681,7 +681,7 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
   await env.DB.prepare(
     "UPDATE meeting_segments SET status = 'done', notes_json = ?, headline = ?, last_error = NULL, updated_at = ? WHERE id = ?"
   ).bind(JSON.stringify(note), note.headline.slice(0, 300), now, segment.id).run();
-  const remembered = sectionItem(meeting, { id: segment.id, start_chunk: segment.start_chunk, updated_at: now }, note);
+  const remembered = sectionItem(meeting, segment, note);
   await safely("remember a section note", () => rememberSource(env.DB, segment.id, remembered ? [remembered] : []));
   await recordEvent(env, message.meetingId, "segment_done", `seq=${segment.seq};bullets=${note.bullets.length}`);
   await advance(env, message.meetingId);

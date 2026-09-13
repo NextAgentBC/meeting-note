@@ -25,15 +25,22 @@ export function escapeIcsText(raw: string): string {
     .replace(/\r\n|\r|\n/g, "\\n");
 }
 
+/** UTF-8 length of one code point, worked out rather than encoded: a feed folds thousands of lines. */
+function utf8Bytes(codePoint: number): number {
+  return codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+}
+
 /** Fold a single logical line at 75 UTF-8 octets. Continuation lines start with one space. */
 export function foldIcsLine(line: string): string {
-  const encoder = new TextEncoder();
-  if (encoder.encode(line).length <= 75) return line;
+  if (line.length <= 25) return line; // at most 4 bytes per character
+  let total = 0;
+  for (const char of line) total += utf8Bytes(char.codePointAt(0)!);
+  if (total <= 75) return line;
   const out: string[] = [];
   let current = "";
   let currentBytes = 0;
   for (const char of line) {
-    const size = encoder.encode(char).length;
+    const size = utf8Bytes(char.codePointAt(0)!);
     // The continuation prefix costs 1 octet, so later lines get a 74-octet budget.
     const budget = out.length === 0 ? 75 : 74;
     if (currentBytes + size > budget) {
@@ -62,6 +69,9 @@ function buildVeventLines(task: CalendarTask, domain: string): string[] {
     "BEGIN:VEVENT",
     `UID:${task.id}@${domain}`,
     `DTSTAMP:${formatUtcBasic(task.updatedAt)}`,
+    `LAST-MODIFIED:${formatUtcBasic(task.updatedAt)}`,
+    // Seconds since 2023-11-14: grows with every edit, so calendars that track SEQUENCE (Outlook) take the change.
+    `SEQUENCE:${Math.max(0, Math.floor(task.updatedAt / 1000) - 1_700_000_000)}`,
   ];
 
   if (task.allDay) {

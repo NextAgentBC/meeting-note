@@ -130,6 +130,8 @@ says so rather than guessing.
   Transcripts and notes stay in D1 until you remove them; there is no delete button yet, so use
   Cloudflare's dashboard (D1 → `meeting-note-db` → Console) if you need to.
 - Dictated plans keep only their words; the recording is not stored.
+- Backups: `wrangler d1 export` can't export the search index (a virtual table), so it refuses the whole
+  database once plans and Ask are installed. Cloudflare's D1 Time Travel restores are unaffected.
 - The calendar address is the only way in that doesn't need your passkey, and it can only read plans you
   have added.
 - AI notes are drafts. Check names, numbers and decisions against the transcript.

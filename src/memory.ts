@@ -1,3 +1,4 @@
+import { localDateTimeToUtc } from "./calendar";
 import { buildFtsQuery, isJunk, mergeHits, splitForIndex, type MergedHit, type RouteResult, type TimeRange } from "./recall";
 import { parseSegmentNote, type SegmentNote } from "./segment";
 import { SummarySchema, type MeetingSummary } from "./summary";
@@ -50,7 +51,8 @@ export function transcriptItems(meeting: { id: string; title: string }, chunk: {
     }));
 }
 
-export function sectionItem(meeting: { id: string; title: string }, segment: { id: string; start_chunk: number; updated_at: string }, note: SegmentNote): MemoryItem | null {
+/** Dated when the section was recorded (its row is created then), not when a retry finally wrote it. */
+export function sectionItem(meeting: { id: string; title: string }, segment: { id: string; start_chunk: number; created_at: string }, note: SegmentNote): MemoryItem | null {
   const lines = [
     note.headline,
     ...note.bullets,
@@ -67,7 +69,7 @@ export function sectionItem(meeting: { id: string; title: string }, segment: { i
     chunkSequence: segment.start_chunk,
     title: meeting.title,
     text: lines.join("\n").slice(0, 4000),
-    occurredAt: segment.updated_at
+    occurredAt: segment.created_at
   };
 }
 
@@ -93,7 +95,8 @@ export function summaryItem(meeting: { id: string; title: string; started_at: st
 
 /** A plan is remembered for when it happens, so "what's on next week" finds it. */
 export function planItem(task: TaskRow): MemoryItem {
-  const when = task.starts_at ?? (task.due_date ? `${task.due_date}T12:00:00.000Z` : task.created_at);
+  // An all-day plan sits at noon in its own time zone, so it stays on its day wherever that is.
+  const when = task.starts_at ?? (task.due_date ? new Date(localDateTimeToUtc(task.timezone, task.due_date, "12:00")).toISOString() : task.created_at);
   const text = [task.title, task.notes, task.repeat_hint ? `Repeats ${task.repeat_hint}` : ""].filter(Boolean).join("\n");
   return {
     id: `plan:${task.id}`,
@@ -161,7 +164,9 @@ export async function safely(label: string, work: () => Promise<unknown>): Promi
 
 // ── What comes out ──────────────────────────────────────────────────────────
 
-const COLUMNS = "m.id, m.kind, m.source_id, m.meeting_id, m.chunk_sequence, m.title, m.text, m.occurred_at, m.superseded_by";
+// Only the start of each passage comes back: the answer uses 900 characters, and parsing and comparing
+// whole meeting notes would eat into the free plan's 10 ms of CPU.
+const COLUMNS = "m.id, m.kind, m.source_id, m.meeting_id, m.chunk_sequence, m.title, substr(m.text, 1, 1000) AS text, m.occurred_at, m.superseded_by";
 
 function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (character) => `\\${character}`);
@@ -193,7 +198,9 @@ export async function searchMemory(db: D1Database, query: { terms: string[]; ran
 
   if (fts.match) {
     const { results } = await db.prepare(
-      `SELECT ${COLUMNS}, bm25(memory_fts) AS rank
+      // Titles count for a tenth: every passage of a meeting carries its title, and a meeting called
+      // "Poster review" shouldn't outrank the one passage elsewhere that says who makes the poster.
+      `SELECT ${COLUMNS}, bm25(memory_fts, 0.1, 1.0) AS rank
          FROM memory_fts JOIN memory_items m ON m.rowid = memory_fts.rowid
         WHERE memory_fts MATCH ?
         ORDER BY rank LIMIT 40`
@@ -253,8 +260,8 @@ export async function rememberMeeting(db: D1Database, meetingId: string): Promis
   }
 
   const segments = await db.prepare(
-    "SELECT id, start_chunk, updated_at, notes_json FROM meeting_segments WHERE meeting_id = ? AND status = 'done' ORDER BY seq"
-  ).bind(meetingId).all<{ id: string; start_chunk: number; updated_at: string; notes_json: string | null }>();
+    "SELECT id, start_chunk, created_at, notes_json FROM meeting_segments WHERE meeting_id = ? AND status = 'done' ORDER BY seq"
+  ).bind(meetingId).all<{ id: string; start_chunk: number; created_at: string; notes_json: string | null }>();
   for (const segment of segments.results) {
     const note = parseSegmentNote(segment.notes_json);
     const item = note ? sectionItem(meeting, segment, note) : null;

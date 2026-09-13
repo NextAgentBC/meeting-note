@@ -72,3 +72,40 @@ describe("English date words", () => {
     expect(on("next week")).toBeNull();
   });
 });
+
+describe("words that only look like dates", () => {
+  it("doesn't read month words as Monday, and knows 'Tuesday next week'", () => {
+    const MONDAY_14 = Date.UTC(2026, 8, 14, 16, 0);
+    for (const phrase of ["next month", "by next month", "month end", "monthly", "this month", "next week", "sunny afternoon"]) {
+      expect(resolveDatePhrase(phrase, MONDAY_14, VANCOUVER), phrase).toBeNull();
+    }
+    expect(resolveDatePhrase("Tuesday next week", MONDAY_14, VANCOUVER)).toBe("2026-09-22");
+    expect(resolveDatePhrase("Tue.", MONDAY_14, VANCOUVER)).toBe("2026-09-15");
+    expect(resolveDatePhrase("thurs", MONDAY_14, VANCOUVER)).toBe("2026-09-17");
+  });
+
+  it("puts a month and day from last week in the past, not next year", () => {
+    const JAN_3_2027 = Date.UTC(2027, 0, 3, 20, 0);
+    expect(resolveDatePhrase("12月31日", JAN_3_2027, VANCOUVER)).toBe("2026-12-31");
+    expect(resolveDatePhrase("December 31", JAN_3_2027, VANCOUVER)).toBe("2026-12-31");
+  });
+});
+
+describe("clock times in a to-do's due words", () => {
+  it("reads twelve-hour and Chinese times", async () => {
+    const { clockTimeIn, isoDateIn } = await import("../src/dates");
+    expect(clockTimeIn("Friday 3:00 PM")).toBe("15:00");
+    expect(clockTimeIn("by 9:30pm")).toBe("21:30");
+    expect(clockTimeIn("12 a.m.")).toBe("00:00");
+    expect(clockTimeIn("周五下午3:00")).toBe("15:00");
+    expect(clockTimeIn("晚上六点半")).toBe("18:30");
+    expect(clockTimeIn("中午12点")).toBe("12:00");
+    expect(clockTimeIn("中午1点")).toBe("13:00");
+    expect(clockTimeIn("上午10点15分")).toBe("10:15");
+    expect(clockTimeIn("9月22日18:30")).toBe("18:30");
+    expect(clockTimeIn("下周二之前")).toBeNull();
+    expect(clockTimeIn("Q3 planning")).toBeNull();
+    expect(isoDateIn("下周二之前 (2026-09-15)")).toBe("2026-09-15");
+    expect(isoDateIn("2026-02-30")).toBeNull();
+  });
+});

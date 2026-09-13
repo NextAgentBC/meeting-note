@@ -14,13 +14,11 @@ export async function setSetting(db: D1Database, key: string, value: string): Pr
   ).bind(key, value, new Date().toISOString()).run();
 }
 
-/** The owner's time zone: whatever their browser last said, remembered for background jobs. */
+/**
+ * The time zone to work in: the requesting browser's, else the one the app stored at start-up
+ * (PUT /api/settings/timezone), which background jobs such as meeting to-dos use. A request never
+ * changes the stored zone by itself, so a second device or a privacy browser reporting UTC can't move it.
+ */
 export async function ownerTimeZone(env: Env, fromBrowser?: string | null): Promise<string> {
-  const stored = await getSetting(env.DB, "timezone");
-  const browser = validTimeZone(fromBrowser);
-  if (browser) {
-    if (browser !== stored) await setSetting(env.DB, "timezone", browser);
-    return browser;
-  }
-  return validTimeZone(stored) ?? "UTC";
+  return validTimeZone(fromBrowser) ?? validTimeZone(await getSetting(env.DB, "timezone")) ?? "UTC";
 }

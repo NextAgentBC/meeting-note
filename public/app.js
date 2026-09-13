@@ -1,5 +1,5 @@
 import { ensureSignedIn } from "./auth.js";
-import { initPlans, loadPlans } from "./plans.js";
+import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
 
 const CHUNK_MS = 3 * 60 * 1000;
@@ -456,6 +456,10 @@ function goHome() {
 
 async function beginMeeting(event) {
   event.preventDefault();
+  if (isDictating()) {
+    showToast("Finish or cancel the spoken plan first.");
+    return;
+  }
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     showToast("This browser cannot record audio. Use a current version of Chrome.");
     return;
@@ -944,8 +948,8 @@ void ensureSignedIn().then(() => {
 });
 // A passage in an Ask answer that came from a meeting opens that meeting.
 window.addEventListener("meetingnote:open-meeting", (event) => {
-  if (isRecording) {
-    showToast("Stop the recording before opening another meeting.");
+  if (isRecording || isDictating()) {
+    showToast(isRecording ? "Stop the recording before opening another meeting." : "Finish or cancel the spoken plan first.");
     return;
   }
   if (event.detail?.id) void openMeeting(event.detail.id);

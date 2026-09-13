@@ -1,15 +1,13 @@
 import { Hono, type Context } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { isDailyLimitError, modelOptions, modelText, recordUsage, runModel } from "./ai";
+import { isDailyLimitError, modelOptions, modelText, parseModelJson, recordUsage, runModel } from "./ai";
 import { sha256Hex } from "./auth";
 import { buildEventIcs, buildFeedIcs, icsFilename, type CalendarTask } from "./calendar";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { dictationItem, planItem, rememberSource, safely } from "./memory";
-import { resolveDatePhrase } from "./dates";
 import { getSetting, ownerTimeZone, setSetting } from "./settings";
-import { DICTATION_TRANSCRIBE_PROMPT, normalizePlan, planJsonSchema, planPrompt, type PlanDraft } from "./plans";
-import { extractJson } from "./summary";
+import { DICTATION_TRANSCRIBE_PROMPT, meetingTodoSchedule, normalizePlan, planJsonSchema, planPrompt, type PlanDraft } from "./plans";
 import { cleanDate, cleanTime, scheduleFor, taskView, toCalendarTask, validTimeZone, type TaskRow } from "./tasks";
 import type { Env } from "./types";
 
@@ -178,6 +176,13 @@ assistantRoutes.patch("/tasks/:id", async (c) => {
   if (!parsed.success) return jsonError(parsed.error.issues[0]?.message ?? "Invalid change");
   const body = parsed.data;
 
+  // A suggestion becomes a plan only through Add (or goes through Remove); a plan is cancelled only by
+  // removing it. Otherwise an unconfirmed suggestion could reach the calendar feed.
+  if (body.status !== undefined && body.status !== row.status) {
+    const allowed = row.status === "suggested" || row.status === "cancelled" ? ["confirmed"] : ["confirmed", "done"];
+    if (!allowed.includes(body.status)) return jsonError("Use Add, Done or Remove for that", 400);
+  }
+
   const next: TaskRow = { ...row };
   if (body.title !== undefined) next.title = body.title;
   if (body.notes !== undefined) next.notes = body.notes;
@@ -259,14 +264,7 @@ export async function suggestTasksFromMeeting(
     if (!title) continue;
     const id = `meeting-${(await sha256Hex(`${meeting.id}|${title.toLowerCase()}`)).slice(0, 24)}`;
     const due = item.due?.trim() ?? "";
-    const time = /(\d{1,2}):(\d{2})/.exec(due);
-    const schedule = scheduleFor({
-      date: due ? resolveDatePhrase(due, meetingTime, timeZone) ?? cleanDate(due.slice(0, 10)) : null,
-      time: time ? cleanTime(time[0]) : null,
-      kind: time ? "event" : "task",
-      timeZone,
-      now: meetingTime
-    });
+    const { kind, ...schedule } = meetingTodoSchedule(due, meetingTime, timeZone);
     const assignee = item.owner && !/^(unassigned|无|none|n\/a|全体.*)$/i.test(item.owner.trim()) ? item.owner.trim().slice(0, 80) : "";
     statements.push(env.DB.prepare(
       `INSERT INTO tasks
@@ -274,7 +272,7 @@ export async function suggestTasksFromMeeting(
           source, dictation_id, meeting_id, segment_seq, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, '', ?, 'meeting', NULL, ?, NULL, ?, ?)
        ON CONFLICT(id) DO NOTHING`
-    ).bind(id, title, due && !schedule.due_date ? `Due: ${due}` : "", time ? "event" : "task", schedule.all_day, schedule.due_date,
+    ).bind(id, title, due && !schedule.due_date ? `Due: ${due}` : "", kind, schedule.all_day, schedule.due_date,
       schedule.starts_at, schedule.ends_at, timeZone, assignee, meeting.id, now, now));
   }
   if (statements.length) await env.DB.batch(statements);
@@ -319,12 +317,14 @@ export async function calendarFeed(c: AppContext): Promise<Response> {
     return new Response("Not found", { status: 404 });
   }
 
+  // Bounded so building the feed stays well inside the free plan's CPU time as plans pile up:
+  // a year back, done plans for 90 days, cancelled ones for 30.
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM tasks
-      WHERE due_date IS NOT NULL
-        AND (status IN ('confirmed', 'done') OR (status = 'cancelled' AND updated_at > ?))
-      ORDER BY due_date DESC LIMIT 1000`
-  ).bind(isoDaysAgo(CANCELLED_FEED_DAYS)).all<TaskRow>();
+      WHERE due_date IS NOT NULL AND due_date >= ?
+        AND (status = 'confirmed' OR (status = 'done' AND updated_at > ?) OR (status = 'cancelled' AND updated_at > ?))
+      ORDER BY due_date DESC LIMIT 500`
+  ).bind(isoDaysAgo(365).slice(0, 10), isoDaysAgo(90), isoDaysAgo(CANCELLED_FEED_DAYS)).all<TaskRow>();
   const events = results.map((row) => calendarTaskWithLink(c, row)).filter((task): task is CalendarTask => task !== null);
   const timeZone = validTimeZone(await getSetting(c.env.DB, TIMEZONE_KEY)) ?? "UTC";
 
@@ -357,7 +357,7 @@ async function extractPlans(env: Env, transcript: string, now: number, timeZone:
     result = await runModel(env, model, request);
   }
   await recordUsage(env, null, "plan", model, result);
-  return normalizePlan(extractJson(modelText(result)), now, timeZone);
+  return normalizePlan(parseModelJson(modelText(result)), now, timeZone);
 }
 
 /**

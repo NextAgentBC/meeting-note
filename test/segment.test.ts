@@ -39,10 +39,30 @@ function stored(seq: number, overrides: Partial<StoredSegment> = {}): StoredSegm
 
 describe("segment notes", () => {
   it("keeps chunk numbers in the segment prompt", () => {
-    const prompt = segmentPrompt([{ sequence: 4, transcript_text: "hello there" }], "section 3");
+    const prompt = segmentPrompt([{ sequence: 4, transcript_text: "hello there" }], "section 3", "2026-09-15T09:00:00.000Z");
     expect(prompt).toContain("[CHUNK 4]");
     expect(prompt).toContain("hello there");
     expect(prompt).toContain("section 3");
+  });
+
+  it("tells the model the meeting's start time and time zone, defaulting the zone to UTC", () => {
+    const defaulted = segmentPrompt([{ sequence: 0, transcript_text: "hello" }], "section 1", "2026-09-15T09:00:00.000Z");
+    expect(defaulted).toContain("2026-09-15T09:00:00.000Z");
+    expect(defaulted).toContain("time zone UTC");
+
+    const zoned = segmentPrompt([{ sequence: 0, transcript_text: "hello" }], "section 1", "2026-09-15T09:00:00.000Z", "America/Vancouver");
+    expect(zoned).toContain("time zone America/Vancouver");
+  });
+
+  it("requires grounded details for a non-empty transcript in the prompt", () => {
+    const prompt = segmentPrompt([{ sequence: 4, transcript_text: "hello there" }], "section 3", "2026-09-15T09:00:00.000Z");
+    expect(prompt).toContain("bullets MUST contain");
+    expect(prompt).toContain("quotes MUST contain");
+    expect(prompt).toContain("我明天发");
+    expect(prompt).toContain("chatGDP/chatsdp");
+    expect(prompt).toContain("DeepSeek");
+    expect(prompt).toContain("the date in brackets");
+    expect(prompt).toContain("下周二之前 (2026-09-15)");
   });
 
   it("returns null for unparseable stored notes instead of throwing", () => {
@@ -97,6 +117,8 @@ describe("final merge", () => {
     // Duplicate tools across segments collapse.
     expect(merged.tools_mentioned).toEqual(["ChatGPT", "NotebookLM"]);
     expect(merged.action_items).toHaveLength(2);
+    // Duplicate decisions across segments collapse too.
+    expect(merged.decisions).toEqual(["No product pitch tonight"]);
     expect(toMarkdown("Workshop", merged)).toContain("# Workshop");
   });
 

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { isDailyLimitError, modelOptions, modelText, recordUsage, runModel } from "./ai";
-import { ownerTimeZone } from "./assistant";
+import { getSetting, ownerTimeZone, setSetting } from "./settings";
 import { utcToLocalParts } from "./calendar";
 import { deepSimplify, simplifyEnabled } from "./chinese";
 import { searchMemory, type SearchResult } from "./memory";
@@ -109,7 +109,9 @@ askRoutes.post("/ask", async (c) => {
   const counts = await env.DB.prepare(
     "SELECT (SELECT COUNT(*) FROM memory_items) AS remembered, (SELECT COUNT(*) FROM meetings) AS meetings"
   ).first<{ remembered: number; meetings: number }>();
-  if (!counts?.remembered && counts?.meetings) {
+  // Meetings recorded before memory existed are copied in once, in the background.
+  if (!counts?.remembered && counts?.meetings && !(await getSetting(env.DB, "memory_backfill_queued_at"))) {
+    await setSetting(env.DB, "memory_backfill_queued_at", new Date(now).toISOString());
     const { results } = await env.DB.prepare("SELECT id FROM meetings").all<{ id: string }>();
     for (const meeting of results) await env.JOBS.send({ type: "remember", meetingId: meeting.id });
     return c.json({ ok: true, answer: "Your earlier meetings are being made searchable. Ask again in a minute.", sources: [], preparing: true });

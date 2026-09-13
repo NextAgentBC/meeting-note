@@ -7,6 +7,7 @@ import { buildEventIcs, buildFeedIcs, icsFilename, type CalendarTask } from "./c
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { dictationItem, planItem, rememberSource, safely } from "./memory";
 import { resolveDatePhrase } from "./dates";
+import { getSetting, ownerTimeZone, setSetting } from "./settings";
 import { DICTATION_TRANSCRIBE_PROMPT, normalizePlan, planJsonSchema, planPrompt, type PlanDraft } from "./plans";
 import { extractJson } from "./summary";
 import { cleanDate, cleanTime, scheduleFor, taskView, toCalendarTask, validTimeZone, type TaskRow } from "./tasks";
@@ -42,28 +43,6 @@ function jsonError(message: string, status = 400): Response {
 /** Plans need a model that is good with dates; it runs once per dictation, so it can be a stronger one. */
 export function planModel(env: Env): string {
   return env.PLAN_MODEL || env.FINAL_MODEL || env.SUMMARY_MODEL;
-}
-
-async function getSetting(db: D1Database, key: string): Promise<string | null> {
-  const row = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first<{ value: string }>();
-  return row?.value ?? null;
-}
-
-async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
-  await db.prepare(
-    "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
-  ).bind(key, value, isoNow()).run();
-}
-
-/** The owner's time zone: whatever their browser last said, remembered for background jobs. */
-export async function ownerTimeZone(env: Env, fromBrowser?: string | null): Promise<string> {
-  const stored = await getSetting(env.DB, TIMEZONE_KEY);
-  const browser = validTimeZone(fromBrowser);
-  if (browser) {
-    if (browser !== stored) await setSetting(env.DB, TIMEZONE_KEY, browser);
-    return browser;
-  }
-  return validTimeZone(stored) ?? "UTC";
 }
 
 async function findTask(db: D1Database, id: string): Promise<TaskRow | null> {

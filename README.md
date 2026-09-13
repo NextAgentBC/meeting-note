@@ -13,6 +13,11 @@ private copy of Meeting Note.
 - Whisper transcribes and GLM-4.7-flash writes the notes, both on Workers AI.
 - A short note for every five minutes, merged into one note when you stop, exportable as Markdown.
 - The whole recording also stays on your computer as a download, in case anything in the cloud fails.
+- **Say your plans** ("next Tuesday at 3, call Cindy"; "月底前交房租") or type them. Once you confirm them,
+  each goes to Google Calendar or to the calendar on your iPhone, Mac or PC, and a finished meeting's
+  to-dos are offered the same way.
+- **Ask your meetings and plans anything** ("what did we decide about the venue?", "明天有什么安排？") and
+  get an answer with the passages it came from.
 - **Only you can sign in**, with a passkey: Face ID, a fingerprint or your screen lock. No password.
 - **Audio deletes itself after seven days.**
 
@@ -23,7 +28,7 @@ free plan: R2 (audio goes into KV instead) and Cloudflare Access (it has its own
 
 | Part | What it does here | Free allowance |
 |---|---|---|
-| Workers AI | Transcription and notes | 10,000 "neurons" a day: **about two hours of recording**, notes included. It stops at the limit and never bills. Resets at 00:00 UTC. |
+| Workers AI | Transcription, notes, plans and answers | 10,000 "neurons" a day: **about two hours of recording**, notes included. A spoken plan costs about 15 neurons and a question about 6. It stops at the limit and never bills. Resets at 00:00 UTC. |
 | KV | Audio, about 1 MB per three minutes, expiring after 7 days | 1,000 writes a day, far more than the AI allowance can use |
 | D1 | Meetings, transcripts, notes, your passkey | 100,000 rows written a day |
 | Queues | Background transcription | 10,000 operations a day |
@@ -71,6 +76,8 @@ Phones can't record another app's audio, so record calls from a computer.
   type that code: their passkeys and sessions are removed and the app is yours.
 - **Today's AI allowance is used up:** transcription pauses until 00:00 UTC. Open the meeting afterwards
   and press **Retry**.
+- **A plan landed on the wrong day:** press **Edit** before adding it. Dates like 明天, 下周二 or "by Friday"
+  are counted from the moment you spoke, in your device's time zone.
 
 ## How it works
 
@@ -97,11 +104,34 @@ Requests that change data must come from the app's own address. Nothing is asked
 copy belongs to whoever sets it up first, so open yours right after deploying. To require a code at setup
 instead, add a `SETUP_CODE` secret to the Worker.
 
+## Plans and your calendar
+
+Press **Tap and say your plans**, speak for up to two minutes, and tap again. The recording is turned
+into words and thrown away; the plans found in it wait under **Check these** until you press **Add**.
+Every plan you add has two buttons: **Google** opens it in Google Calendar, and **Apple · Outlook**
+downloads an event file that the calendar on your iPhone, Mac or PC opens.
+
+To see everything without adding plans one by one, open **Calendar sync** and make your private calendar
+address, then subscribe to it once: on an iPhone or Mac press **subscribe**, in Google Calendar use
+**Other calendars → From URL**. Apple Calendar picks up changes within an hour, Google within a day.
+Anyone who has the address can read the plans you've added, so keep it to yourself, and replace it if
+it gets out.
+
+## Ask
+
+Type a question in **Ask your meetings and plans**. Meeting Note looks through every transcript, section
+note, meeting note, dictation and plan you've added, and answers only from what it found, listing the
+passages; click one from a meeting to open that meeting. If the passages don't answer the question, it
+says so rather than guessing.
+
 ## Privacy
 
 - Everything stays in **your** Cloudflare account. Audio lives in KV and expires after seven days.
   Transcripts and notes stay in D1 until you remove them; there is no delete button yet, so use
   Cloudflare's dashboard (D1 → `meeting-note-db` → Console) if you need to.
+- Dictated plans keep only their words; the recording is not stored.
+- The calendar address is the only way in that doesn't need your passkey, and it can only read plans you
+  have added.
 - AI notes are drafts. Check names, numbers and decisions against the transcript.
 
 ## Settings
@@ -115,6 +145,8 @@ Change these in `wrangler.jsonc` (or in the Cloudflare dashboard, under the Work
 | `CHINESE_SCRIPT` | `simplified` | `off` keeps Traditional characters |
 | `ASR_MODEL` | Whisper Large v3 Turbo | Transcription |
 | `SUMMARY_MODEL` / `FINAL_MODEL` | GLM-4.7-flash | Section notes / the final merge |
+| `PLAN_MODEL` | GLM-4.7-flash | Reads plans out of what you said |
+| `ASK_MODEL` | GLM-4.7-flash | Answers questions |
 | `FREE_DAILY_NEURONS` | `10000` | The allowance the usage card measures against |
 
 ## Run it on your computer
@@ -127,7 +159,9 @@ npm test
 
 Locally everything runs on your machine except Workers AI, so recording and uploads work but
 transcription only happens in the deployed app. `e2e/passkeys.mjs` walks through setup, the recovery
-code, sign-in, an expired session and recovery on a new device in a real browser; the steps are at the top of the file.
+code, sign-in, an expired session and recovery on a new device in a real browser. `e2e/assistant.mjs`
+covers plans, the calendar feed, dictation, meeting to-dos and Ask; run the app with `npx wrangler dev`
+(not `--local`) so Workers AI answers. The steps are at the top of each file.
 
 ## License
 

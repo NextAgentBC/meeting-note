@@ -210,12 +210,15 @@ try {
     await shot(page, "07-ask");
     const poster = await ask("Who is doing the poster, and by when?");
     expect(/Sam/i.test(poster.answer), "Ask didn't find who makes the poster");
-    if (WAV) await ask("明天有什么安排？");
-
     await page.locator(".ask-source", { hasText: "Weekly planning" }).first().click();
     await page.locator("#activeMeetingTitle", { hasText: "Weekly planning" }).waitFor();
     await page.getByRole("button", { name: "← All meetings" }).click();
     await page.locator("#askSection").waitFor();
+
+    if (WAV) {
+      const tomorrow = await ask("明天有什么安排？");
+      expect(/Sindy|Cindy/i.test(tomorrow.answer), "Ask didn't find tomorrow's dictated plan");
+    }
   }
 
   step("the same screen on a phone");

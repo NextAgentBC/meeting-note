@@ -167,6 +167,16 @@ function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
+/**
+ * "海报设计" won't match a transcript that says "海报下周二要发出去", and the trigram index can't
+ * look for anything shorter than three characters, so longer Chinese words are also searched for
+ * by their two-character pieces.
+ */
+export function chineseBigrams(term: string): string[] {
+  const runs = term.match(/[\u3400-\u9fff]{3,}/g) ?? [];
+  return runs.flatMap((run) => Array.from({ length: run.length - 1 }, (_, index) => run.slice(index, index + 2)));
+}
+
 export interface SearchResult extends MergedHit {
   row: MemoryRow;
 }
@@ -193,8 +203,8 @@ export async function searchMemory(db: D1Database, query: { terms: string[]; ran
     for (const row of results) rows.set(row.id, row);
   }
 
-  if (fts.likeTerms.length) {
-    const likeTerms = fts.likeTerms.slice(0, 8);
+  const likeTerms = [...new Set([...fts.likeTerms, ...terms.flatMap(chineseBigrams)])].slice(0, 16);
+  if (likeTerms.length) {
     const clauses = likeTerms.map(() => "(m.text LIKE ? ESCAPE '\\' OR m.title LIKE ? ESCAPE '\\')").join(" OR ");
     const bindings = likeTerms.flatMap((term) => [`%${escapeLike(term)}%`, `%${escapeLike(term)}%`]);
     const { results } = await db.prepare(

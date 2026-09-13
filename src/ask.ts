@@ -56,11 +56,11 @@ async function searchTerms(env: Env, question: string): Promise<string[]> {
     { role: "system", content: "You choose keywords for searching meeting transcripts. Output JSON only." },
     {
       role: "user",
-      content: `A person asks about their own meetings and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nGive 3 to 8 keywords to search the transcripts with: the names, places, products and topics in the question, each as it would be said, plus its English or Simplified Chinese equivalent. Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
+      content: `A person asks about their own meetings and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nThe transcripts mix Chinese and English. Give 4 to 10 short search words: the names, places, things and topics in the question, each in English AND in Simplified Chinese. Use single words, not phrases: for Chinese, mostly two-character words (海报, 场地, 预算). Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
     }
   ], termsJsonSchema, 800) as { terms?: unknown } | null;
   const terms = Array.isArray(parsed?.terms) ? parsed.terms : [];
-  return terms.filter((term): term is string => typeof term === "string").map((term) => term.trim()).filter((term) => term && term.length <= 40).slice(0, 8);
+  return terms.filter((term): term is string => typeof term === "string").map((term) => term.trim()).filter((term) => term && term.length <= 40).slice(0, 10);
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -77,6 +77,11 @@ function passageLabel(hit: SearchResult, timeZone: string): string {
   if (hit.row.kind === "plan") return `plan for ${date}`;
   if (hit.row.meeting_id) return `meeting "${hit.row.title}", ${date}, ${KIND_LABEL[hit.row.kind]}`;
   return `${KIND_LABEL[hit.row.kind] ?? hit.row.kind}, ${date}`;
+}
+
+/** Passages are often in the other language, and models drift towards it; so say which one. */
+export function answerLanguage(question: string): string {
+  return /[\u3400-\u9fff]/.test(question) ? "用简体中文回答。" : "Answer in English, even where the passages are in Chinese.";
 }
 
 async function plansIn(db: D1Database, range: TimeRange): Promise<TaskRow[]> {
@@ -142,7 +147,7 @@ askRoutes.post("/ask", async (c) => {
       },
       {
         role: "user",
-        content: `Now: ${local.date} ${local.time} (${timeZone}).\nQuestion: ${question}\n\nPassages:\n${passages || "(none)"}${planLines ? `\n\nPlans in that period:\n${planLines}` : ""}\n\nReturn {"answer": "...", "sources": [passage numbers used]}`
+        content: `Now: ${local.date} ${local.time} (${timeZone}).\nQuestion: ${question}\n\nPassages:\n${passages || "(none)"}${planLines ? `\n\nPlans in that period:\n${planLines}` : ""}\n\n${answerLanguage(question)}\nReturn {"answer": "...", "sources": [passage numbers used]}`
       }
     ], answerJsonSchema, 2000) as typeof answer;
   } catch (error) {

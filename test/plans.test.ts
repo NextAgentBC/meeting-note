@@ -162,3 +162,22 @@ describe("model answers in every shape Workers AI returns", () => {
     expect(modelText({ response: null, choices: [{ message: { content: "ok" } }] })).toBe("ok");
   });
 });
+
+describe("searching Chinese without a word segmenter", () => {
+  it("also looks for the two-character pieces of longer Chinese words", async () => {
+    const { chineseBigrams } = await import("../src/memory");
+    expect(chineseBigrams("海报设计")).toEqual(["海报", "报设", "设计"]);
+    expect(chineseBigrams("海报")).toEqual([]);
+    expect(chineseBigrams("Sam 的海报设计")).toEqual(["的海", "海报", "报设", "设计"]);
+    expect(chineseBigrams("poster")).toEqual([]);
+  });
+});
+
+describe("Ask answers in the language it was asked in", () => {
+  it("names the language explicitly", async () => {
+    const { answerLanguage } = await import("../src/ask");
+    expect(answerLanguage("Who is doing the poster?")).toContain("English");
+    expect(answerLanguage("海报谁来做？")).toBe("用简体中文回答。");
+    expect(answerLanguage("Sam 的海报什么时候发？")).toBe("用简体中文回答。");
+  });
+});

@@ -106,16 +106,18 @@ askRoutes.post("/ask", async (c) => {
   const timeZone = await ownerTimeZone(env, c.req.header("x-timezone"));
   const signals = querySignals(question, now, timeZone);
 
-  const counts = await env.DB.prepare(
-    "SELECT (SELECT COUNT(*) FROM memory_items) AS remembered, (SELECT COUNT(*) FROM meetings) AS meetings"
-  ).first<{ remembered: number; meetings: number }>();
-  // Meetings recorded before memory existed are copied in once, in the background.
-  if (!counts?.remembered && counts?.meetings && !(await getSetting(env.DB, "memory_backfill_queued_at"))) {
+  // Meetings recorded before memory existed are copied in once, in the background, the first time
+  // anyone asks. The answer below still goes ahead with whatever is already remembered.
+  let catchingUp = false;
+  if (!(await getSetting(env.DB, "memory_backfill_queued_at"))) {
     await setSetting(env.DB, "memory_backfill_queued_at", new Date(now).toISOString());
-    const { results } = await env.DB.prepare("SELECT id FROM meetings").all<{ id: string }>();
+    const { results } = await env.DB.prepare(
+      "SELECT id FROM meetings m WHERE NOT EXISTS (SELECT 1 FROM memory_items i WHERE i.meeting_id = m.id) LIMIT 200"
+    ).all<{ id: string }>();
     for (const meeting of results) await env.JOBS.send({ type: "remember", meetingId: meeting.id });
-    return c.json({ ok: true, answer: "Your earlier meetings are being made searchable. Ask again in a minute.", sources: [], preparing: true });
+    catchingUp = results.length > 0;
   }
+  const catchUpNote = catchingUp ? " (Older meetings are still being added; ask again in a minute if something is missing.)" : "";
 
   let terms: string[];
   try {
@@ -130,7 +132,7 @@ askRoutes.post("/ask", async (c) => {
   const hits = await searchMemory(env.DB, { terms, range: signals.range, limit: MAX_PASSAGES });
   const plans = signals.range ? await plansIn(env.DB, signals.range) : [];
   if (!hits.length && !plans.length) {
-    return c.json({ ok: true, answer: "I couldn't find anything about that in your meetings or plans.", sources: [], searched: terms });
+    return c.json({ ok: true, answer: `I couldn't find anything about that in your meetings or plans.${catchUpNote}`, sources: [], searched: terms });
   }
 
   const local = utcToLocalParts(now, timeZone);
@@ -165,7 +167,7 @@ askRoutes.post("/ask", async (c) => {
 
   return c.json({
     ok: true,
-    answer: simplifyEnabled(env.CHINESE_SCRIPT) ? deepSimplify(text) : text,
+    answer: `${simplifyEnabled(env.CHINESE_SCRIPT) ? deepSimplify(text) : text}${catchUpNote}`,
     sources: shown.map((n) => {
       const hit = hits[n - 1];
       return {

@@ -10,6 +10,9 @@
 // MEETING_WAV is uploaded as a one-chunk meeting that then gets asked about; it should say the talk
 // is at the Richmond Public Library (列治文公共图书馆) and that Sam makes the poster.
 // PW_CHANNEL=chrome uses the installed Google Chrome; SHOTS=<folder> saves screenshots.
+// Against a copy that already has an owner: RECOVERY_CODE=<code> signs in with it instead of claiming,
+// and RECOVERY_CODE_OUT=<file> receives the new code it's replaced with. CLEANUP=1 removes the plans the
+// run added (the test meeting stays).
 
 import { chromium, request } from "playwright";
 
@@ -51,11 +54,23 @@ try {
     options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true }
   });
 
-  step("claim the fresh copy");
   await page.goto(BASE);
-  await page.getByRole("heading", { name: "Set up your Meeting Note" }).waitFor();
-  await page.locator("#ownerName").fill("Plans Tester");
-  await page.getByRole("button", { name: /Create my passkey/ }).click();
+  if (process.env.RECOVERY_CODE) {
+    step("sign in to the existing copy with its recovery code");
+    await page.getByRole("button", { name: /Lost your passkey/ }).click();
+    await page.locator("#recoverCode").fill(process.env.RECOVERY_CODE);
+    await page.getByRole("button", { name: /Replace my passkey/ }).click();
+    await page.getByRole("heading", { name: "Save your recovery code" }).waitFor();
+    if (process.env.RECOVERY_CODE_OUT) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(process.env.RECOVERY_CODE_OUT, `${(await page.locator("#recoveryCode").innerText()).trim()}\n`, { mode: 0o600 });
+    }
+  } else {
+    step("claim the fresh copy");
+    await page.getByRole("heading", { name: "Set up your Meeting Note" }).waitFor();
+    await page.locator("#ownerName").fill("Plans Tester");
+    await page.getByRole("button", { name: /Create my passkey/ }).click();
+  }
   await page.getByRole("button", { name: /I've saved it/ }).click();
   await page.getByRole("heading", { name: "Say it, and it goes on your calendar" }).waitFor();
 
@@ -234,6 +249,15 @@ try {
   await shot(page, "06-phone");
 
   await outsider.dispose();
+  if (process.env.CLEANUP) {
+    step("clean up the plans this run added");
+    const removed = await page.evaluate(async () => {
+      const { tasks } = await (await fetch("/api/tasks")).json();
+      for (const task of tasks) await fetch(`/api/tasks/${encodeURIComponent(task.id)}`, { method: "DELETE" });
+      return tasks.length;
+    });
+    console.log(`  removed ${removed} plans`);
+  }
   console.log("All plan flows passed.");
 } catch (error) {
   console.error("FAILED:", error.message);

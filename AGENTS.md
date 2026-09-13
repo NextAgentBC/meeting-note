@@ -23,11 +23,11 @@ transcribes and writes notes, and only the owner can sign in. Read this before c
 
 ```
 src/index.ts     API routes, the queue consumer, and advance(): the only code that moves a meeting on
-src/auth.ts      passkey setup / sign-in / owner recovery / add-a-device, sessions, same-origin check
+src/auth.ts      passkey setup / sign-in / owner recovery / device links (Add device), sessions, same-origin check
 src/segment.ts   five-minute section notes     src/summary.ts   the final merge and its JSON repair
 src/chinese.ts   Traditional → Simplified, character by character
 public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), styles
-migrations/      0001–0003 meetings, segments, AI usage; 0004 the owner's passkeys; 0005 the recovery code
+migrations/      0001–0003 meetings, segments, AI usage; 0004 the owner's passkeys; 0005 the recovery code; 0008 device links
 e2e/             the sign-in flows in a real browser (own package.json)
 ```
 

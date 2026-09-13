@@ -24,6 +24,7 @@
       </button>
       <div class="top-actions">
         <button id="installButton" class="install-button hidden" type="button">Install app</button>
+        <button id="addDeviceButton" class="install-button hidden" type="button">Add device</button>
         <button id="signOutButton" class="install-button hidden" type="button">Sign out</button>
       </div>
     </header>
@@ -52,7 +53,8 @@
 
             <div id="signInPanel" class="auth-form hidden">
               <button id="signInButton" class="primary-button" type="button"><span>Sign in with your passkey</span><b>→</b></button>
-              <button id="showRecover" class="auth-link" type="button">Lost your passkey? Use your recovery code</button>
+              <p class="auth-hint">New phone or computer? On a device where you're already signed in, press <b>Add device</b> and scan the code with this one.</p>
+              <button id="showRecover" class="auth-link" type="button">Lost every device? Use your recovery code</button>
             </div>
 
             <form id="recoverForm" class="auth-form hidden">
@@ -64,6 +66,11 @@
               <button class="primary-button" type="submit"><span>Replace my passkey</span><b>→</b></button>
               <button id="hideRecover" class="auth-link" type="button">← Back to sign in</button>
             </form>
+
+            <div id="linkPanel" class="auth-form hidden">
+              <button id="linkDeviceButton" class="primary-button" type="button"><span>Add this device</span><b>→</b></button>
+              <small class="auth-hint">Your other devices keep working. The link works once.</small>
+            </div>
 
             <div id="recoveryPanel" class="auth-form hidden">
               <p id="recoveryCode" class="recovery-code"></p>
@@ -194,6 +201,25 @@
         </div>
       </section>
     </main>
+
+    <dialog id="deviceDialog" class="device-dialog" aria-labelledby="deviceDialogTitle">
+      <div class="device-dialog-body">
+        <p class="eyebrow">Add device</p>
+        <h2 id="deviceDialogTitle">Sign in on your phone or another computer</h2>
+        <ol>
+          <li>On the new device, point the camera at this code, or open the link below on it.</li>
+          <li>Press <b>Add this device</b> and confirm with Face ID, a fingerprint or the screen lock.</li>
+        </ol>
+        <div id="deviceQr" class="device-qr" role="img" aria-label="QR code for the link below"></div>
+        <input id="deviceLink" readonly aria-label="Link for your new device" />
+        <div class="device-actions">
+          <button id="copyDeviceLink" class="install-button" type="button">Copy link</button>
+          <button id="newDeviceLink" class="install-button" type="button">Make a new code</button>
+        </div>
+        <p id="deviceExpiry" class="auth-warning">It works once, for ten minutes. Only open it on your own device.</p>
+        <button id="closeDeviceDialog" class="auth-link" type="button">Close</button>
+      </div>
+    </dialog>
 
     <div id="reauthBanner" class="reauth-banner hidden" role="alert">
       <span id="reauthMessage">Your sign-in has expired. Recording continues, and new audio waits on this device.</span>

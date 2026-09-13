@@ -99,9 +99,15 @@ function showPanel(name) {
   show($("#setupForm"), name === "setup");
   show($("#signInPanel"), name === "signin");
   show($("#recoverForm"), name === "recover");
+  show($("#linkPanel"), name === "link");
   show($("#recoveryPanel"), name === "recovery");
   show($("#authError"), false);
 }
+
+// A link from "Add device" on a signed-in device: #add-device=<token>. Taken out of the address
+// straight away, so it isn't left in the history or bookmarked.
+let deviceLinkToken = new URLSearchParams(location.hash.slice(1)).get("add-device");
+if (deviceLinkToken) history.replaceState(null, "", location.pathname + location.search);
 
 function showError(error) {
   $("#authError").textContent = messageFor(error);
@@ -112,6 +118,7 @@ function enterApp() {
   show($("#authView"), false);
   show($("#dashboardView"), true);
   show($("#signOutButton"), true);
+  show($("#addDeviceButton"), true);
   document.body.classList.remove("auth-pending");
   window.dispatchEvent(new CustomEvent("meetingnote:signed-in"));
   whenSignedIn?.();
@@ -146,7 +153,9 @@ async function run(button, action, { replacesCode = false } = {}) {
 export async function ensureSignedIn() {
   const me = await fetch("/api/auth/me", { credentials: "same-origin" }).then((r) => r.json());
   if (me.signedIn) {
+    deviceLinkToken = null; // this device is already signed in
     show($("#signOutButton"), true);
+    show($("#addDeviceButton"), true);
     document.body.classList.remove("auth-pending");
     return;
   }
@@ -163,7 +172,11 @@ export async function ensureSignedIn() {
     return new Promise(() => {});
   }
 
-  if (me.hasOwner) {
+  if (me.hasOwner && deviceLinkToken) {
+    $("#authTitle").textContent = "Add this device";
+    $("#authLede").textContent = "You opened a link from a device where you're signed in. Create a passkey here, and this phone or computer can sign in with Face ID, a fingerprint or its screen lock.";
+    showPanel("link");
+  } else if (me.hasOwner) {
     $("#authTitle").textContent = "Sign in";
     $("#authLede").textContent = "Your phone or computer confirms it's you with Face ID, a fingerprint or your screen lock. No password.";
     showPanel("signin");
@@ -188,6 +201,11 @@ $("#setupForm").addEventListener("submit", (event) => {
 });
 
 $("#signInButton").addEventListener("click", (event) => void run(event.currentTarget, signInWithPasskey));
+
+$("#linkDeviceButton").addEventListener("click", (event) => {
+  const token = deviceLinkToken;
+  void run(event.currentTarget, () => createPasskey({ purpose: "link-device", token }));
+});
 
 $("#showRecover").addEventListener("click", () => showPanel("recover"));
 $("#hideRecover").addEventListener("click", () => showPanel("signin"));
@@ -237,7 +255,54 @@ $("#reauthButton").addEventListener("click", async (event) => {
   }
 });
 
-/** Adds a passkey on this device for the signed-in owner (after signing in with a phone's QR code). */
-export function addThisDevice() {
-  return createPasskey({ purpose: "add-device" });
+// ── Add device: a one-time link and QR code for another phone or computer ───────
+
+let deviceLinkTimer = 0;
+
+async function makeDeviceLink() {
+  const button = $("#newDeviceLink");
+  button.disabled = true;
+  try {
+    const link = await post("/api/auth/device-link");
+    $("#deviceQr").innerHTML = link.qrSvg; // made by the server from the link alone
+    $("#deviceLink").value = link.url;
+    $("#copyDeviceLink").textContent = "Copy link";
+    const expires = new Date(link.expiresAt);
+    const until = expires.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    $("#deviceExpiry").textContent = `It works once, until ${until}. Only open it on your own device.`;
+    clearTimeout(deviceLinkTimer);
+    deviceLinkTimer = window.setTimeout(() => {
+      $("#deviceQr").innerHTML = "";
+      $("#deviceLink").value = "";
+      $("#deviceExpiry").textContent = "That code has expired. Make a new one.";
+    }, Math.max(0, expires.getTime() - Date.now()));
+  } catch (error) {
+    $("#deviceExpiry").textContent = messageFor(error);
+  } finally {
+    button.disabled = false;
+  }
 }
+
+$("#addDeviceButton").addEventListener("click", () => {
+  const dialog = $("#deviceDialog");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  void makeDeviceLink();
+});
+$("#newDeviceLink").addEventListener("click", () => void makeDeviceLink());
+$("#copyDeviceLink").addEventListener("click", async (event) => {
+  try {
+    await navigator.clipboard.writeText($("#deviceLink").value);
+    event.currentTarget.textContent = "Copied";
+  } catch {
+    $("#deviceLink").select();
+  }
+});
+$("#closeDeviceDialog").addEventListener("click", () => {
+  const dialog = $("#deviceDialog");
+  clearTimeout(deviceLinkTimer);
+  $("#deviceQr").innerHTML = "";
+  $("#deviceLink").value = "";
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+});

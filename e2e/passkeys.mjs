@@ -160,25 +160,55 @@ try {
   await owner.getByRole("button", { name: /Sign in with your passkey/ }).click();
   await owner.getByText("E2E check").waitFor();
 
+  step("a phone joins through Add device, and the first device keeps working");
+  await owner.getByRole("button", { name: "Add device" }).click();
+  await owner.waitForFunction(() => document.querySelector("#deviceLink")?.value.includes("#add-device="));
+  const deviceLink = await owner.locator("#deviceLink").inputValue();
+  if (!(await owner.locator("#deviceQr svg").count())) throw new Error("no QR code for the device link");
+  await shot(owner, "06-add-device");
+  const phone = await deviceWithPasskeys(browser);
+  await phone.goto(deviceLink);
+  await phone.getByRole("heading", { name: "Add this device" }).waitFor();
+  if (phone.url().includes("add-device")) throw new Error("the link's token was left in the address bar");
+  await phone.getByRole("button", { name: /Add this device/ }).click();
+  await phone.getByText("E2E check").waitFor();
+  await owner.getByRole("button", { name: "Close" }).click();
+
+  step("the link works only once");
+  const latecomer = await deviceWithPasskeys(browser);
+  await latecomer.goto(deviceLink);
+  await latecomer.getByRole("button", { name: /Add this device/ }).click();
+  await latecomer.getByText("expired or has already been used").waitFor();
+
+  step("both devices sign in with their own passkeys");
+  await phone.getByRole("button", { name: "Sign out" }).click();
+  await phone.getByRole("button", { name: /Sign in with your passkey/ }).click();
+  await phone.getByText("E2E check").waitFor();
+  await owner.reload();
+  await owner.getByText("E2E check").waitFor();
+
   step("a lost device: the recovery code, typed loosely, puts a new passkey on a new device");
   const ownerNewDevice = await deviceWithPasskeys(browser);
   await ownerNewDevice.goto(BASE);
-  await ownerNewDevice.getByRole("button", { name: /Lost your passkey/ }).click();
+  await ownerNewDevice.getByRole("button", { name: /Lost every device/ }).click();
   await ownerNewDevice.locator("#recoverCode").fill(recoveryCode.toLowerCase().replace(/-/g, " "));
   await ownerNewDevice.getByRole("button", { name: /Replace my passkey/ }).click();
   const newRecoveryCode = await saveRecoveryCode(ownerNewDevice, "06-new-recovery-code");
   if (newRecoveryCode === recoveryCode) throw new Error("the recovery code was not replaced");
   await ownerNewDevice.getByText("E2E check").waitFor();
 
-  step("the old device is signed out, and its passkey no longer works");
+  step("the old devices are signed out, and their passkeys no longer work");
   await owner.reload();
   await owner.getByRole("button", { name: /Sign in with your passkey/ }).click();
   await owner.getByText("isn't registered here").waitFor();
+  await phone.reload();
+  await phone.getByRole("button", { name: /Sign in with your passkey/ }).click();
+  await phone.getByText("isn't registered here").waitFor();
 
   step("a used recovery code doesn't work twice");
   const intruder = await deviceWithPasskeys(browser);
   await intruder.goto(BASE);
-  await intruder.getByRole("button", { name: /Lost your passkey/ }).click();
+  await intruder.getByRole("button", { name: /Lost every device/ }).click();
   await intruder.locator("#recoverCode").fill(recoveryCode);
   await intruder.getByRole("button", { name: /Replace my passkey/ }).click();
   await intruder.getByText("doesn't match").waitFor();

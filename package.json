@@ -7,8 +7,16 @@
   "description": "Record a meeting in your browser; your own free Cloudflare account transcribes it and writes a note every five minutes.",
   "cloudflare": {
     "label": "Meeting Note",
-    "products": ["Workers", "D1", "KV", "Queues", "Workers AI"],
-    "categories": ["ai"]
+    "products": [
+      "Workers",
+      "D1",
+      "KV",
+      "Queues",
+      "Workers AI"
+    ],
+    "categories": [
+      "ai"
+    ]
   },
   "scripts": {
     "dev": "npm run db:local && wrangler dev --local",
@@ -23,6 +31,7 @@
     "@simplewebauthn/server": "^14.0.1",
     "hono": "^4.13.7",
     "opencc-js": "^1.4.2",
+    "uqr": "^0.1.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {

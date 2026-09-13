@@ -108,3 +108,68 @@ body.auth-pending main {
   text-align: center;
   user-select: all;
 }
+
+.auth-hint {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.device-dialog {
+  width: min(460px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #121820;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+}
+.device-dialog::backdrop {
+  background: rgba(4, 6, 9, 0.7);
+}
+.device-dialog-body {
+  padding: 24px;
+}
+.device-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 21px;
+}
+.device-dialog ol {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  color: #b3bdc6;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.device-qr {
+  width: min(240px, 70vw);
+  aspect-ratio: 1;
+  margin: 0 auto 14px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+}
+.device-qr:empty {
+  background: rgba(255, 255, 255, 0.04);
+}
+.device-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.device-dialog #deviceLink {
+  font-size: 12px;
+}
+.device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+@media (max-width: 560px) {
+  #addDeviceButton {
+    padding: 0 10px;
+  }
+}

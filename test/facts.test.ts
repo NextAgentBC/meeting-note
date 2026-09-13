@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { factStatement, factText, normalizeTopic, planFacts, type CurrentFact, type FactCandidate } from "../src/facts";
+import { factStatement, factText, normalizeTopic, planFacts, topicKey, type CurrentFact, type FactCandidate } from "../src/facts";
 
 describe("normalizeTopic", () => {
   it("folds case, spacing and punctuation so equivalent topics compare equal", () => {
@@ -98,5 +98,30 @@ describe("factText / factStatement", () => {
   it("only strips a trailing From: line, not one that happens to appear mid-statement", () => {
     const text = "Quoted someone saying \"From: nowhere\" earlier.\nFrom: Weekly planning, 2026-09-13";
     expect(factStatement(text)).toBe('Quoted someone saying "From: nowhere" earlier.');
+  });
+});
+
+describe("facts from a rebuilt note, or said again", () => {
+  it("never supersede their own row, and an identical statement adds no version", () => {
+    const id = `fact:m1:${topicKey(normalizeTopic("clinic hours"))}`;
+    const rebuilt = planFacts(
+      [{ topic: "Clinic hours", statement: "Open 9-5 weekdays, and Saturdays 10-2." }],
+      new Map<string, CurrentFact>([[normalizeTopic("clinic hours"), { id, statement: "Open 9-5 weekdays." }]]),
+      (_index, normalized) => `fact:m1:${topicKey(normalized)}`
+    );
+    expect(rebuilt).toEqual([{ id, topic: "Clinic hours", statement: "Open 9-5 weekdays, and Saturdays 10-2.", supersedes: null }]);
+
+    const repeated = planFacts(
+      [{ topic: "clinic hours", statement: "open 9-5  weekdays." }],
+      new Map<string, CurrentFact>([[normalizeTopic("clinic hours"), { id: "fact:m0:abc", statement: "Open 9-5 weekdays." }]]),
+      (_index, normalized) => `fact:m2:${topicKey(normalized)}`
+    );
+    expect(repeated).toEqual([]);
+  });
+
+  it("keys a topic stably", () => {
+    expect(topicKey("clinic hours")).toBe(topicKey("clinic hours"));
+    expect(topicKey("clinic hours")).not.toBe(topicKey("workshop venue"));
+    expect(topicKey("诊所营业时间")).toMatch(/^[0-9a-f]{8}$/);
   });
 });

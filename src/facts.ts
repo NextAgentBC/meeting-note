@@ -66,7 +66,21 @@ export function normalizeTopic(topic: string): string {
 
 export interface CurrentFact {
   id: string;
+  /** Its statement, without the "From: ..." line, when known: an identical new one isn't a new version. */
+  statement?: string;
 }
+
+/** A short, stable key for a normalised topic (FNV-1a), so a rebuilt note rewrites the same fact row. */
+export function topicKey(normalizedTopic: string): string {
+  let hash = 0x811c9dc5;
+  for (const character of normalizedTopic) {
+    hash ^= character.codePointAt(0)!;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+const sameStatement = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
 
 export interface FactPlanItem {
   id: string;
@@ -84,7 +98,7 @@ export interface FactPlanItem {
 export function planFacts(
   candidates: readonly FactCandidate[],
   currentByTopic: ReadonlyMap<string, CurrentFact>,
-  newId: (index: number) => string
+  newId: (index: number, normalizedTopic: string) => string
 ): FactPlanItem[] {
   const byTopic = new Map<string, FactCandidate>();
   for (const candidate of candidates) {
@@ -93,12 +107,19 @@ export function planFacts(
     if (!topic || !statement) continue;
     byTopic.set(normalizeTopic(topic), { topic, statement });
   }
-  return [...byTopic.entries()].map(([normalized, candidate], index) => ({
-    id: newId(index),
-    topic: candidate.topic,
-    statement: candidate.statement,
-    supersedes: currentByTopic.get(normalized)?.id ?? null
-  }));
+  return [...byTopic.entries()].flatMap(([normalized, candidate], index): FactPlanItem[] => {
+    const id = newId(index, normalized);
+    const current = currentByTopic.get(normalized);
+    // Saying the same thing again (or rebuilding the same note) isn't a new version of the fact.
+    if (current?.statement !== undefined && sameStatement(current.statement, candidate.statement)) return [];
+    return [{
+      id,
+      topic: candidate.topic,
+      statement: candidate.statement,
+      // A rebuilt note rewrites its own row in place; it must never mark that row superseded by itself.
+      supersedes: current && current.id !== id ? current.id : null
+    }];
+  });
 }
 
 /** The stored text: the statement plus where it came from, so a passage found on its own still says. */
@@ -163,11 +184,11 @@ export async function runFacts(env: Env, meetingId: string): Promise<void> {
   }
   if (!candidates.length) return;
 
-  const current = await env.DB.prepare("SELECT id, title FROM memory_items WHERE kind = 'fact' AND superseded_by IS NULL")
-    .all<{ id: string; title: string }>();
-  const currentByTopic = new Map(current.results.map((row) => [normalizeTopic(row.title), { id: row.id }]));
+  const current = await env.DB.prepare("SELECT id, title, text FROM memory_items WHERE kind = 'fact' AND superseded_by IS NULL")
+    .all<{ id: string; title: string; text: string }>();
+  const currentByTopic = new Map(current.results.map((row) => [normalizeTopic(row.title), { id: row.id, statement: factStatement(row.text) }]));
 
-  const plan = planFacts(candidates, currentByTopic, (index) => `fact:${meetingId}:${index}`);
+  const plan = planFacts(candidates, currentByTopic, (_index, normalized) => `fact:${meetingId}:${topicKey(normalized)}`);
   if (!plan.length) return;
 
   const now = new Date().toISOString();

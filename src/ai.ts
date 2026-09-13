@@ -7,10 +7,15 @@ export function runModel(env: Env, model: string, input: unknown): Promise<unkno
 
 /**
  * GLM thinks before it answers, and the thinking counts against max_tokens. The answers here are
- * short JSON objects, so switch thinking off and leave the whole budget for the answer.
+ * short JSON objects, so switch thinking off and leave the whole budget for the answer. `tuned` also
+ * lowers temperature and top_p and adds a small frequency penalty, as measured for the one-shot final
+ * merge. Other models may reject unrecognised params, so all of this stays scoped to GLM.
  */
-export function modelOptions(model: string): Record<string, unknown> {
-  return /glm-/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : {};
+export function modelOptions(model: string, tuned = false): Record<string, unknown> {
+  if (!/glm-/i.test(model)) return {};
+  return tuned
+    ? { chat_template_kwargs: { enable_thinking: false }, temperature: 0.05, top_p: 0.85, frequency_penalty: 0.12 }
+    : { chat_template_kwargs: { enable_thinking: false } };
 }
 
 /**

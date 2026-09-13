@@ -45,6 +45,23 @@ describe("segment notes", () => {
     expect(prompt).toContain("section 3");
   });
 
+  it("names the note's language, from the setting or the transcript", () => {
+    expect(segmentPrompt([{ sequence: 0, transcript_text: "We picked the blue box." }], "section 1")).toContain("in English");
+    expect(segmentPrompt([{ sequence: 0, transcript_text: "我们决定用蓝色的包装。" }], "section 1")).toContain("Simplified Chinese");
+    expect(segmentPrompt([{ sequence: 0, transcript_text: "我们决定用蓝色的包装。" }], "section 1", "en")).toContain("in English");
+  });
+
+  it("requires grounded details for a non-empty transcript in the prompt", () => {
+    const prompt = segmentPrompt([{ sequence: 4, transcript_text: "hello there" }], "section 3");
+    expect(prompt).toContain("bullets MUST contain");
+    expect(prompt).toContain("quotes MUST contain");
+    expect(prompt).toContain("我明天发");
+    expect(prompt).toContain("chatGDP/chatsdp");
+    expect(prompt).toContain("DeepSeek");
+    expect(prompt).toContain("deadline in the words used");
+    expect(prompt).not.toContain("meeting started");
+  });
+
   it("returns null for unparseable stored notes instead of throwing", () => {
     expect(parseSegmentNote(null)).toBeNull();
     expect(parseSegmentNote("not json")).toBeNull();
@@ -97,6 +114,8 @@ describe("final merge", () => {
     // Duplicate tools across segments collapse.
     expect(merged.tools_mentioned).toEqual(["ChatGPT", "NotebookLM"]);
     expect(merged.action_items).toHaveLength(2);
+    // Duplicate decisions across segments collapse too.
+    expect(merged.decisions).toEqual(["No product pitch tonight"]);
     expect(toMarkdown("Workshop", merged)).toContain("# Workshop");
   });
 

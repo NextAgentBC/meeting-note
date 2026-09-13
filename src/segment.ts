@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { MeetingSummary } from "./summary";
+import { languageInstruction, noteLanguage, type MeetingSummary } from "./summary";
 
 /** Roughly how much transcribed audio one rolling note covers. */
 export const SEGMENT_TARGET_MS = 5 * 60 * 1000;
@@ -123,11 +123,27 @@ export interface SegmentChunk {
   transcript_text: string | null;
 }
 
-export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string): string {
+export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string, meetingLanguage = "auto"): string {
   const body = chunks
     .map((chunk) => `[CHUNK ${chunk.sequence}]\n${(chunk.transcript_text ?? "").trim()}`)
     .join("\n\n");
-  return `This is roughly five minutes of a longer meeting (${minutesLabel}). Summarise only what is in this excerpt. Do not speculate about what came before or after, and do not invent owners, deadlines, answers or promises. Quotes must be short verbatim excerpts with their zero-based [CHUNK n] number. If a field has nothing in this excerpt, return an empty array or an empty string.\n\n${body}`;
+  const language = noteLanguage(body, meetingLanguage);
+  return `This is roughly five minutes of a longer meeting (${minutesLabel}). Summarise only what is in this excerpt. Do not speculate about what came before or after, and do not invent owners, deadlines, answers or promises.
+
+Extraction rules:
+- bullets MUST contain 3-6 concrete facts (at least 1 only when the excerpt is extremely short).
+- quotes MUST contain 1-2 short verbatim excerpts with their zero-based [CHUNK n] number.
+- decisions include choices the speakers accepted, even when expressed conversationally (for example “就这样定了” / “那就用第一版”, or "let's go with that" / "that settles it").
+- action_items include explicit commitments and agreed next steps (for example “我明天发”, “把工具包加上海报”, “按两周排进去”, "I'll send it", "let's do that", or a request followed by acceptance such as “没问题” or "sure, I will"). A proposal or question by itself is not an action. due: the deadline in the words used, e.g. 下周二之前 or next Friday; don't work out a calendar date (models get the weekday arithmetic wrong). Use owner "Unassigned" and due "" only when the transcript does not say them.
+- questions include substantive questions and their stated answers, not greetings or rhetorical filler.
+- Correct obvious product-name ASR variants in summaries, such as chatGDP/chatsdp → ChatGPT, cloud flyer → Cloudflare, and deep seek → DeepSeek. Keep quotes verbatim.
+- Treat unclear or nonsensical ASR phrases as uncertain and omit them; never invent a meaning for them.
+- A greeting does not establish a person's role. A suggestion is not a decision, and a possible future request is not an action until someone accepts it.
+- Language: ${languageInstruction(language)}
+
+Never return both bullets and quotes empty for a non-empty transcript. Other fields may be empty only when the excerpt genuinely contains none of that information. Before returning, explicitly check the excerpt once for decisions, questions and future commitments.
+
+${body}`;
 }
 
 /** A model can return valid JSON with nothing in it; that is no note at all. */
@@ -218,6 +234,7 @@ export function mergeSegments(segments: StoredSegment[]): MeetingSummary {
       start_chunk: entry.segment.start_chunk
     })),
     key_points: unique(notes.flatMap((entry) => entry.note.bullets)).slice(0, 14),
+    decisions: unique(notes.flatMap((entry) => entry.note.decisions)),
     tools_mentioned: unique(notes.flatMap((entry) => entry.note.tools)),
     audience_questions: notes.flatMap((entry) => entry.note.questions),
     action_items: notes.flatMap((entry) => entry.note.action_items),

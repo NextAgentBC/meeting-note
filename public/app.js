@@ -645,9 +645,11 @@ function renderNote(summary, segments) {
   }
   const questions = summary.audience_questions || [];
   const actions = summary.action_items || [];
+  const decisions = summary.decisions || [];
   $("#summaryContent").innerHTML = `
     <section class="summary-block"><h3>Overview</h3><p>${escapeHtml(summary.overview)}</p></section>
     <section class="summary-block"><h3>Key points</h3><ul>${(summary.key_points || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None captured</li>"}</ul></section>
+    <section class="summary-block"><h3>Decisions</h3><ul>${decisions.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None captured</li>"}</ul></section>
     <section class="summary-block"><h3>Audience questions</h3><ul>${questions.map((item) => `<li><strong>${escapeHtml(item.question)}</strong>${item.answer ? `<br>${escapeHtml(item.answer)}` : ""}</li>`).join("") || "<li>None captured</li>"}</ul></section>
     <section class="summary-block"><h3>Action items</h3>${actions.map((item) => `<div class="action">${escapeHtml(item.task)}<small>${escapeHtml([item.owner, item.due].filter(Boolean).join(" · "))}</small></div>`).join("") || '<p class="empty-state">None captured</p>'}</section>
     <section class="summary-block"><h3>Resources promised</h3><ul>${(summary.resources_promised || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None captured</li>"}</ul></section>

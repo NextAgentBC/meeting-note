@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { extractJson, SummarySchema, summaryHasContent, summaryJsonSchema, toMarkdown } from "./summary";
+import { applyFinalSynthesis, cueExcerpts, extractJson, finalSynthesisJsonSchema, finalSynthesisPrompt, restoreActionDetails, summaryHasUsefulContent, summaryLanguageLooksHealthy, toMarkdown } from "./summary";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { askRoutes } from "./ask";
@@ -650,8 +650,8 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
     const minutesLabel = `section ${segment.seq + 1}, chunks ${segment.start_chunk}-${segment.end_chunk}`;
     const result = await runModel(env, env.SUMMARY_MODEL, {
       messages: [
-        { role: "system", content: "You are a precise bilingual meeting analyst. You only report what the transcript says. Write in the predominant language of the transcript, and when that language is Chinese always write in Simplified Chinese (简体中文), never Traditional. Keep product and company names in their original form. Always give a headline, even for a short excerpt." },
-        { role: "user", content: segmentPrompt(usable, minutesLabel) }
+        { role: "system", content: "You are a precise bilingual meeting analyst. You only report what participants actually said in the transcript, never any context notes given alongside it. Write in the language the instructions name. Always give a headline, even for a short excerpt." },
+        { role: "user", content: segmentPrompt(usable, minutesLabel, meeting.language) }
       ],
       response_format: { type: "json_schema", json_schema: { name: "segment_note", strict: true, schema: segmentJsonSchema } },
       max_tokens: 900,
@@ -701,27 +701,57 @@ async function runFinal(env: Env, meetingId: string) {
   // Guaranteed usable, and the fallback if the model's merge cannot be parsed.
   const deterministic = mergeSegments(segments);
   const promptText = segmentsToPromptText(segments);
+  const transcriptRows = await env.DB.prepare(
+    "SELECT sequence, transcript_text FROM audio_chunks WHERE meeting_id = ? AND status = 'done' ORDER BY sequence"
+  ).bind(meetingId).all<Pick<ChunkRow, "sequence" | "transcript_text">>();
+  const fullTranscript = transcriptRows.results
+    .map((row) => `[CHUNK ${row.sequence}]\n${row.transcript_text || ""}`)
+    .join("\n\n");
+  const cues = cueExcerpts(transcriptRows.results);
+  const cueText = cues
+    .map((excerpt) => `[CHUNK ${excerpt.sequence}] ${excerpt.text}`)
+    .join("\n");
 
   let summary = deterministic;
   if (promptText.trim() && segmentsHaveContent(segments)) {
-    const finalPrompt = `Meeting title: ${meeting.title}\nTemplate: ${meeting.template}\nLanguage: ${meeting.language}\n\nBelow are notes taken every five minutes during the meeting, in order. Merge them into one faithful meeting note. Remove duplicates, keep chronology, and write in the predominant language of the meeting — when that language is Chinese, always write in Simplified Chinese (简体中文), never Traditional — while keeping product and company names in their original form. Evidence quotes must be short verbatim excerpts with their zero-based chunk numbers. If information is absent, use an empty array or an empty string. Do not invent owners, deadlines, questions, answers or promises. Be concise: this must fit well inside the token budget.\n\n${promptText}`;
+    // GLM's long context comfortably fits a normal meeting transcript. Keep a bounded
+    // cue fallback for unusually long recordings so the job still completes instead of
+    // exceeding the provider limit.
+    const useFullTranscript = fullTranscript.length <= 70_000;
+    const transcriptSource = useFullTranscript ? fullTranscript : cueText;
     const result = await runModel(env, finalModel(env), {
       messages: [
-        { role: "system", content: "You produce strict JSON meeting notes grounded only in the supplied section notes. Output JSON only, with no commentary." },
-        { role: "user", content: finalPrompt }
+        { role: "system", content: "You are a precise bilingual meeting analyst. Produce strict JSON grounded only in the supplied notes and transcript excerpts. Output JSON only, with no commentary." },
+        { role: "user", content: finalSynthesisPrompt(meeting, transcriptSource, useFullTranscript) }
       ],
-      response_format: { type: "json_schema", json_schema: { name: "meeting_summary", strict: true, schema: summaryJsonSchema } },
+      response_format: { type: "json_schema", json_schema: { name: "meeting_synthesis", strict: true, schema: finalSynthesisJsonSchema } },
       max_tokens: 2000,
       temperature: 0.1,
-      ...modelOptions(finalModel(env))
+      ...modelOptions(finalModel(env), true)
     });
     await recordUsage(env, meetingId, "final", finalModel(env), result);
+    const outputText = modelText(result);
     try {
-      summary = SummarySchema.parse(extractJson(modelText(result)));
-      if (!summaryHasContent(summary)) throw new Error("The model returned an empty meeting note");
+      const extracted = extractJson(outputText);
+      const applied = applyFinalSynthesis(extracted, deterministic);
+      const transcriptText = transcriptRows.results.map((row) => row.transcript_text || "").join("\n");
+      if (applied.recoveredFields.length === 0 || !summaryHasUsefulContent(applied.summary, deterministic)) {
+        throw new Error("Model returned no usable synthesis fields");
+      }
+      if (!summaryLanguageLooksHealthy(applied.summary, transcriptText)) {
+        throw new Error("Model synthesis failed the language quality check");
+      }
+      summary = { ...applied.summary, action_items: restoreActionDetails(applied.summary.action_items, deterministic.action_items) };
+      await recordEvent(
+        env,
+        meetingId,
+        applied.recoveredFields.length === 8 ? "final_synthesized" : "final_partial_recovered",
+        `fields=${applied.recoveredFields.join(",")};source=${useFullTranscript ? "full" : "cues"};chars=${transcriptSource.length}`
+      );
     } catch (error) {
       summary = deterministic;
-      await recordEvent(env, meetingId, "final_fallback", error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      await recordEvent(env, meetingId, "final_fallback", `${message};output=${outputText.slice(0, 500)}`);
     }
   }
 

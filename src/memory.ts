@@ -77,6 +77,7 @@ export function summaryItem(meeting: { id: string; title: string; started_at: st
   const lines = [
     summary.overview,
     ...summary.key_points,
+    ...summary.decisions.map((decision) => `Decision: ${decision}`),
     ...summary.action_items.map((item) => `To do: ${item.task}${item.owner && item.owner !== "Unassigned" ? ` (${item.owner})` : ""}${item.due ? `, due ${item.due}` : ""}`),
     ...summary.resources_promised.map((item) => `Promised: ${item}`)
   ].filter((line) => line.trim());

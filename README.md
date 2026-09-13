@@ -10,7 +10,7 @@ private copy of Meeting Note.
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/NextAgentBC/meeting-note)
 
 - Record the microphone, or the microphone plus a Zoom tab's audio (desktop Chrome).
-- Whisper transcribes and Llama writes the notes, both on Workers AI.
+- Whisper transcribes and GLM-4.7-flash writes the notes, both on Workers AI.
 - A short note for every five minutes, merged into one note when you stop, exportable as Markdown.
 - The whole recording also stays on your computer as a download, in case anything in the cloud fails.
 - **Only you can sign in**, with a passkey: Face ID, a fingerprint or your screen lock. No password.
@@ -79,7 +79,7 @@ Browser (MediaRecorder)
    ├─ the whole session → a local backup you can download
    └─ 3-minute chunks → IndexedDB → Worker API → KV (expires after 7 days)
                                           └→ Queue: transcribe → Whisper → D1 transcript
-                                                └→ ~5 minutes of transcript? → Queue: section note → Llama → D1
+                                                └→ ~5 minutes of transcript? → Queue: section note → GLM → D1
 Stop → close out the last section → Queue: final → merge the section notes → D1 note + Markdown
 ```
 
@@ -114,7 +114,7 @@ Change these in `wrangler.jsonc` (or in the Cloudflare dashboard, under the Work
 | `AUDIO_RETENTION_DAYS` | `7` | When audio deletes itself |
 | `CHINESE_SCRIPT` | `simplified` | `off` keeps Traditional characters |
 | `ASR_MODEL` | Whisper Large v3 Turbo | Transcription |
-| `SUMMARY_MODEL` / `FINAL_MODEL` | Llama 3.3 70B | Section notes / the final merge |
+| `SUMMARY_MODEL` / `FINAL_MODEL` | GLM-4.7-flash | Section notes / the final merge |
 | `FREE_DAILY_NEURONS` | `10000` | The allowance the usage card measures against |
 
 ## Run it on your computer

@@ -107,7 +107,7 @@ try {
     step("real speech comes back as a transcript and a note");
     const { readFile } = await import("node:fs/promises");
     const base64 = (await readFile(process.env.AUDIO_FILE)).toString("base64");
-    const type = process.env.AUDIO_FILE.endsWith(".mp3") ? "audio/mpeg" : "audio/webm";
+    const type = process.env.AUDIO_FILE.endsWith(".mp3") ? "audio/mpeg" : process.env.AUDIO_FILE.endsWith(".wav") ? "audio/wav" : "audio/webm";
     const meetingId = await owner.evaluate(async ({ base64, type }) => {
       const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
       const created = await fetch("/api/meetings", {

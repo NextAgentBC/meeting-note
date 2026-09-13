@@ -36,3 +36,19 @@ describe("summary helpers", () => {
     expect(summary.chapters[0]?.start_chunk).toBe(0);
   });
 });
+
+describe("empty answers from a model", () => {
+  it("count as no note, so the merged section notes are used instead", async () => {
+    const { summaryHasContent } = await import("../src/summary");
+    const { segmentNoteHasContent, SegmentNoteSchema } = await import("../src/segment");
+    const empty = SummarySchema.parse({ ...valid, overview: "", key_points: [], action_items: [], audience_questions: [], chapters: [] });
+    expect(summaryHasContent(SummarySchema.parse(valid))).toBe(true);
+    // What Llama 3.3 returned for a short Mandarin meeting: valid JSON, every field empty.
+    expect(summaryHasContent(empty)).toBe(false);
+    expect(summaryHasContent({ ...empty, overview: "周会" })).toBe(false);
+
+    const blank = SegmentNoteSchema.parse({ headline: "周会", bullets: [], decisions: [], questions: [], action_items: [], tools: [], resources: [], quotes: [] });
+    expect(segmentNoteHasContent(blank)).toBe(false);
+    expect(segmentNoteHasContent({ ...blank, decisions: ["场地定在图书馆"] })).toBe(true);
+  });
+});

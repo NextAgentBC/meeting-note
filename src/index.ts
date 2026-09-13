@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { extractJson, stripThinking, SummarySchema, summaryJsonSchema, toMarkdown } from "./summary";
+import { extractJson, stripThinking, SummarySchema, summaryHasContent, summaryJsonSchema, toMarkdown } from "./summary";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import {
@@ -14,6 +14,7 @@ import {
   planSegment,
   segmentPrompt,
   segmentsToMarkdown,
+  segmentNoteHasContent,
   segmentsHaveContent,
   segmentsToPromptText,
   type SegmentNote,
@@ -72,6 +73,14 @@ function jsonError(message: string, status = 400): Response {
 
 function runModel(env: Env, model: string, input: unknown): Promise<unknown> {
   return (env.AI as unknown as { run: (model: string, input: unknown) => Promise<unknown> }).run(model, input);
+}
+
+/**
+ * GLM thinks before it answers, and the thinking counts against max_tokens. A note is a short JSON
+ * object, so switch thinking off and leave the whole budget for the answer.
+ */
+function modelOptions(model: string): Record<string, unknown> {
+  return /glm-/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : {};
 }
 
 /** The final merge runs once per meeting, so it can afford a stronger model. */
@@ -672,12 +681,14 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
       ],
       response_format: { type: "json_schema", json_schema: { name: "segment_note", strict: true, schema: segmentJsonSchema } },
       max_tokens: 900,
-      temperature: 0.1
+      temperature: 0.1,
+      ...modelOptions(env.SUMMARY_MODEL)
     });
     await recordUsage(env, message.meetingId, "segment", env.SUMMARY_MODEL, result);
 
     try {
       note = SegmentNoteSchema.parse(extractJson(modelText(result)));
+      if (!segmentNoteHasContent(note)) throw new Error("The model returned an empty section note");
     } catch (error) {
       note = fallbackSegmentNote(usable);
       await recordEvent(env, message.meetingId, "segment_fallback", error instanceof Error ? error.message : String(error));
@@ -704,7 +715,13 @@ function modelText(result: unknown): string {
   if (typeof result === "string") return stripThinking(result);
   if (!result || typeof result !== "object") return "";
   const object = result as Record<string, unknown>;
-  if (object.response !== undefined) return typeof object.response === "string" ? stripThinking(object.response) : JSON.stringify(object.response);
+  if (object.response !== undefined && object.response !== null) {
+    return typeof object.response === "string" ? stripThinking(object.response) : JSON.stringify(object.response);
+  }
+  // OpenAI-style models (GLM, gpt-oss, Kimi) answer in choices[0].message.content.
+  const choice = Array.isArray(object.choices) ? (object.choices[0] as Record<string, unknown> | undefined) : undefined;
+  const message = choice?.message as Record<string, unknown> | undefined;
+  if (typeof message?.content === "string") return stripThinking(message.content);
   if (object.result !== undefined) return typeof object.result === "string" ? stripThinking(object.result) : JSON.stringify(object.result);
   return JSON.stringify(result);
 }
@@ -734,11 +751,13 @@ async function runFinal(env: Env, meetingId: string) {
       ],
       response_format: { type: "json_schema", json_schema: { name: "meeting_summary", strict: true, schema: summaryJsonSchema } },
       max_tokens: 2000,
-      temperature: 0.1
+      temperature: 0.1,
+      ...modelOptions(finalModel(env))
     });
     await recordUsage(env, meetingId, "final", finalModel(env), result);
     try {
       summary = SummarySchema.parse(extractJson(modelText(result)));
+      if (!summaryHasContent(summary)) throw new Error("The model returned an empty meeting note");
     } catch (error) {
       summary = deterministic;
       await recordEvent(env, meetingId, "final_fallback", error instanceof Error ? error.message : String(error));

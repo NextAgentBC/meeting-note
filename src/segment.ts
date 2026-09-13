@@ -131,6 +131,16 @@ export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string): str
 }
 
 /** A transcript-grounded note used when the model output cannot be parsed. */
+/** A model can return valid JSON with nothing in it; that is no note at all. */
+export function segmentNoteHasContent(note: SegmentNote): boolean {
+  return note.bullets.some((item) => item.trim())
+    || note.decisions.some((item) => item.trim())
+    || note.questions.some((item) => item.question.trim() || item.answer.trim())
+    || note.action_items.some((item) => item.task.trim())
+    || note.tools.some((item) => item.trim())
+    || note.resources.some((item) => item.trim());
+}
+
 export function fallbackSegmentNote(chunks: SegmentChunk[]): SegmentNote {
   const usable = chunks
     .map((chunk) => ({ sequence: chunk.sequence, text: (chunk.transcript_text || "").trim() }))

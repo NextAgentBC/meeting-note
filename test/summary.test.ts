@@ -177,3 +177,34 @@ describe("finalSynthesisPrompt", () => {
     expect(prompt).not.toContain("handout, app, demo or toolkit");
   });
 });
+
+describe("the note's language, decided in code", () => {
+  it("follows the recording's language setting, else weighs Chinese characters against English words", async () => {
+    const { noteLanguage } = await import("../src/summary");
+    expect(noteLanguage("We picked the blue box design. Sarah orders samples by next Friday.")).toBe("en");
+    expect(noteLanguage("我们决定用蓝色的包装。Sarah 下周五之前订样品。")).toBe("zh");
+    expect(noteLanguage("OK 那就这样 let's go with the ChatGPT plan and the Cloudflare account")).toBe("en");
+    expect(noteLanguage("我们决定用蓝色的包装", "en")).toBe("en");
+    expect(noteLanguage("")).toBe("en");
+  });
+});
+
+describe("restoring a to-do's owner and deadline from the section notes", () => {
+  it("copies what the final merge dropped, only for a close match", async () => {
+    const { restoreActionDetails } = await import("../src/summary");
+    const sections = [
+      { task: "整理好报名表", owner: "Unassigned", due: "下次开会前" },
+      { task: "Sam发出海报", owner: "Sam", due: "下周二之前 (2026-09-15)" }
+    ];
+    const merged = restoreActionDetails([
+      { task: "整理报名表", owner: "", due: "" },
+      { task: "发出海报", owner: "Unassigned", due: "" },
+      { task: "Order printed samples", owner: "Sarah", due: "next Friday" },
+      { task: "完全不同的事情", owner: "", due: "" }
+    ], sections);
+    expect(merged[0]).toMatchObject({ owner: "", due: "下次开会前" });
+    expect(merged[1]).toMatchObject({ owner: "Sam", due: "下周二之前 (2026-09-15)" });
+    expect(merged[2]).toMatchObject({ owner: "Sarah", due: "next Friday" });
+    expect(merged[3]).toMatchObject({ owner: "", due: "" });
+  });
+});

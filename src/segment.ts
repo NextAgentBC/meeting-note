@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { MeetingSummary } from "./summary";
+import { languageInstruction, noteLanguage, type MeetingSummary } from "./summary";
 
 /** Roughly how much transcribed audio one rolling note covers. */
 export const SEGMENT_TARGET_MS = 5 * 60 * 1000;
@@ -123,10 +123,11 @@ export interface SegmentChunk {
   transcript_text: string | null;
 }
 
-export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string, meetingStart: string, timeZone = "UTC"): string {
+export function segmentPrompt(chunks: SegmentChunk[], minutesLabel: string, meetingStart: string, timeZone = "UTC", meetingLanguage = "auto"): string {
   const body = chunks
     .map((chunk) => `[CHUNK ${chunk.sequence}]\n${(chunk.transcript_text ?? "").trim()}`)
     .join("\n\n");
+  const language = noteLanguage(body, meetingLanguage);
   return `This is roughly five minutes of a longer meeting (${minutesLabel}). Summarise only what is in this excerpt. Do not speculate about what came before or after, and do not invent owners, deadlines, answers or promises.
 
 (Context only, not something anyone said — never report this as a fact, bullet or decision: the meeting started ${meetingStart}, time zone ${timeZone}. Use it only to resolve relative dates such as "next Friday" into the bracketed date in due.)
@@ -140,7 +141,7 @@ Extraction rules:
 - Correct obvious product-name ASR variants in summaries, such as chatGDP/chatsdp → ChatGPT, cloud flyer → Cloudflare, and deep seek → DeepSeek. Keep quotes verbatim.
 - Treat unclear or nonsensical ASR phrases as uncertain and omit them; never invent a meaning for them.
 - A greeting does not establish a person's role. A suggestion is not a decision, and a possible future request is not an action until someone accepts it.
-- If most of the excerpt is Chinese, every non-quote field MUST be fluent Simplified Chinese, including headline, bullets, decisions, questions and actions. Otherwise, write every non-quote field in the excerpt's own predominant language (for example, keep an all-English excerpt in English).
+- Language: ${languageInstruction(language)}
 
 Never return both bullets and quotes empty for a non-empty transcript. Other fields may be empty only when the excerpt genuinely contains none of that information. Before returning, explicitly check the excerpt once for decisions, questions and future commitments.
 

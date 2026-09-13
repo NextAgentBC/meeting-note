@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
-import { applyFinalSynthesis, cueExcerpts, extractJson, finalSynthesisJsonSchema, finalSynthesisPrompt, stripThinking, summaryHasUsefulContent, summaryLanguageLooksHealthy, toMarkdown } from "./summary";
+import { applyFinalSynthesis, cueExcerpts, extractJson, finalSynthesisJsonSchema, finalSynthesisPrompt, restoreActionDetails, stripThinking, summaryHasUsefulContent, summaryLanguageLooksHealthy, toMarkdown } from "./summary";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import {
@@ -683,8 +683,8 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
     const minutesLabel = `section ${segment.seq + 1}, chunks ${segment.start_chunk}-${segment.end_chunk}`;
     const result = await runModel(env, env.SUMMARY_MODEL, {
       messages: [
-        { role: "system", content: "You are a precise bilingual meeting analyst. You only report what participants actually said in the transcript, never any context notes given alongside it. If more than half of the source is Chinese, every non-verbatim field must be fluent Simplified Chinese (简体中文), never English or Traditional Chinese; otherwise write in the excerpt's own predominant language. Keep product and company names in their canonical form. Always give a headline, even for a short excerpt." },
-        { role: "user", content: segmentPrompt(usable, minutesLabel, meeting.started_at) }
+        { role: "system", content: "You are a precise bilingual meeting analyst. You only report what participants actually said in the transcript, never any context notes given alongside it. Write in the language the instructions name. Always give a headline, even for a short excerpt." },
+        { role: "user", content: segmentPrompt(usable, minutesLabel, meeting.started_at, "UTC", meeting.language) }
       ],
       response_format: { type: "json_schema", json_schema: { name: "segment_note", strict: true, schema: segmentJsonSchema } },
       max_tokens: 900,
@@ -787,7 +787,7 @@ async function runFinal(env: Env, meetingId: string) {
       if (!summaryLanguageLooksHealthy(applied.summary, transcriptText)) {
         throw new Error("Model synthesis failed the language quality check");
       }
-      summary = applied.summary;
+      summary = { ...applied.summary, action_items: restoreActionDetails(applied.summary.action_items, deterministic.action_items) };
       await recordEvent(
         env,
         meetingId,

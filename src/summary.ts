@@ -30,6 +30,70 @@ export const SummarySchema = z.object({
 
 export type MeetingSummary = z.infer<typeof SummarySchema>;
 
+export type NoteLanguage = "zh" | "en";
+
+/**
+ * Which language a note is written in, decided in code rather than left to the model: GLM once wrote
+ * an all-English meeting's section note in Chinese. The language chosen when recording wins; for
+ * "auto", Chinese characters are weighed against English words (a Chinese character carries about
+ * two-thirds of a word).
+ */
+export function noteLanguage(text: string, meetingLanguage = "auto"): NoteLanguage {
+  if (meetingLanguage === "zh" || meetingLanguage === "en") return meetingLanguage;
+  const han = (text.match(/[\u3400-\u9fff]/g) ?? []).length;
+  const words = (text.match(/[A-Za-z]+/g) ?? []).length;
+  return han >= words * 1.5 && han > 0 ? "zh" : "en";
+}
+
+export function languageInstruction(language: NoteLanguage): string {
+  return language === "zh"
+    ? "Write every field except verbatim quotes in fluent Simplified Chinese (简体中文), never English or Traditional Chinese. Keep product and company names in their canonical form."
+    : "Write every field except verbatim quotes in English, even where someone briefly speaks Chinese. Keep product and company names in their canonical form.";
+}
+
+type ActionItem = MeetingSummary["action_items"][number];
+
+function similarity(a: string, b: string): number {
+  const pieces = (value: string) => {
+    const text = value.toLowerCase().replace(/[\s\p{P}]/gu, "");
+    const set = new Set<string>();
+    for (let index = 0; index < text.length - 1; index += 1) set.add(text.slice(index, index + 2));
+    return set;
+  };
+  const left = pieces(a);
+  const right = pieces(b);
+  if (!left.size || !right.size) return 0;
+  let shared = 0;
+  for (const piece of left) if (right.has(piece)) shared += 1;
+  return shared / Math.min(left.size, right.size);
+}
+
+/**
+ * The final merge sometimes rewrites a to-do and drops the owner or deadline its section note already
+ * had. Put them back from the closest-matching section to-do; nothing new is invented.
+ */
+export function restoreActionDetails(items: ActionItem[], fromSections: ActionItem[]): ActionItem[] {
+  const missing = (value: string) => !value.trim() || /^(unassigned|未指定|无|none)$/i.test(value.trim());
+  return items.map((item) => {
+    if (!missing(item.owner) && item.due.trim()) return item;
+    let best: ActionItem | null = null;
+    let bestScore = 0;
+    for (const candidate of fromSections) {
+      const score = similarity(item.task, candidate.task);
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+    if (!best || bestScore < 0.5) return item;
+    return {
+      ...item,
+      owner: missing(item.owner) && !missing(best.owner) ? best.owner : item.owner,
+      due: item.due.trim() ? item.due : best.due
+    };
+  });
+}
+
 /**
  * The final model only writes fields that benefit from cross-section language
  * understanding. Chapters and evidence are copied from the grounded rolling
@@ -530,7 +594,7 @@ export function finalSynthesisPrompt(
   transcriptSource: string,
   useFullTranscript: boolean
 ): string {
-  return `Meeting title: ${meeting.title}\nTemplate: ${meeting.template}\nLanguage: ${meeting.language}\n\nBelow is the original transcript. It is the only source of truth. Produce a faithful executive synthesis grounded only in it. Remove duplicates, preserve chronology, and write in the predominant language of the meeting. When that language is Chinese, every field must use fluent Simplified Chinese (简体中文), never English or Traditional Chinese; otherwise keep that same language throughout (for example, keep an all-English transcript in English).
+  return `Meeting title: ${meeting.title}\nTemplate: ${meeting.template}\n\nBelow is the original transcript. It is the only source of truth. Produce a faithful executive synthesis grounded only in it. Remove duplicates and preserve chronology. ${languageInstruction(noteLanguage(transcriptSource, meeting.language))}
 
 Requirements:
 - overview: a coherent 2-4 sentence paragraph explaining purpose, discussion and outcome; do not concatenate section headings.

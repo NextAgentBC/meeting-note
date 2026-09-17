@@ -131,6 +131,12 @@ const ZH = {
   "Note ready": "笔记已完成",
   "Needs attention": "需要处理",
   "Transcribing": "正在转写",
+  "transcription": "转写",
+  "section notes": "阶段笔记",
+  "meeting notes": "会议笔记",
+  "memory search": "记忆检索",
+  "facts": "长期记忆",
+  "photo understanding": "照片理解",
   "Offline": "离线",
   "Meeting Note · private sign-in": "Meeting Note · 私密登录",
   "Sign in": "登录",
@@ -238,6 +244,8 @@ function translateDynamic(value) {
   if ((match = value.match(/^(.+) of recording left today$/))) return `今天剩余录音时间：${duration(match[1])}`;
   if ((match = value.match(/^resets (.+)$/))) return `${match[1]} 重置`;
   if ((match = value.match(/^(\d+) terms · spelled right in every transcript$/))) return `${match[1]} 个词 · 用于每次转写`;
+  if ((match = value.match(/^([\d,]+) units · (\d+) calls?$/))) return `${match[1]} 单位 · ${match[2]} 次`;
+  if ((match = value.match(/^(\d+) calls?$/))) return `${match[1]} 次`;
   if ((match = value.match(/^(.+?) ([\d,]+) units · (\d+) calls?$/))) return `${kinds[match[1]] || match[1]} ${match[2]} 单位 · ${match[3]} 次`;
   if ((match = value.match(/^(.+?) (\d+) calls?$/))) return `${kinds[match[1]] || match[1]} ${match[2]} 次`;
   if ((match = value.match(/^Note ready(\s*→)?$/i))) return `笔记已完成${match[1] || ""}`;

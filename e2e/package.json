@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Browser test of the passkey sign-in. Kept apart so deploying the app never downloads a browser.",
   "scripts": {
-    "test": "node passkeys.mjs"
+    "test": "node passkeys.mjs",
+    "test:photo": "node photo-client.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"

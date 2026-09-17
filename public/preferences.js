@@ -73,6 +73,7 @@ const ZH = {
   "Checking…": "正在检查……",
   "AI options": "AI 选项",
   "Understand new photos": "理解新照片",
+  "Understand new photos with AI": "使用 AI 理解新照片",
   "Optional · reads visible text and suggests a category. Existing photos are not sent when you turn it on.": "可选 · 识别可见文字并建议分类。开启时不会发送已有照片。",
   "Transcription": "转写",
   "Vocabulary": "专有词汇",
@@ -93,6 +94,7 @@ const ZH = {
   "Time zone": "时区",
   "Sign out": "退出登录",
   "Only you can sign in · audio deletes itself after 7 days": "只有你能登录 · 录音将在 7 天后自动删除",
+  "Only you can sign in · recordings are kept until you delete them": "只有你能登录 · 录音会一直保留，直到你主动删除",
   "Appearance & language": "外观与语言",
   "Colour theme": "主题色",
   "Appearance": "明暗模式",
@@ -219,11 +221,35 @@ function write(key, value) {
 
 function translateDynamic(value) {
   let match;
+  const kinds = {
+    transcription: "转写", "section notes": "阶段笔记", "meeting notes": "会议笔记",
+    plans: "计划", answers: "回答", search: "搜索", facts: "长期记忆",
+    "memory search": "记忆检索", "photo understanding": "照片理解"
+  };
+  const duration = (text) => {
+    let durationMatch;
+    if ((durationMatch = text.match(/^([\d.]+) hours?$/))) return `${durationMatch[1]} 小时`;
+    if ((durationMatch = text.match(/^(\d+) minutes?$/))) return `${durationMatch[1]} 分钟`;
+    return text;
+  };
   if ((match = value.match(/^(\d+)\/(\d+) ready$/))) return `${match[1]}/${match[2]} 张已准备`;
   if ((match = value.match(/^Uploading photo (\d+)\/(\d+)…$/))) return `正在上传照片 ${match[1]}/${match[2]}…`;
-  if ((match = value.match(/^About (.+) of free recording left today$/))) return `今天约剩 ${match[1]} 免费录音额度`;
-  if ((match = value.match(/^(.+) of recording left today$/))) return `今天剩余录音时间：${match[1]}`;
+  if ((match = value.match(/^About (.+) of free recording left today$/))) return `今天约剩 ${duration(match[1])}免费录音额度`;
+  if ((match = value.match(/^(.+) of recording left today$/))) return `今天剩余录音时间：${duration(match[1])}`;
+  if ((match = value.match(/^resets (.+)$/))) return `${match[1]} 重置`;
+  if ((match = value.match(/^(\d+) terms · spelled right in every transcript$/))) return `${match[1]} 个词 · 用于每次转写`;
+  if ((match = value.match(/^(.+?) ([\d,]+) units · (\d+) calls?$/))) return `${kinds[match[1]] || match[1]} ${match[2]} 单位 · ${match[3]} 次`;
+  if ((match = value.match(/^(.+?) (\d+) calls?$/))) return `${kinds[match[1]] || match[1]} ${match[2]} 次`;
+  if ((match = value.match(/^Note ready(\s*→)?$/i))) return `笔记已完成${match[1] || ""}`;
   if ((match = value.match(/^(\d+) chunks?$/))) return `${match[1]} 个音频片段`;
+  if ((match = value.match(/^([\d,]+) of ([\d,]+) free AI units used \((.+)\)\. An hour of recording uses about ([\d,]+)\.(.*)$/))) {
+    const breakdown = match[3].split(" · ").map((part) => {
+      const item = part.match(/^(.+?) ([\d,]+)$/);
+      return item ? `${kinds[item[1]] || item[1]} ${item[2]}` : part;
+    }).join(" · ");
+    const limit = match[5] ? " 达到上限后 AI 会暂停到额度重置，不会产生费用。" : "";
+    return `已使用 ${match[1]} / ${match[2]} 免费 AI 单位（${breakdown}）。每小时录音约使用 ${match[4]}。${limit}`;
+  }
   return value;
 }
 

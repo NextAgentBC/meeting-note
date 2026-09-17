@@ -447,7 +447,7 @@ function startMeter() {
 // A recording carries on whichever tab is open; the red pill in the top bar leads back to it.
 
 const TABS = ["meetings", "plans", "memory", "me"];
-const TITLES = { meetings: "Meetings", meeting: "Meeting", plans: "Plans", memory: "Memory", me: "Me" };
+const TITLES = { meetings: "Meetings", meeting: "Meeting", plans: "Plans", memory: "Notes", me: "Me" };
 const TEMPLATE_LABELS = { meeting: "Business meeting", workshop: "Workshop", interview: "Interview" };
 let currentView = "";
 

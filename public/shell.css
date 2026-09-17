@@ -57,7 +57,18 @@ main {
 .segmented label.unsupported { display: none; }
 
 /* Meetings */
+.home-notes-entry { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 78px; padding: 14px 16px; color: var(--text); border: 1px solid rgba(0,229,208,.28); border-radius: 20px; background: linear-gradient(135deg, rgba(0,229,208,.13), rgba(0,229,208,.025)); text-decoration: none; box-shadow: 0 12px 36px rgba(0,0,0,.14); }
+.home-notes-entry:active { transform: scale(.99); }
+.home-notes-entry:focus-visible { outline-offset: 2px; }
+.home-notes-icon { display: grid; place-items: center; width: 44px; height: 44px; color: var(--cyan); border: 1px solid rgba(0,229,208,.25); border-radius: 14px; background: rgba(0,229,208,.1); }
+.home-notes-entry strong, .home-notes-entry small { display: block; }
+.home-notes-entry strong { font-size: 15px; }
+.home-notes-entry small { margin-top: 4px; color: #a8b4bf; font-size: 11px; line-height: 1.4; }
+.home-notes-entry > b { color: var(--cyan); font-size: 22px; }
 .record-card { display: grid; gap: 14px; }
+.record-card-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 2px; }
+.record-card-title span { font-size: 16px; font-weight: 750; }
+.record-card-title small { color: var(--muted); font-size: 10px; text-align: right; }
 .record-card input, .record-card select { height: 48px; font-size: 16px; }
 .record-options summary { color: #aeb8c2; font-size: 13px; cursor: pointer; }
 .record-options[open] summary { margin-bottom: 12px; }
@@ -175,6 +186,8 @@ main {
 }
 .tabbar a { position: relative; display: grid; justify-items: center; gap: 3px; min-height: 54px; padding-top: 5px; color: #7d8894; text-decoration: none; font-size: 11px; font-weight: 650; }
 .tabbar a[aria-current="page"] { color: var(--cyan); }
+.tab-new { position: absolute; top: 3px; left: calc(50% + 10px); min-width: 25px; padding: 2px 5px; color: #071311; border-radius: 99px; background: var(--cyan); font-size: 8px; font-weight: 850; line-height: 1.15; text-transform: uppercase; }
+.tabbar a[aria-current="page"] .tab-new { display: none; }
 .tab-badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; color: #1a1406; border-radius: 999px; background: var(--amber); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
 
 body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
@@ -224,6 +237,10 @@ body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
 }
 
 @media (max-width: 420px) {
+  .home-notes-entry { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 12px 14px; }
+  .home-notes-icon { width: 40px; height: 40px; border-radius: 12px; }
+  .record-card-title { display: block; }
+  .record-card-title small { display: block; margin-top: 3px; text-align: left; }
   .quick-note-head { display: grid; }
   .quick-note-head .compact-select { max-width: none; }
   .quick-note-actions { flex-wrap: wrap; }

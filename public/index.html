@@ -89,7 +89,16 @@
 
       <!-- Meetings: start a recording, and every meeting so far -->
       <section id="meetingsView" class="view app-view hidden" data-view="meetings" data-title="Meetings">
+        <a class="home-notes-entry" href="#/memory">
+          <span class="home-notes-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16V4.5Z" /><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19M9 8h6" /></svg>
+          </span>
+          <span><strong>Write a note or add photos</strong><small>Ideas, memories, shopping lists—save anything in seconds.</small></span>
+          <b aria-hidden="true">→</b>
+        </a>
+
         <form id="newMeetingForm" class="card record-card">
+          <div class="record-card-title"><span>Record a meeting</span><small>AI transcript and organized notes</small></div>
           <label class="field">
             <span>What's this meeting?</span>
             <input id="meetingTitle" name="title" placeholder="Team meeting · Monday" maxlength="160" required />
@@ -226,8 +235,8 @@
         </div>
       </section>
 
-      <!-- Memory: ask anything, and see what's remembered -->
-      <section id="askSection" class="view app-view hidden" data-view="memory" data-title="Memory">
+      <!-- Notes: save anything, ask anything, and see what's remembered -->
+      <section id="askSection" class="view app-view hidden" data-view="memory" data-title="Notes">
         <form id="quickNoteForm" class="card quick-note-form">
           <div class="quick-note-head">
             <div><p class="eyebrow">Quick note</p><h2>Save whatever is on your mind</h2></div>
@@ -361,8 +370,8 @@
         <span>Plans</span><b id="plansBadge" class="tab-badge hidden"></b>
       </a>
       <a href="#/memory" data-tab="memory">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5" /></svg>
-        <span>Memory</span>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16V4.5Z" /><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19M9 8h6" /></svg>
+        <span>Notes</span><b class="tab-new" aria-label="New">New</b>
       </a>
       <a href="#/me" data-tab="me">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4.5 20.5c1.6-3.6 4.4-5.5 7.5-5.5s5.9 1.9 7.5 5.5" /></svg>

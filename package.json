@@ -25,6 +25,7 @@
     "db:local": "wrangler d1 migrations apply DB --local",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:themes": "node scripts/check-theme-contrast.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -1,0 +1,96 @@
+/* Theme primitives. Components consume semantic aliases rather than hard-coded palette colours. */
+:root, html[data-theme="pine"] {
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Songti SC", "STSong", Georgia, serif;
+  --font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --theme-light-canvas: #faf8f4; --theme-light-surface: #ffffff; --theme-light-surface-2: #f1eee8; --theme-light-brand: #365b4c; --theme-light-brand-text: #365b4c; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d9a441; --theme-light-rgb: 54,91,76;
+  --theme-dark-canvas: #101614; --theme-dark-surface: #18201d; --theme-dark-surface-2: #212a26; --theme-dark-brand: #2f5a4a; --theme-dark-brand-text: #86c0aa; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #d9a441; --theme-dark-rgb: 134,192,170;
+  --radius: 10px;
+}
+html[data-theme="celadon"] {
+  --theme-light-canvas: #f8f7f2; --theme-light-surface: #ffffff; --theme-light-surface-2: #eeeee8; --theme-light-brand: #1c7a68; --theme-light-brand-text: #1c7a68; --theme-light-brand-fg: #ffffff; --theme-light-gold: #3fa796; --theme-light-rgb: 28,122,104;
+  --theme-dark-canvas: #0e1614; --theme-dark-surface: #141e1b; --theme-dark-surface-2: #1c2926; --theme-dark-brand: #1e8571; --theme-dark-brand-text: #6fd3bc; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8d9b5; --theme-dark-rgb: 111,211,188;
+  --radius: 12px;
+}
+html[data-theme="dusk"] {
+  --theme-light-canvas: #f8f8f9; --theme-light-surface: #ffffff; --theme-light-surface-2: #eff0f3; --theme-light-brand: #4a5f8c; --theme-light-brand-text: #4a5f8c; --theme-light-brand-fg: #ffffff; --theme-light-gold: #e8b4a2; --theme-light-rgb: 74,95,140;
+  --theme-dark-canvas: #0d1017; --theme-dark-surface: #141821; --theme-dark-surface-2: #1c2130; --theme-dark-brand: #4a5f8c; --theme-dark-brand-text: #9fb4df; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8b4a2; --theme-dark-rgb: 159,180,223;
+  --radius: 12px;
+}
+html[data-theme="pomegranate"] {
+  --theme-light-canvas: #fdf9f4; --theme-light-surface: #ffffff; --theme-light-surface-2: #f5eee9; --theme-light-brand: #b5485d; --theme-light-brand-text: #a83d52; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d99872; --theme-light-rgb: 181,72,93;
+  --theme-dark-canvas: #17100f; --theme-dark-surface: #1f1616; --theme-dark-surface-2: #291d1e; --theme-dark-brand: #b5485d; --theme-dark-brand-text: #f08aa0; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f3e2d1; --theme-dark-rgb: 240,138,160;
+  --radius: 12px;
+}
+html[data-theme="lilac"] {
+  --theme-light-canvas: #faf7f2; --theme-light-surface: #ffffff; --theme-light-surface-2: #f1ece9; --theme-light-brand: #6b58b0; --theme-light-brand-text: #6b58b0; --theme-light-brand-fg: #ffffff; --theme-light-gold: #8877c7; --theme-light-rgb: 107,88,176;
+  --theme-dark-canvas: #12101a; --theme-dark-surface: #1a1724; --theme-dark-surface-2: #241f31; --theme-dark-brand: #6b58b0; --theme-dark-brand-text: #b3a1ee; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f0e7db; --theme-dark-rgb: 179,161,238;
+  --radius: 14px;
+}
+html[data-theme="rosewood"] {
+  --theme-light-canvas: #fbf8f8; --theme-light-surface: #ffffff; --theme-light-surface-2: #f3edef; --theme-light-brand: #a15268; --theme-light-brand-text: #93475c; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c88697; --theme-light-rgb: 161,82,104;
+  --theme-dark-canvas: #130f11; --theme-dark-surface: #1b1517; --theme-dark-surface-2: #251d20; --theme-dark-brand: #a15268; --theme-dark-brand-text: #eb92a9; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #c88697; --theme-dark-rgb: 235,146,169;
+  --radius: 14px;
+}
+html[data-theme="butter"] {
+  --theme-light-canvas: #fbf9f3; --theme-light-surface: #ffffff; --theme-light-surface-2: #f4f0e3; --theme-light-brand: #8a6a16; --theme-light-brand-text: #765a10; --theme-light-brand-fg: #ffffff; --theme-light-gold: #5d7e7a; --theme-light-rgb: 138,106,22;
+  --theme-dark-canvas: #121009; --theme-dark-surface: #1a1710; --theme-dark-surface-2: #241f15; --theme-dark-brand: #8a6a16; --theme-dark-brand-text: #e7c86a; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #5d7e7a; --theme-dark-rgb: 231,200,106;
+  --radius: 12px;
+}
+
+:root, html[data-mode="light"] {
+  color-scheme: light;
+  --canvas: var(--theme-light-canvas); --surface: var(--theme-light-surface); --surface-2: var(--theme-light-surface-2);
+  --ink: #17201d; --ink-2: #43504b; --ink-3: #68746f; --hairline: rgba(23,32,29,.13); --hairline-strong: rgba(23,32,29,.24);
+  --brand: var(--theme-light-brand); --brand-text: var(--theme-light-brand-text); --brand-fg: var(--theme-light-brand-fg); --gold: var(--theme-light-gold); --brand-rgb: var(--theme-light-rgb);
+  --shadow-color: 27,35,32; --success: #24734e; --warning: #9a5b0a; --danger: #b43838; --info: #356c99;
+}
+html[data-mode="dark"] {
+  color-scheme: dark;
+  --canvas: var(--theme-dark-canvas); --surface: var(--theme-dark-surface); --surface-2: var(--theme-dark-surface-2);
+  --ink: #f4f7f9; --ink-2: #c4ced5; --ink-3: #8f9ba8; --hairline: rgba(255,255,255,.1); --hairline-strong: rgba(255,255,255,.18);
+  --brand: var(--theme-dark-brand); --brand-text: var(--theme-dark-brand-text); --brand-fg: var(--theme-dark-brand-fg); --gold: var(--theme-dark-gold); --brand-rgb: var(--theme-dark-rgb);
+  --shadow-color: 0,0,0; --success: #62c995; --warning: #ffca68; --danger: #ff7773; --info: #7eb9eb;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-mode="system"] {
+    color-scheme: dark;
+    --canvas: var(--theme-dark-canvas); --surface: var(--theme-dark-surface); --surface-2: var(--theme-dark-surface-2);
+    --ink: #f4f7f9; --ink-2: #c4ced5; --ink-3: #8f9ba8; --hairline: rgba(255,255,255,.1); --hairline-strong: rgba(255,255,255,.18);
+    --brand: var(--theme-dark-brand); --brand-text: var(--theme-dark-brand-text); --brand-fg: var(--theme-dark-brand-fg); --gold: var(--theme-dark-gold); --brand-rgb: var(--theme-dark-rgb);
+    --shadow-color: 0,0,0; --success: #62c995; --warning: #ffca68; --danger: #ff7773; --info: #7eb9eb;
+  }
+}
+
+/* Backwards-compatible aliases while old components are progressively moved to semantic names. */
+:root { --bg: var(--canvas); --panel: var(--surface); --panel-2: var(--surface-2); --line: var(--hairline); --line-strong: var(--hairline-strong); --text: var(--ink); --muted: var(--ink-3); --cyan: var(--brand-text); --cyan-soft: rgba(var(--brand-rgb),.13); --red: var(--danger); --amber: var(--warning); }
+
+body { color: var(--ink); background: radial-gradient(circle at 78% 2%, rgba(var(--brand-rgb),.08), transparent 32rem), var(--canvas); font-family: var(--font-ui); }
+.meeting-head h2, .quick-note-head h2, .usage-head h2, .auth-card h1 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
+.appbar, .tabbar { border-color: var(--hairline); background: color-mix(in srgb, var(--canvas) 90%, transparent); }
+.card, .new-card, .note-card, .transcript-card, .plan-block, .usage-card, .settings-group, .meeting-row, .memory-row, .capture-card, .ask-form, .dictate-result { border-color: var(--hairline); background: var(--surface); box-shadow: 0 14px 40px rgba(var(--shadow-color),.12); }
+input, select, textarea, .segmented, .recovery-code, .sheet textarea { color: var(--ink); border-color: var(--hairline); background: var(--surface-2); }
+.field > span, .record-options summary, .segmented label, .segmented button, .home-notes-entry small, .plan-notes, .auth-hint { color: var(--ink-2); }
+.primary-button, .segmented label:has(input:checked), .segmented button[aria-selected="true"] { color: var(--brand-fg); background: var(--brand); }
+.primary-button:hover { background: color-mix(in srgb, var(--brand) 88%, #000); }
+.brand-mark, .home-notes-icon { color: var(--brand-text); border-color: rgba(var(--brand-rgb),.35); background: rgba(var(--brand-rgb),.12); }
+.brand-mark i { background: var(--brand-text); }
+.home-notes-entry { border-color: rgba(var(--brand-rgb),.3); background: linear-gradient(135deg, rgba(var(--brand-rgb),.14), rgba(var(--brand-rgb),.035)); }
+.quick-add-button, .retry-button { color: var(--brand-text); border-color: rgba(var(--brand-rgb),.32); background: rgba(var(--brand-rgb),.11); }
+.quick-add-button.ghost { color: var(--ink-2); border-color: var(--hairline); background: var(--surface-2); }
+.tab-new { color: var(--brand-fg); background: var(--brand); }
+.toast, .sheet, .calendar-dialog, .device-dialog { color: var(--ink); border-color: var(--hairline-strong); background: var(--surface); box-shadow: 0 24px 70px rgba(var(--shadow-color),.4); }
+.capture-lightbox { background: var(--canvas); }
+
+.theme-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; padding: 12px 14px 14px; }
+.theme-choice { display: grid; justify-items: center; gap: 6px; min-height: 58px; padding: 7px 4px; color: var(--ink-3); border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface-2); cursor: pointer; font-size: 10px; }
+.theme-choice[aria-pressed="true"] { color: var(--brand-text); border-color: rgba(var(--brand-rgb),.58); box-shadow: 0 0 0 2px rgba(var(--brand-rgb),.1); }
+.theme-choice i { display: block; width: 26px; height: 18px; border-radius: 7px; background: linear-gradient(135deg, var(--swatch-a), var(--swatch-a) 56%, var(--swatch-b) 57%); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.settings-row select { width: auto; min-width: 116px; height: 38px; margin-left: auto; padding-right: 28px; }
+
+.photo-source-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1 1 260px; }
+.photo-status.error { color: var(--danger); }
+@media (max-width: 420px) {
+  .theme-grid { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 7px; padding-inline: 10px; }
+  .theme-choice { min-height: 58px; font-size: 10px; }
+  .photo-source-actions { flex-basis: 100%; }
+}

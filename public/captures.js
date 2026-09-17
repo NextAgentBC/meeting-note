@@ -1,6 +1,8 @@
 // Quick notes: text plus phone-compressed WebP photos. Original files, including their EXIF/GPS
 // metadata, never leave this browser.
 
+import { t } from "./preferences.js";
+
 const $ = (selector) => document.querySelector(selector);
 const MAX_IMAGES = 6;
 const MAX_SOURCE_BYTES = 30 * 1024 * 1024;
@@ -40,19 +42,32 @@ function bytes(value) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
+export function isPhotoFile(file) {
+  if (file.type?.startsWith("image/")) return true;
+  return /\.(?:jpe?g|png|webp|heic|heif)$/i.test(file.name || "");
+}
+
+function decodeWithImageElement(file) {
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  return new Promise((resolve, reject) => {
+    image.onload = () => resolve({ source: image, cleanup: () => URL.revokeObjectURL(url) });
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Safari could not decode this photo."));
+    };
+    image.src = url;
+  });
+}
+
 async function decode(file) {
   if ("createImageBitmap" in window) {
-    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { /* fallback below */ }
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { source: bitmap, cleanup: () => bitmap.close?.() };
+    } catch { /* iOS Safari has formats/options createImageBitmap cannot decode; use <img> below */ }
   }
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = url;
-    await image.decode();
-    return image;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  return decodeWithImageElement(file);
 }
 
 function canvasFor(image, maxEdge) {
@@ -64,14 +79,30 @@ function canvasFor(image, maxEdge) {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  canvas.getContext("2d", { alpha: false }).drawImage(image, 0, 0, width, height);
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) throw new Error("This device could not prepare the photo.");
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
   return canvas;
 }
 
 function webp(canvas, quality) {
-  return new Promise((resolve, reject) => canvas.toBlob((blob) => {
-    if (!blob || blob.type !== "image/webp") reject(new Error("This browser cannot make WebP photos. Update Safari or Chrome and try again."));
-    else resolve(blob);
+  return new Promise((resolve, reject) => canvas.toBlob(async (blob) => {
+    if (blob?.size && blob.type === "image/webp") {
+      resolve(blob);
+      return;
+    }
+    // Some iOS PWA builds return an empty/incorrect Blob from toBlob while toDataURL still works.
+    try {
+      const url = canvas.toDataURL("image/webp", quality);
+      if (!url.startsWith("data:image/webp")) throw new Error("WebP is not supported");
+      const fallback = await fetch(url).then((response) => response.blob());
+      if (!fallback.size) throw new Error("The converted photo was empty");
+      resolve(new Blob([fallback], { type: "image/webp" }));
+    } catch {
+      reject(new Error("This iPhone could not convert the photo to WebP. Update iOS and try again."));
+    }
   }, "image/webp", quality));
 }
 
@@ -85,17 +116,16 @@ async function boundedWebp(canvas, target, qualities) {
 }
 
 export async function compressPhoto(file) {
-  if (!file.type.startsWith("image/")) throw new Error(`${file.name || "That file"} is not a photo.`);
+  if (!isPhotoFile(file)) throw new Error(`${file.name || "That file"} is not a supported photo.`);
   if (file.size > MAX_SOURCE_BYTES) throw new Error(`${file.name || "That photo"} is larger than 30 MB.`);
-  let image;
+  let decoded;
   try {
-    image = await decode(file);
-    const fullCanvas = canvasFor(image, FULL_EDGE);
-    const thumbCanvas = canvasFor(image, THUMB_EDGE);
-    const [full, thumbnail] = await Promise.all([
-      boundedWebp(fullCanvas, FULL_TARGET, [0.8, 0.72, 0.64]),
-      boundedWebp(thumbCanvas, THUMB_TARGET, [0.72, 0.62, 0.52])
-    ]);
+    decoded = await decode(file);
+    const fullCanvas = canvasFor(decoded.source, FULL_EDGE);
+    const thumbCanvas = canvasFor(decoded.source, THUMB_EDGE);
+    // Sequential encoding avoids the memory spike that can terminate an iPhone home-screen PWA.
+    const full = await boundedWebp(fullCanvas, FULL_TARGET, [0.8, 0.72, 0.64]);
+    const thumbnail = await boundedWebp(thumbCanvas, THUMB_TARGET, [0.72, 0.62, 0.52]);
     return {
       name: file.name || "Photo",
       originalBytes: file.size,
@@ -106,9 +136,9 @@ export async function compressPhoto(file) {
       previewUrl: URL.createObjectURL(thumbnail)
     };
   } catch (error) {
-    throw new Error(`Could not read ${file.name || "that photo"}. If it is HEIC, try a screenshot or export it as JPEG. ${error.message || ""}`.trim());
+    throw new Error(`Could not prepare ${file.name || "that photo"}. JPEG, PNG and WebP are supported. If an older iPhone sends HEIC, choose “Most Compatible” in Camera settings or use a screenshot. ${error.message || ""}`.trim());
   } finally {
-    if (typeof image?.close === "function") image.close();
+    decoded?.cleanup?.();
   }
 }
 
@@ -116,6 +146,8 @@ function clearPending() {
   for (const photo of pendingPhotos) URL.revokeObjectURL(photo.previewUrl);
   pendingPhotos = [];
   $("#quickNoteImages").value = "";
+  $("#quickNoteCamera").value = "";
+  $("#quickNoteCompression").classList.remove("error");
   renderPreviews();
 }
 
@@ -135,8 +167,9 @@ async function choosePhotos(files) {
   const room = MAX_IMAGES - pendingPhotos.length;
   const chosen = [...files].slice(0, room);
   if (!chosen.length) return;
-  const button = $("#addQuickNoteImages");
-  button.disabled = true;
+  const buttons = [$("#takeQuickNotePhoto"), $("#addQuickNoteImages")];
+  buttons.forEach((button) => { button.disabled = true; });
+  $("#quickNoteCompression").classList.remove("error");
   $("#quickNoteCompression").textContent = "Converting to WebP…";
   try {
     for (const file of chosen) {
@@ -144,10 +177,12 @@ async function choosePhotos(files) {
       renderPreviews();
     }
   } catch (error) {
-    window.alert(error.message);
+    $("#quickNoteCompression").textContent = error.message;
+    $("#quickNoteCompression").classList.add("error");
+    window.alert(t(error.message));
   } finally {
-    button.disabled = false;
-    renderPreviews();
+    buttons.forEach((button) => { button.disabled = false; });
+    if (pendingPhotos.length) renderPreviews();
   }
 }
 
@@ -211,8 +246,16 @@ export async function loadImageAiSetting() {
 export function initCaptures() {
   if (initialized) return;
   initialized = true;
+  $("#takeQuickNotePhoto").addEventListener("click", () => $("#quickNoteCamera").click());
   $("#addQuickNoteImages").addEventListener("click", () => $("#quickNoteImages").click());
-  $("#quickNoteImages").addEventListener("change", (event) => void choosePhotos(event.target.files));
+  for (const input of [$("#quickNoteCamera"), $("#quickNoteImages")]) {
+    input.addEventListener("change", (event) => {
+      const files = event.target.files;
+      void choosePhotos(files);
+      // iOS otherwise ignores selecting the same photo twice after it was removed.
+      event.target.value = "";
+    });
+  }
   $("#quickNotePreviews").addEventListener("click", (event) => {
     const remove = event.target.closest("[data-remove-photo]");
     if (!remove) return;
@@ -248,7 +291,7 @@ export function initCaptures() {
       window.dispatchEvent(new CustomEvent("meetingnote:memory-refresh"));
       window.setTimeout(loadCaptures, 6000);
     } catch (error) {
-      window.alert(`The note may be saved, but a photo could not finish uploading. ${error.message}`);
+      window.alert(t(`The note may be saved, but a photo could not finish uploading. ${error.message}`));
       await loadCaptures();
     } finally {
       button.disabled = false;
@@ -265,7 +308,7 @@ export function initCaptures() {
       return;
     }
     const button = event.target.closest("[data-delete-capture]");
-    if (!button || !window.confirm("Delete this quick note and all of its photos?")) return;
+    if (!button || !window.confirm(t("Delete this quick note and all of its photos?"))) return;
     button.disabled = true;
     try {
       await api(`/api/captures/${encodeURIComponent(button.dataset.deleteCapture)}`, { method: "DELETE" });

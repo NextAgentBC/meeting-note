@@ -1,5 +1,6 @@
 import { ensureSignedIn } from "./auth.js";
 import { initCaptures, loadImageAiSetting } from "./captures.js";
+import { initPreferences } from "./preferences.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
 import "./transcription.js";
@@ -14,6 +15,8 @@ const SILENCE_WARN_MS = 20 * 1000;
 const CHUNK_BITRATE = 48_000;
 const BACKUP_BITRATE = 64_000;
 const FINALIZE_PREFIX = "meetingnote-pending-finalize:";
+
+initPreferences();
 
 const $ = (selector) => document.querySelector(selector);
 const form = $("#newMeetingForm");

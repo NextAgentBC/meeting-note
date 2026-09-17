@@ -42,7 +42,8 @@ src/ai.ts        runModel, modelText (every response shape), usage     src/setti
 src/transcript.ts Whisper's decoding options and prompt, loop collapsing, the owner's vocabulary and its correction pass
 src/audio.ts     a meeting's audio: optional permanent copies in RECORDINGS (R2), play/download/keep/delete routes
 public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js, ask.js,
-                 captures.js (WebP quick notes), transcription.js (Vocabulary/Recording sheets), zip.js
+                 captures.js (WebP quick notes), preferences.js/css (themes, appearance and bilingual UI),
+                 transcription.js (Vocabulary/Recording sheets), zip.js
 migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory;
                  0008 device links; 0009 memory embedding tracking; 0010 integration tokens;
                  0011 permanent audio/tuned ASR; 0012 quick notes/photos

@@ -3,13 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0e12" />
+    <meta name="theme-color" content="#101614" />
     <meta name="description" content="Record meetings, say your plans, and ask what was said." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Meeting Note" />
     <title>Meeting Note</title>
+    <script>
+      (() => {
+        const read = (key, fallback) => { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } };
+        const root = document.documentElement;
+        root.dataset.theme = read("meetingnote:theme", "pine");
+        root.dataset.mode = read("meetingnote:mode", "dark");
+        root.dataset.language = read("meetingnote:language", navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en");
+        root.lang = root.dataset.language === "zh" ? "zh-Hans" : "en";
+      })();
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -17,6 +27,7 @@
     <link rel="stylesheet" href="/auth.css" />
     <link rel="stylesheet" href="/assistant.css" />
     <link rel="stylesheet" href="/shell.css" />
+    <link rel="stylesheet" href="/preferences.css" />
   </head>
   <body class="auth-pending">
     <header class="appbar">
@@ -252,8 +263,12 @@
           <textarea id="quickNoteBody" name="body" maxlength="10000" rows="4" placeholder="Write an idea, a moment, a shopping note…"></textarea>
           <div id="quickNotePreviews" class="photo-previews hidden" aria-live="polite"></div>
           <div class="quick-note-actions">
-            <input id="quickNoteImages" class="hidden" type="file" accept="image/*" multiple />
-            <button id="addQuickNoteImages" class="quick-add-button ghost" type="button">＋ Add photos</button>
+            <input id="quickNoteCamera" class="hidden" type="file" accept="image/*" capture="environment" />
+            <input id="quickNoteImages" class="hidden" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple />
+            <div class="photo-source-actions">
+              <button id="takeQuickNotePhoto" class="quick-add-button ghost" type="button">＋ Take photo</button>
+              <button id="addQuickNoteImages" class="quick-add-button ghost" type="button">Choose photos</button>
+            </div>
             <span id="quickNoteCompression" class="hint"></span>
             <button id="saveQuickNote" class="quick-add-button" type="submit">Save note</button>
           </div>
@@ -319,6 +334,32 @@
           <p class="usage-meta" id="usageMeta"></p>
           <div id="usageBreakdown" class="usage-breakdown"></div>
         </section>
+
+        <div class="settings-group">
+          <h3>Appearance &amp; language</h3>
+          <div class="settings-row static"><span><strong>Colour theme</strong></span></div>
+          <div id="themePicker" class="theme-grid" role="group" aria-label="Colour theme">
+            <button class="theme-choice" type="button" data-theme-choice="pine" aria-pressed="false" style="--swatch-a:#365B4C;--swatch-b:#D9A441"><i></i><span>Pine</span></button>
+            <button class="theme-choice" type="button" data-theme-choice="celadon" aria-pressed="false" style="--swatch-a:#3FA796;--swatch-b:#E8D9B5"><i></i><span>Celadon</span></button>
+            <button class="theme-choice" type="button" data-theme-choice="dusk" aria-pressed="false" style="--swatch-a:#4A5F8C;--swatch-b:#E8B4A2"><i></i><span>Dusk</span></button>
+            <button class="theme-choice" type="button" data-theme-choice="pomegranate" aria-pressed="false" style="--swatch-a:#B5485D;--swatch-b:#F3E2D1"><i></i><span>Pomegranate</span></button>
+            <button class="theme-choice" type="button" data-theme-choice="lilac" aria-pressed="false" style="--swatch-a:#8877C7;--swatch-b:#F0E7DB"><i></i><span>Lilac</span></button>
+            <button class="theme-choice" type="button" data-theme-choice="rosewood" aria-pressed="false" style="--swatch-a:#C88697;--swatch-b:#31424D"><i></i><span>Rosewood</span></button>
+            <button class="theme-choice" type="button" data-theme-choice="butter" aria-pressed="false" style="--swatch-a:#E7C86A;--swatch-b:#5D7E7A"><i></i><span>Butter</span></button>
+          </div>
+          <label class="settings-row">
+            <span><strong>Appearance</strong></span>
+            <select id="appearanceMode" aria-label="Appearance">
+              <option value="light">Light</option><option value="dark">Dark</option><option value="system">Follow system</option>
+            </select>
+          </label>
+          <label class="settings-row">
+            <span><strong>Interface language</strong></span>
+            <select id="interfaceLanguage" aria-label="Interface language">
+              <option value="en">English</option><option value="zh">简体中文</option>
+            </select>
+          </label>
+        </div>
 
         <div class="settings-group">
           <h3>AI options</h3>

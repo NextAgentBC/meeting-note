@@ -11,6 +11,8 @@ import { queueFacts, runFacts } from "./facts";
 import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
 import { memoryRoutes } from "./memory-routes";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
+import { archiveChunk, audioRetentionDays, audioRoutes, chunkAudio, runArchive } from "./audio";
+import { collapseLoops, correctTranscript, loadVocabulary, transcriptRoutes, whisperInput } from "./transcript";
 import {
   SEGMENT_TARGET_MS,
   SegmentNoteSchema,
@@ -45,8 +47,7 @@ const STUCK_PROCESSING_MS = 10 * 60 * 1000;
 
 /** Audio chunks delete themselves from KV after this long. KV's minimum is one minute. */
 function audioRetentionSeconds(env: Env): number {
-  const days = Number(env.AUDIO_RETENTION_DAYS);
-  return Math.max(60, Math.round((Number.isFinite(days) && days > 0 ? days : 7) * 86_400));
+  return Math.max(60, Math.round(audioRetentionDays(env) * 86_400));
 }
 
 /** How much transcribed audio one rolling note covers. Tunable per environment. */
@@ -136,6 +137,8 @@ app.route("/api/auth", authRoutes);
 app.route("/api", assistantRoutes);
 app.route("/api", askRoutes);
 app.route("/api", memoryRoutes);
+app.route("/api", audioRoutes);
+app.route("/api", transcriptRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare" }));
 
@@ -154,7 +157,7 @@ app.get("/api/usage", async (c) => {
     `SELECT
        (SELECT COALESCE(SUM(neurons), 0) FROM ai_usage WHERE day = ?1) AS today_neurons,
        (SELECT COALESCE(SUM(audio_ms), 0) FROM ai_usage WHERE day = ?1 AND kind = 'asr') AS today_audio_ms,
-       (SELECT COALESCE(SUM(neurons), 0) FROM ai_usage WHERE kind IN ('asr', 'segment', 'final')) AS all_neurons,
+       (SELECT COALESCE(SUM(neurons), 0) FROM ai_usage WHERE kind IN ('asr', 'asr_correct', 'segment', 'final')) AS all_neurons,
        (SELECT COALESCE(SUM(audio_ms), 0) FROM ai_usage WHERE kind = 'asr') AS all_audio_ms`
   ).bind(today).first<{ today_neurons: number; today_audio_ms: number; all_neurons: number; all_audio_ms: number }>();
 
@@ -323,6 +326,17 @@ app.put("/api/meetings/:id/chunks/:sequence", async (c) => {
   }
   await c.env.JOBS.send({ type: "transcribe", meetingId, chunkId });
   await recordEvent(c.env, meetingId, "chunk_uploaded", `sequence=${sequence};bytes=${audio.byteLength}`, chunkId);
+
+  // The permanent copy, when this copy keeps one. A failure here must not fail the upload: the audio is
+  // safe in KV for AUDIO_RETENTION_DAYS, and the queued job copies it from there.
+  if (c.env.RECORDINGS && meeting.keep_audio !== 0) {
+    try {
+      await archiveChunk(c.env, { id: chunkId, meeting_id: meetingId, sequence, r2_key: r2Key, mime_type: mimeType }, audio);
+    } catch (error) {
+      console.error("Archiving an uploaded chunk failed; queued to try again", error);
+      await c.env.JOBS.send({ type: "archive", meetingId, chunkId });
+    }
+  }
 
   return c.json({ ok: true, chunkId, status: "uploaded" }, 201);
 });
@@ -598,8 +612,9 @@ async function transcribeChunk(env: Env, message: Extract<JobMessage, { type: "t
     .bind(message.chunkId, message.meetingId).first<ChunkRow>();
   if (!chunk || chunk.status === "done") return;
 
-  const audio = await env.AUDIO.get(chunk.r2_key, "arrayBuffer");
-  if (!audio) throw new Error(`Audio is missing (expired or never stored): ${chunk.r2_key}`);
+  // KV first; a retry after KV has expired the chunk can still use the permanent copy.
+  const audio = chunk.audio_deleted_at ? null : await chunkAudio(env, chunk);
+  if (!audio) throw new Error(`Audio is missing (expired, deleted or never stored): ${chunk.r2_key}`);
   const audioBase64 = Buffer.from(audio).toString("base64");
   const meeting = await findMeeting(env.DB, message.meetingId);
   if (!meeting) throw new Error("Meeting disappeared before transcription");
@@ -607,22 +622,23 @@ async function transcribeChunk(env: Env, message: Extract<JobMessage, { type: "t
   await env.DB.prepare("UPDATE audio_chunks SET status = 'processing', updated_at = ? WHERE id = ?")
     .bind(isoNow(), chunk.id).run();
 
-  const input: Record<string, unknown> = {
-    audio: audioBase64,
-    vad_filter: true,
-    // Written in Simplified Chinese on purpose: Whisper mirrors the script of
-    // its prompt, and defaults to Traditional characters for Mandarin otherwise.
-    initial_prompt: "以下是一场商务工作坊或会议的录音。请用简体中文转写中文部分，准确保留人名、公司名、产品名、网址、数字、提问和待办事项。音频可能在中文和英文之间切换。Business workshop or meeting; the audio may switch between Chinese and English."
-  };
-  if (meeting.language !== "auto") input.language = meeting.language;
-
-  const result = await runModel(env, env.ASR_MODEL, input);
+  // Decoding settings and prompt: see src/transcript.ts.
+  const vocabulary = await loadVocabulary(env);
+  const result = await runModel(env, env.ASR_MODEL, whisperInput(audioBase64, meeting.language, vocabulary));
   await recordUsage(env, message.meetingId, "asr", env.ASR_MODEL, result, chunk.duration_ms);
   const resultObject = result as Record<string, unknown>;
   const transcriptionInfo = resultObject.transcription_info as Record<string, unknown> | undefined;
   const rawTranscript = String(resultObject.text ?? transcriptionInfo?.text ?? resultObject.transcription ?? "").trim();
   // Prompting alone does not reliably keep Whisper in Simplified characters.
-  const transcript = simplifyEnabled(env.CHINESE_SCRIPT) ? toSimplified(rawTranscript) : rawTranscript;
+  let transcript = collapseLoops(simplifyEnabled(env.CHINESE_SCRIPT) ? toSimplified(rawTranscript) : rawTranscript);
+  if (transcript && vocabulary.length) {
+    try {
+      transcript = await correctTranscript(env, message.meetingId, transcript, vocabulary);
+    } catch (error) {
+      // A nicety, never a reason to fail the chunk: Whisper's own words stand (transcript_json keeps them anyway).
+      console.warn("Vocabulary correction skipped", error);
+    }
+  }
 
   // An empty transcript is a legitimate result, not a failure: a break, a muted
   // microphone or a silent stretch all produce one, and treating it as an error
@@ -851,6 +867,7 @@ export default {
         else if (body.type === "remember") await rememberMeeting(env, body.meetingId);
         else if (body.type === "embed") await runEmbed(env, body.ids);
         else if (body.type === "facts") await runFacts(env, body.meetingId);
+        else if (body.type === "archive") await runArchive(env, body.meetingId, body.chunkId);
         else await runFinal(env, body.meetingId);
         message.ack();
       } catch (error) {

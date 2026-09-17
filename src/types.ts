@@ -27,6 +27,14 @@ export interface Env {
   MEMORY_VECTORS?: Vectorize;
   /** Multilingual embedding model for MEMORY_VECTORS. Falls back to bge-m3 (1024 dimensions). */
   EMBED_MODEL?: string;
+  /**
+   * Permanent copies of the audio (src/audio.ts). Optional, like MEMORY_VECTORS: R2 asks for a card on
+   * file, so the one-click template never binds it and its audio stays temporary in KV. A copy that binds
+   * it keeps every chunk of a meeting whose keep_audio is 1, and lets the owner play, download or delete it.
+   */
+  RECORDINGS?: R2Bucket;
+  /** Fixes misheard words from the owner's vocabulary after Whisper. Falls back to SUMMARY_MODEL. */
+  CORRECT_MODEL?: string;
 }
 
 export type JobMessage =
@@ -41,7 +49,9 @@ export type JobMessage =
   // Embeds memory rows that are new or whose text changed, into MEMORY_VECTORS.
   | { type: "embed"; ids: string[] }
   // Extracts durable facts (hours, prices, policies, ...) from a meeting's finished note.
-  | { type: "facts"; meetingId: string };
+  | { type: "facts"; meetingId: string }
+  // Copies one chunk's audio from KV into the RECORDINGS bucket, when the upload couldn't.
+  | { type: "archive"; meetingId: string; chunkId: string };
 
 export interface MeetingRow {
   id: string;
@@ -59,6 +69,8 @@ export interface MeetingRow {
   summary_enqueued_at: string | null;
   force_summary: number;
   last_error: string | null;
+  /** 1: keep a permanent copy of the audio (when RECORDINGS is bound). 0: temporary only. */
+  keep_audio: number;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +89,10 @@ export interface ChunkRow {
   transcript_json: string | null;
   retry_count: number;
   last_error: string | null;
+  /** When the permanent copy was written to RECORDINGS (same key as in KV). */
+  archived_at: string | null;
+  /** When the owner deleted this chunk's audio; the transcript stays. */
+  audio_deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }

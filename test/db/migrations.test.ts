@@ -52,6 +52,21 @@ describe("migrations 0001-0009 on node:sqlite", () => {
     expect(row.embedded_hash).toBeNull();
   });
 
+  it("0011 keeps audio by default, with archived_at / audio_deleted_at starting NULL", () => {
+    const db = freshDb();
+    insertMeeting(db, "m1");
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO audio_chunks (id, meeting_id, sequence, r2_key, mime_type, duration_ms, size_bytes, status, created_at, updated_at)
+       VALUES ('m1-0000', 'm1', 0, 'meetings/m1/chunks/0000.webm', 'audio/webm', 1000, 10, 'uploaded', ?, ?)`
+    ).run(now, now);
+    const meeting = db.prepare("SELECT keep_audio FROM meetings WHERE id = 'm1'").get() as { keep_audio: number };
+    const chunk = db.prepare("SELECT archived_at, audio_deleted_at FROM audio_chunks WHERE id = 'm1-0000'").get() as { archived_at: unknown; audio_deleted_at: unknown };
+    expect(meeting.keep_audio).toBe(1);
+    expect(chunk.archived_at).toBeNull();
+    expect(chunk.audio_deleted_at).toBeNull();
+  });
+
   it("an insert is mirrored into memory_fts, and deleting the row removes it there too", () => {
     const db = freshDb();
     insertMeeting(db, "m1");

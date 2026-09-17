@@ -1,6 +1,7 @@
 import { ensureSignedIn } from "./auth.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
+import "./transcription.js";
 
 const CHUNK_MS = 3 * 60 * 1000;
 // Input quieter than this counts as nothing reaching the recorder. Normal speech
@@ -484,7 +485,10 @@ function renderRoute() {
   }
   if (route.view === "meetings") void loadMeetings();
   if (route.view === "plans") void loadPlans();
-  if (route.view === "me") void loadUsage();
+  if (route.view === "me") {
+    void loadUsage();
+    window.dispatchEvent(new CustomEvent("meetingnote:me-shown"));
+  }
   if (route.view === "memory") window.dispatchEvent(new CustomEvent("meetingnote:memory-shown"));
 }
 
@@ -641,6 +645,7 @@ async function showMeeting(id) {
   if (activeMeeting?.id !== id) {
     if (backupUrl) { URL.revokeObjectURL(backupUrl); backupUrl = null; $("#backupLink").classList.add("hidden"); }
     activeMeeting = { id };
+    $("#audioButton").classList.add("hidden");
     $("#rebuildNoteButton").classList.add("hidden");
     $("#exportLink").classList.add("hidden");
     progressPanel.classList.add("hidden");
@@ -742,6 +747,8 @@ async function refreshActiveMeeting() {
     $("#transcribedCount").textContent = String(activeMeeting.processedChunks);
     const segments = data.segments || [];
     renderTranscript(data.chunks);
+    // transcription.js shows the Recording button once there is audio to play or download.
+    window.dispatchEvent(new CustomEvent("meetingnote:meeting-refreshed", { detail: { id: activeMeeting.id, chunks: data.chunks.length } }));
     renderNote(activeMeeting.summary, segments);
     const writtenSegments = segments.filter((segment) => segment.note).length;
     $("#segmentCount").textContent = String(writtenSegments);

@@ -33,11 +33,14 @@ src/memory.ts    what gets remembered, and search (FTS5 + LIKE + time + vector) 
 src/embed.ts     semantic search: Workers AI embeddings + Vectorize, all of it optional
 src/facts.ts     durable facts ("长期事实记忆"): one model call per finished meeting, with supersession
 src/memory-routes.ts  the Memory page's API: GET /api/memory, GET /api/memory/facts, DELETE /api/memory/:id
+src/captures.ts  quick notes, private WebP uploads, photo-AI setting and queued photo understanding
 src/recall/      hybrid-recall merge, time words, splitting (ported from nextclaw-cloud)
 src/ai.ts        runModel, modelText (every response shape), usage     src/settings.ts owner settings
-public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js, ask.js
+public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js,
+                 ask.js, captures.js (client-side WebP conversion and quick notes)
 migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory;
-                 0008 device links (Add device); 0009 memory embedding tracking (embedded_at/embedded_hash)
+                 0008 device links; 0009 memory embedding tracking; 0010 integration tokens;
+                 0011 permanent audio/tuned ASR; 0012 quick notes/photos
 e2e/             the sign-in flows in a real browser (own package.json)
 ```
 
@@ -48,7 +51,7 @@ For the Memory page. Every route is under the owner's session like the rest of `
 
 - **`GET /api/memory?kind=&q=&cursor=&limit=`** — newest-first (a cursor over `(occurred_at, id)`
   DESC) when `q` is absent; the existing hybrid search (`searchMemory`), ranked by relevance and
-  with no cursor, when it's given. `kind` filters either way.
+  with no cursor, when it's given. `kind` filters either way; quick notes use kind `capture`.
   Returns `{ ok, items: [{ id, kind, title, snippet, meetingId, chunkSequence, occurredAt, superseded }], nextCursor }`.
 - **`GET /api/memory/facts`** — current (non-superseded) facts only.
   Returns `{ ok, facts: [{ id, topic, statement, meetingId, meetingTitle, occurredAt, priorVersions }] }`.
@@ -102,6 +105,8 @@ npm run typecheck
   strips the appended line back off. Its `title` is the topic, which is how supersession and "forget this
   fact" find every version — see `normalizeTopic` before comparing two topics for equality.
 - `/cal/*` runs the Worker without a session (calendar apps can't sign in); the service worker never caches it.
+- Camera originals never leave the browser: `captures.js` draws them to canvas and uploads bounded WebP
+  full/thumbnail copies. Photo AI is off by default and only queues when the full image upload completes.
 
 - Workers AI doesn't run locally, so transcription and notes can only be tested on a deployed copy, or with
   `npx wrangler dev` (no `--local`): that proxies AI calls to the real service under your `wrangler login`,

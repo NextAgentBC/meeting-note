@@ -6,6 +6,7 @@ import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { modelOptions, modelText, recordUsage, runModel } from "./ai";
 import { askRoutes } from "./ask";
 import { assistantRoutes, calendarFeed, suggestTasksFromMeeting } from "./assistant";
+import { captureRoutes, markVisionFailed, runVision } from "./captures";
 import { runEmbed } from "./embed";
 import { queueFacts, runFacts } from "./facts";
 import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
@@ -136,6 +137,7 @@ app.route("/api/auth", authRoutes);
 app.route("/api", assistantRoutes);
 app.route("/api", askRoutes);
 app.route("/api", memoryRoutes);
+app.route("/api", captureRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare" }));
 
@@ -814,6 +816,10 @@ async function markJobFailed(env: Env, body: JobMessage, error: unknown) {
     console.error("Embedding failed permanently", body.ids, detail);
     return;
   }
+  if (body.type === "vision") {
+    await markVisionFailed(env, body.attachmentId, detail);
+    return;
+  }
 
   if (body.type === "transcribe") {
     await env.DB.prepare(
@@ -851,6 +857,7 @@ export default {
         else if (body.type === "remember") await rememberMeeting(env, body.meetingId);
         else if (body.type === "embed") await runEmbed(env, body.ids);
         else if (body.type === "facts") await runFacts(env, body.meetingId);
+        else if (body.type === "vision") await runVision(env, body);
         else await runFinal(env, body.meetingId);
         message.ack();
       } catch (error) {

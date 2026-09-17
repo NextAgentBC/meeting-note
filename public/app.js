@@ -1,4 +1,5 @@
 import { ensureSignedIn } from "./auth.js";
+import { initCaptures, loadImageAiSetting } from "./captures.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
 
@@ -186,12 +187,22 @@ async function loadUsage() {
     bar.classList.toggle("warn", left < 2 * 3600);
     bar.classList.toggle("over", left <= 0);
 
+    const kindNames = {
+      asr: "transcription", segment: "section notes", final: "meeting notes",
+      plan: "plans", ask: "answers", search: "search", facts: "facts",
+      embed: "memory search", vision: "photo understanding"
+    };
     const kinds = data.byKind.length
-      ? data.byKind.map((item) => `${item.kind} ${Math.round(item.neurons)}`).join(" · ")
+      ? data.byKind.map((item) => `${kindNames[item.kind] || item.kind} ${Math.round(item.neurons)}`).join(" · ")
       : "nothing used yet";
     const perHour = Math.round(data.neuronsPerAudioSecond * 3600);
     $("#usageMeta").textContent = `${Math.round(data.usedNeurons).toLocaleString()} of ${data.freeDailyNeurons.toLocaleString()} free AI units used (${kinds}). An hour of recording uses about ${perHour.toLocaleString()}.${data.hardLimit ? " At the limit AI pauses until it resets; nothing is billed." : ""}`;
     $("#usageReset").textContent = `resets ${new Date(data.resetsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    $("#usageBreakdown").innerHTML = (data.byKind || []).map((item) => {
+      const units = Math.round(item.neurons);
+      const amount = units > 0 ? `${units.toLocaleString()} units · ` : "";
+      return `<span><b>${escapeHtml(kindNames[item.kind] || item.kind)}</b> ${amount}${item.calls} call${item.calls === 1 ? "" : "s"}</span>`;
+    }).join("");
     $("#usageCard").classList.remove("hidden");
   } catch (error) {
     console.warn("Usage unavailable", error);
@@ -484,7 +495,10 @@ function renderRoute() {
   }
   if (route.view === "meetings") void loadMeetings();
   if (route.view === "plans") void loadPlans();
-  if (route.view === "me") void loadUsage();
+  if (route.view === "me") {
+    void loadUsage();
+    void loadImageAiSetting();
+  }
   if (route.view === "memory") window.dispatchEvent(new CustomEvent("meetingnote:memory-shown"));
 }
 
@@ -1039,9 +1053,9 @@ if ("serviceWorker" in navigator) {
   });
 }
 if (navigator.storage?.persist) void navigator.storage.persist();
-// Home-screen shortcuts (manifest.webmanifest) arrive as ?action=record / dictate / ask.
+// Home-screen shortcuts (manifest.webmanifest) arrive as ?action=record / dictate / ask / note.
 const shortcut = new URLSearchParams(location.search).get("action");
-if (shortcut) history.replaceState(null, "", `${location.pathname}${shortcut === "dictate" ? "#/plans" : shortcut === "ask" ? "#/memory" : "#/meetings"}`);
+if (shortcut) history.replaceState(null, "", `${location.pathname}${shortcut === "dictate" ? "#/plans" : shortcut === "ask" || shortcut === "note" ? "#/memory" : "#/meetings"}`);
 try {
   $("#timezoneLabel").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || "—";
 } catch {
@@ -1053,9 +1067,12 @@ void ensureSignedIn().then(() => {
   document.body.classList.add("signed-in");
   void restorePendingUploads().then(resumePendingFinalizations);
   void initPlans();
+  initCaptures();
   void loadUsage();
+  void loadImageAiSetting();
   renderRoute();
   if (shortcut === "record") window.setTimeout(() => $("#meetingTitle").focus(), 300);
+  if (shortcut === "note") window.setTimeout(() => $("#quickNoteBody").focus(), 300);
 });
 // A passage in an Ask answer that came from a meeting opens that meeting.
 window.addEventListener("meetingnote:open-meeting", (event) => {

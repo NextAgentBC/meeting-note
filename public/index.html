@@ -227,8 +227,36 @@
 
       <!-- Memory: ask anything, and see what's remembered -->
       <section id="askSection" class="view app-view hidden" data-view="memory" data-title="Memory">
+        <form id="quickNoteForm" class="card quick-note-form">
+          <div class="quick-note-head">
+            <div><p class="eyebrow">Quick note</p><h2>Save whatever is on your mind</h2></div>
+            <select id="quickNoteCategory" class="compact-select" aria-label="Note category">
+              <option value="inbox">Let AI organize</option>
+              <option value="idea">Idea</option>
+              <option value="journal">Journal</option>
+              <option value="plan">Plan</option>
+              <option value="life">Life</option>
+              <option value="reference">Reference</option>
+            </select>
+          </div>
+          <textarea id="quickNoteBody" name="body" maxlength="10000" rows="4" placeholder="Write an idea, a moment, a shopping note…"></textarea>
+          <div id="quickNotePreviews" class="photo-previews hidden" aria-live="polite"></div>
+          <div class="quick-note-actions">
+            <input id="quickNoteImages" class="hidden" type="file" accept="image/*" multiple />
+            <button id="addQuickNoteImages" class="quick-add-button ghost" type="button">＋ Add photos</button>
+            <span id="quickNoteCompression" class="hint"></span>
+            <button id="saveQuickNote" class="quick-add-button" type="submit">Save note</button>
+          </div>
+          <p class="hint">Up to 6 photos. They are resized and converted to WebP on this device before upload.</p>
+        </form>
+
+        <div id="capturesBlock" class="plan-block hidden">
+          <div class="plan-block-head"><div><h3>Quick notes</h3><p>Your text and photos, newest first.</p></div></div>
+          <div id="capturesList" class="capture-list"></div>
+        </div>
+
         <form id="askForm" class="card ask-form">
-          <label for="askInput" class="field"><span>Ask your meetings and plans</span></label>
+          <label for="askInput" class="field"><span>Ask your meetings, notes and plans</span></label>
           <div class="ask-row">
             <input id="askInput" name="question" placeholder="What did we decide about the venue?" maxlength="500" autocomplete="off" enterkeyhint="search" required />
             <button class="quick-add-button" type="submit">Ask</button>
@@ -239,7 +267,7 @@
             <button type="button" class="chip" data-example="Who promised to do what?">Who promised to do what?</button>
           </div>
         </form>
-        <p id="memoryIntro" class="memory-intro">Everything you record, say and plan is remembered on its own. Ask in English or Chinese, and every answer shows where it came from.</p>
+        <p id="memoryIntro" class="memory-intro">Everything you record, write, photograph and plan is remembered on its own. Ask in English or Chinese, and every answer shows where it came from.</p>
         <div id="askAnswer" class="ask-answer hidden" role="status" aria-live="polite">
           <p id="askText"></p>
           <div id="askSources" class="ask-sources"></div>
@@ -258,6 +286,7 @@
               <option value="summary">Meeting notes</option>
               <option value="plan">Plans</option>
               <option value="dictation">Said aloud</option>
+              <option value="capture">Quick notes</option>
               <option value="transcript">Transcripts</option>
             </select>
           </div>
@@ -278,12 +307,26 @@
           </div>
           <div class="usage-track"><i id="usageBar"></i></div>
           <p class="usage-meta" id="usageMeta"></p>
+          <div id="usageBreakdown" class="usage-breakdown"></div>
         </section>
+
+        <div class="settings-group">
+          <h3>AI options</h3>
+          <label class="settings-row setting-toggle">
+            <span><strong>Understand new photos</strong><small>Optional · reads visible text and suggests a category. Existing photos are not sent when you turn it on.</small></span>
+            <input id="imageAiToggle" type="checkbox" role="switch" aria-label="Understand new photos with AI" />
+          </label>
+        </div>
 
         <div class="settings-group">
           <h3>Sign-in</h3>
           <button id="addDeviceButton" class="settings-row" type="button"><span><strong>Add a phone or computer</strong><small>Show a code the new device scans</small></span><b aria-hidden="true">›</b></button>
           <button id="recoveryCodeRow" class="settings-row" type="button"><span><strong>Recovery code</strong><small>Make a new one if you lost yours</small></span><b aria-hidden="true">›</b></button>
+        </div>
+
+        <div class="settings-group">
+          <h3>Connected apps</h3>
+          <button id="connectedAppsRow" class="settings-row" type="button"><span><strong>NextNote</strong><small>Process recordings and return notes to your local vault</small></span><b aria-hidden="true">›</b></button>
         </div>
 
         <div class="settings-group">
@@ -373,6 +416,30 @@
         <p id="newRecoveryCodeHint" class="auth-hint hidden">Take a screenshot or write it down now: it won't be shown again.</p>
         <button id="closeRecoveryDialog" class="sheet-close" type="button">Close</button>
       </div>
+    </dialog>
+
+    <dialog id="connectedAppsDialog" class="sheet" aria-labelledby="connectedAppsDialogTitle">
+      <div class="sheet-body">
+        <p class="eyebrow">Connected apps</p>
+        <h2 id="connectedAppsDialogTitle">Connect NextNote</h2>
+        <p>Make a private token, copy it into NextNote, then close this sheet. The token is shown once and can be revoked here at any time.</p>
+        <button id="newIntegrationToken" class="primary-button" type="button"><span>Make a NextNote token</span><b>→</b></button>
+        <div id="integrationTokenReveal" class="hidden">
+          <p id="integrationTokenValue" class="recovery-code"></p>
+          <div class="device-actions">
+            <button id="copyIntegrationToken" class="quick-add-button" type="button">Copy token</button>
+          </div>
+          <p class="auth-warning">Save it in NextNote now. For security, it won't be shown again.</p>
+        </div>
+        <div id="integrationTokenList"></div>
+        <p id="integrationTokenStatus" class="auth-hint"></p>
+        <button id="closeConnectedAppsDialog" class="sheet-close" type="button">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="captureLightbox" class="capture-lightbox" aria-label="Photo preview">
+      <button id="closeCaptureLightbox" type="button" aria-label="Close photo preview">×</button>
+      <img id="captureLightboxImage" alt="" />
     </dialog>
 
     <div id="reauthBanner" class="reauth-banner hidden" role="alert">

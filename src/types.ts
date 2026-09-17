@@ -12,6 +12,8 @@ export interface Env {
   PLAN_MODEL?: string;
   /** Answers questions about past meetings and plans. Falls back to FINAL_MODEL. */
   ASK_MODEL?: string;
+  /** Describes and reads text from quick-note photos. Only used when the owner enables it. */
+  VISION_MODEL?: string;
   CHINESE_SCRIPT: string;
   FREE_DAILY_NEURONS: string;
   WORKERS_PLAN: string;
@@ -41,7 +43,9 @@ export type JobMessage =
   // Embeds memory rows that are new or whose text changed, into MEMORY_VECTORS.
   | { type: "embed"; ids: string[] }
   // Extracts durable facts (hours, prices, policies, ...) from a meeting's finished note.
-  | { type: "facts"; meetingId: string };
+  | { type: "facts"; meetingId: string }
+  // Describes one already-uploaded WebP attachment; the quick note itself never waits for this.
+  | { type: "vision"; captureId: string; attachmentId: string };
 
 export interface MeetingRow {
   id: string;

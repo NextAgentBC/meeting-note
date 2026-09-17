@@ -9,7 +9,7 @@ import type { Env } from "./types";
 // Memory: short passages copied from everything the owner records or plans, so a question
 // like "what did we decide about the venue?" can find them again. See migrations/0007_memory.sql.
 
-export type MemoryKind = "transcript" | "section" | "summary" | "plan" | "dictation" | "fact";
+export type MemoryKind = "transcript" | "section" | "summary" | "plan" | "dictation" | "fact" | "capture";
 
 export interface MemoryItem {
   id: string;
@@ -123,6 +123,28 @@ export function dictationItem(dictation: { id: string; transcript: string; creat
     title: "Said aloud",
     text: dictation.transcript.slice(0, 4000),
     occurredAt: dictation.created_at
+  };
+}
+
+/** A quick note is remembered together with any photo descriptions or OCR that have arrived. */
+export function captureItem(capture: {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  occurred_at: string;
+}, imageText: string[] = []): MemoryItem | null {
+  const text = [capture.body.trim(), ...imageText.map((item) => item.trim()).filter(Boolean)].filter(Boolean).join("\n");
+  if (!text) return null;
+  return {
+    id: `capture:${capture.id}`,
+    kind: "capture",
+    sourceId: capture.id,
+    meetingId: null,
+    chunkSequence: null,
+    title: capture.title,
+    text: [`Category: ${capture.category}`, text].join("\n").slice(0, 8000),
+    occurredAt: capture.occurred_at
   };
 }
 

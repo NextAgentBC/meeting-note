@@ -39,7 +39,8 @@ const KIND = {
   summary: "meeting note",
   plan: "plan",
   dictation: "said aloud",
-  fact: "fact"
+  fact: "fact",
+  capture: "quick note"
 };
 
 function shortDate(value) {
@@ -75,7 +76,7 @@ async function ask(question) {
   button.disabled = true;
   answer.classList.remove("hidden");
   answer.classList.add("thinking");
-  $("#askText").textContent = "Looking through your meetings and plans…";
+  $("#askText").textContent = "Looking through your meetings, notes and plans…";
   $("#askSources").innerHTML = "";
   try {
     const data = await api("/api/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question }) });
@@ -170,6 +171,7 @@ window.addEventListener("meetingnote:memory-shown", () => {
   void loadFacts();
   void loadMemory();
 });
+window.addEventListener("meetingnote:memory-refresh", () => void loadMemory());
 
 $("#memoryKind").addEventListener("change", () => void loadMemory());
 $("#memoryMore").addEventListener("click", () => void loadMemory(true));

@@ -11,7 +11,7 @@ import type { Env } from "./types";
 
 export const memoryRoutes = new Hono<{ Bindings: Env }>();
 
-const KINDS: readonly MemoryKind[] = ["transcript", "section", "summary", "plan", "dictation", "fact"];
+const KINDS: readonly MemoryKind[] = ["transcript", "section", "summary", "plan", "dictation", "fact", "capture"];
 
 function isMemoryKind(value: string | undefined): value is MemoryKind {
   return Boolean(value) && (KINDS as readonly string[]).includes(value as string);

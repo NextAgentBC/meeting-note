@@ -336,3 +336,99 @@ $("#closeDeviceDialog").addEventListener("click", () => {
   if (typeof dialog.close === "function") dialog.close();
   else dialog.removeAttribute("open");
 });
+
+// ── Connected apps: revocable tokens for NextNote ────────────────────────────
+
+function integrationDate(value) {
+  if (!value) return "Never used";
+  return `Last used ${new Date(value).toLocaleString()}`;
+}
+
+async function integrationRequest(path, options = {}) {
+  const response = await fetch(path, { credentials: "same-origin", ...options });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Request failed: ${response.status}`);
+  return data;
+}
+
+async function loadIntegrationTokens() {
+  const list = $("#integrationTokenList");
+  const status = $("#integrationTokenStatus");
+  list.replaceChildren();
+  status.textContent = "Loading connections…";
+  try {
+    const { tokens } = await integrationRequest("/api/auth/integration-tokens");
+    status.textContent = tokens.length ? "" : "No apps are connected yet.";
+    for (const token of tokens) {
+      const row = document.createElement("div");
+      row.className = "settings-row static";
+      const copy = document.createElement("span");
+      const name = document.createElement("strong");
+      const detail = document.createElement("small");
+      name.textContent = token.label;
+      detail.textContent = integrationDate(token.lastUsedAt);
+      copy.append(name, detail);
+      const revoke = document.createElement("button");
+      revoke.className = "auth-link inline";
+      revoke.type = "button";
+      revoke.textContent = "Revoke";
+      revoke.addEventListener("click", async () => {
+        if (!window.confirm(`Disconnect ${token.label}?`)) return;
+        revoke.disabled = true;
+        try {
+          await integrationRequest(`/api/auth/integration-tokens/${encodeURIComponent(token.id)}`, { method: "DELETE" });
+          await loadIntegrationTokens();
+        } catch (error) {
+          status.textContent = messageFor(error);
+          revoke.disabled = false;
+        }
+      });
+      row.append(copy, revoke);
+      list.append(row);
+    }
+  } catch (error) {
+    status.textContent = messageFor(error);
+  }
+}
+
+$("#connectedAppsRow").addEventListener("click", () => {
+  show($("#integrationTokenReveal"), false);
+  $("#integrationTokenValue").textContent = "";
+  openSheet($("#connectedAppsDialog"));
+  void loadIntegrationTokens();
+});
+
+$("#newIntegrationToken").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  $("#integrationTokenStatus").textContent = "";
+  try {
+    const result = await integrationRequest("/api/auth/integration-tokens", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "NextNote" })
+    });
+    $("#integrationTokenValue").textContent = result.token;
+    show($("#integrationTokenReveal"), true);
+    await loadIntegrationTokens();
+  } catch (error) {
+    $("#integrationTokenStatus").textContent = messageFor(error);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$("#copyIntegrationToken").addEventListener("click", async (event) => {
+  try {
+    await navigator.clipboard.writeText($("#integrationTokenValue").textContent);
+    event.currentTarget.textContent = "Copied";
+  } catch {
+    window.getSelection()?.selectAllChildren($("#integrationTokenValue"));
+  }
+});
+
+$("#closeConnectedAppsDialog").addEventListener("click", () => {
+  $("#integrationTokenValue").textContent = "";
+  show($("#integrationTokenReveal"), false);
+  closeSheet($("#connectedAppsDialog"));
+});

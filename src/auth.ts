@@ -147,6 +147,28 @@ async function ownerForSession(c: AppContext): Promise<OwnerRow | null> {
   ).bind(await sha256Hex(token), Date.now()).first<OwnerRow>();
 }
 
+async function ownerForIntegrationToken(c: AppContext): Promise<OwnerRow | null> {
+  const authorization = c.req.header("authorization") ?? "";
+  const match = /^Bearer\s+(mn_[A-Za-z0-9_-]{20,})$/i.exec(authorization);
+  if (!match) return null;
+
+  const now = Date.now();
+  const row = await c.env.DB.prepare(
+    `SELECT o.id, o.name, o.webauthn_user_id, t.id AS token_id, t.last_used_at
+       FROM integration_tokens t
+       JOIN owners o ON o.id = t.owner_id
+      WHERE t.token_hash = ? AND t.revoked_at IS NULL`
+  ).bind(await sha256Hex(match[1])).first<OwnerRow & { token_id: string; last_used_at: number | null }>();
+  if (!row) return null;
+
+  // Keep the timestamp useful without spending a D1 write on every polling request.
+  if (row.last_used_at === null || row.last_used_at < now - 60 * 60_000) {
+    await c.env.DB.prepare("UPDATE integration_tokens SET last_used_at = ? WHERE id = ?")
+      .bind(now, row.token_id).run();
+  }
+  return { id: row.id, name: row.name, webauthn_user_id: row.webauthn_user_id };
+}
+
 async function currentOwner(db: D1Database): Promise<OwnerRow | null> {
   return db.prepare("SELECT id, name, webauthn_user_id, recovery_hash FROM owners LIMIT 1").first<OwnerRow>();
 }
@@ -159,7 +181,8 @@ async function currentOwner(db: D1Database): Promise<OwnerRow | null> {
  * page from acting in the signed-in owner's name.
  */
 export async function sameOriginWrites(c: AppContext, next: Next) {
-  if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.header("origin") !== new URL(c.req.url).origin) {
+  const bearer = /^Bearer\s+mn_/i.test(c.req.header("authorization") ?? "");
+  if (!bearer && !["GET", "HEAD", "OPTIONS"].includes(c.req.method) && c.req.header("origin") !== new URL(c.req.url).origin) {
     return c.json({ ok: false, error: "Requests that change data must come from this site.", code: "cross_origin" }, 403);
   }
   return next();
@@ -169,7 +192,7 @@ export async function sameOriginWrites(c: AppContext, next: Next) {
 export async function requireOwner(c: AppContext, next: Next) {
   const path = new URL(c.req.url).pathname;
   if (path.startsWith("/api/auth/") || path === "/api/health") return next();
-  if (!(await ownerForSession(c))) {
+  if (!(await ownerForSession(c)) && !(await ownerForIntegrationToken(c))) {
     return c.json({ ok: false, error: "Sign in with your passkey to continue.", code: "sign_in_required" }, 401);
   }
   return next();
@@ -411,6 +434,55 @@ authRoutes.post("/recovery-code", async (c) => {
   const recoveryCode = newRecoveryCode();
   await c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id).run();
   return c.json({ ok: true, recoveryCode });
+});
+
+const integrationTokenBody = z.object({
+  label: z.string().trim().min(1).max(80).default("NextNote")
+});
+
+/** List revocable app connections. Secret values are never returned after creation. */
+authRoutes.get("/integration-tokens", async (c) => {
+  const owner = await ownerForSession(c);
+  if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, label, created_at, last_used_at
+       FROM integration_tokens
+      WHERE owner_id = ? AND revoked_at IS NULL
+      ORDER BY created_at DESC`
+  ).bind(owner.id).all<{ id: string; label: string; created_at: number; last_used_at: number | null }>();
+  return c.json({
+    ok: true,
+    tokens: results.map((row) => ({
+      id: row.id,
+      label: row.label,
+      createdAt: new Date(row.created_at).toISOString(),
+      lastUsedAt: row.last_used_at ? new Date(row.last_used_at).toISOString() : null
+    }))
+  });
+});
+
+/** Make a token for a native app. The plaintext is shown exactly once. */
+authRoutes.post("/integration-tokens", async (c) => {
+  const owner = await ownerForSession(c);
+  if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  const body = await readBody(c, integrationTokenBody);
+  const secret = `mn_${randomToken(32)}`;
+  const id = `int_${randomToken(12)}`;
+  const now = Date.now();
+  await c.env.DB.prepare(
+    "INSERT INTO integration_tokens (id, owner_id, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).bind(id, owner.id, body.label, await sha256Hex(secret), now).run();
+  return c.json({ ok: true, id, label: body.label, token: secret, createdAt: new Date(now).toISOString() }, 201);
+});
+
+authRoutes.delete("/integration-tokens/:id", async (c) => {
+  const owner = await ownerForSession(c);
+  if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  const result = await c.env.DB.prepare(
+    "UPDATE integration_tokens SET revoked_at = ? WHERE id = ? AND owner_id = ? AND revoked_at IS NULL"
+  ).bind(Date.now(), c.req.param("id"), owner.id).run();
+  if ((result.meta.changes ?? 0) !== 1) fail(404, "not_found", "That app connection no longer exists.");
+  return c.json({ ok: true });
 });
 
 authRoutes.post("/login/options", async (c) => {

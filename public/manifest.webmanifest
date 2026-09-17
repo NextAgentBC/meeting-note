@@ -74,6 +74,18 @@
           "sizes": "192x192"
         }
       ]
+    },
+    {
+      "name": "New quick note",
+      "short_name": "Note",
+      "description": "Save a thought or photo",
+      "url": "/?action=note",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

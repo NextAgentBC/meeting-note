@@ -18,7 +18,11 @@ private copy of Meeting Note.
   to-dos are offered the same way.
 - **Ask your meetings and plans anything** ("what did we decide about the venue?", "明天有什么安排？") and
   get an answer with the passages it came from.
+- **Save quick notes and photos** from your phone. Photos are resized, stripped of EXIF/GPS metadata,
+  and converted to WebP before they leave the device. Optional photo understanding can read visible
+  text, write a caption and suggest a category.
 - **Only you can sign in**, with a passkey: Face ID, a fingerprint or your screen lock. No password.
+- **Connect NextNote** with a revocable app token so recordings can be processed here and saved back into your local Markdown vault.
 - **Audio deletes itself after seven days.**
 
 ## What it costs
@@ -34,7 +38,8 @@ free plan: R2 (audio goes into KV instead) and Cloudflare Access (it has its own
 | Queues | Background transcription | 10,000 operations a day |
 | Workers | The app | 100,000 requests a day |
 
-The app shows how much recording today's allowance still affords, before you start.
+The app shows how much recording today's allowance still affords, before you start, plus today's AI
+usage broken down by transcription, notes, answers and optional photo understanding.
 
 ## Put it online
 
@@ -124,12 +129,16 @@ address, then subscribe to it once: on an iPhone or Mac press **subscribe**, in 
 Anyone who has the address can read the plans you've added, so keep it to yourself, and replace it if
 it gets out.
 
-## Ask
+## Quick notes and Ask
 
-Type a question in **Ask your meetings and plans**. Meeting Note looks through every transcript, section
-note, meeting note, dictation and plan you've added, and answers only from what it found, listing the
-passages; click one from a meeting to open that meeting. If the passages don't answer the question, it
-says so rather than guessing.
+Open **Memory** to save a thought, shopping list, journal entry or up to six photos. The browser converts
+each photo to WebP before upload; the original camera file never leaves the device. In **Me → AI options**,
+**Understand new photos** is off by default. Turning it on affects only photos added afterwards.
+
+Type a question in **Ask your meetings, notes and plans**. Meeting Note looks through every transcript,
+section note, meeting note, dictation, quick note and plan you've added, and answers only from what it
+found, listing the passages; click one from a meeting to open that meeting. If the passages don't answer
+the question, it says so rather than guessing.
 
 ## Privacy
 
@@ -137,11 +146,16 @@ says so rather than guessing.
   Transcripts and notes stay in D1 until you remove them; there is no delete button yet, so use
   Cloudflare's dashboard (D1 → `meeting-note-db` → Console) if you need to.
 - Dictated plans keep only their words; the recording is not stored.
+- Quick-note images are private, owner-authenticated KV objects. The compressed WebP copy stays until
+  the quick note is deleted; deleting the note removes its images too.
+- Photo understanding is optional and off by default. When enabled, only newly added compressed photos
+  are sent to Workers AI; existing photos are not processed retroactively.
 - Backups: `wrangler d1 export` can't export the search index (a virtual table), so it refuses the whole
   database once plans and Ask are installed. Cloudflare's D1 Time Travel restores are unaffected.
 - The calendar address is the only way in that doesn't need your passkey, and it can only read plans you
   have added.
 - AI notes are drafts. Check names, numbers and decisions against the transcript.
+- NextNote app tokens are stored only as SHA-256 hashes, can be revoked from **Me → Connected apps**, and never replace your passkey.
 
 ## Settings
 
@@ -156,6 +170,7 @@ Change these in `wrangler.jsonc` (or in the Cloudflare dashboard, under the Work
 | `SUMMARY_MODEL` / `FINAL_MODEL` | GLM-4.7-flash | Section notes / the final merge |
 | `PLAN_MODEL` | GLM-4.7-flash | Reads plans out of what you said |
 | `ASK_MODEL` | GLM-4.7-flash | Answers questions |
+| `VISION_MODEL` | LLaVA 1.5 7B | Describes new photos when the owner enables the option |
 | `FREE_DAILY_NEURONS` | `10000` | The allowance the usage card measures against |
 
 ## Run it on your computer

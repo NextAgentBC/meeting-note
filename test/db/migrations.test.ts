@@ -36,11 +36,14 @@ function matches(db: DatabaseSync, term: string): unknown[] {
   return db.prepare("SELECT rowid FROM memory_fts WHERE memory_fts MATCH ?").all(term);
 }
 
-describe("migrations 0001-0009 on node:sqlite", () => {
+describe("database migrations on node:sqlite", () => {
   it("apply cleanly, in one pass, and create the tables later code depends on", () => {
     const db = freshDb();
     const names = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map((row) => row.name);
-    expect(names).toEqual(expect.arrayContaining(["meetings", "memory_items", "memory_fts", "device_links", "settings"]));
+    expect(names).toEqual(expect.arrayContaining([
+      "meetings", "memory_items", "memory_fts", "device_links", "integration_tokens",
+      "captures", "capture_attachments", "settings"
+    ]));
   });
 
   it("0009 adds embedded_at / embedded_hash, both starting NULL", () => {

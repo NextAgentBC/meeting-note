@@ -11,7 +11,7 @@ import type { TaskRow } from "./tasks";
 import type { JobMessage } from "./types";
 import type { Env } from "./types";
 
-// "Ask": questions about the owner's own meetings and plans, answered only from what was
+// "Ask": questions about the owner's own meetings, quick notes and plans, answered only from what was
 // recorded, with the passages it used. One small model call picks search words, D1 finds the
 // passages, and one call writes the answer.
 
@@ -66,7 +66,7 @@ async function searchTerms(env: Env, question: string): Promise<string[]> {
     { role: "system", content: "You choose keywords for searching meeting transcripts. Output JSON only." },
     {
       role: "user",
-      content: `A person asks about their own meetings and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nThe transcripts mix Chinese and English. Give 4 to 10 short search words: the names, places, things and topics in the question, each in English AND in Simplified Chinese. Use single words, not phrases: for Chinese, mostly two-character words (海报, 场地, 预算). Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
+      content: `A person asks about their own meetings, quick notes, photos and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nThe saved material mixes Chinese and English. Give 4 to 10 short search words: the names, places, things and topics in the question, each in English AND in Simplified Chinese. Use single words, not phrases: for Chinese, mostly two-character words (海报, 场地, 预算). Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
     }
   ], termsJsonSchema, 800);
   const found = parsed.parsed as { terms?: unknown } | null;
@@ -80,7 +80,8 @@ const KIND_LABEL: Record<string, string> = {
   summary: "meeting summary",
   plan: "plan",
   dictation: "said aloud",
-  fact: "remembered"
+  fact: "remembered",
+  capture: "quick note"
 };
 
 function passageLabel(hit: SearchResult, timeZone: string): string {
@@ -157,7 +158,7 @@ askRoutes.post("/ask", async (c) => {
     reply = await runJson(env, askModel(env), "ask", [
       {
         role: "system",
-        content: "You answer questions about the user's own meetings and plans using only the numbered passages and plan list. Cite the passages you used like [2]. If they don't contain the answer, say so plainly instead of guessing. Answer in the language of the question; for Chinese, use Simplified Chinese. Be brief. Output JSON only."
+        content: "You answer questions about the user's own meetings, quick notes, photos and plans using only the numbered passages and plan list. Cite the passages you used like [2]. If they don't contain the answer, say so plainly instead of guessing. Answer in the language of the question; for Chinese, use Simplified Chinese. Be brief. Output JSON only."
       },
       {
         role: "user",

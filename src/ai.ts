@@ -27,6 +27,7 @@ export function modelText(result: unknown): string {
   if (typeof result === "string") return stripThinking(result);
   if (!result || typeof result !== "object") return "";
   const object = result as Record<string, unknown>;
+  if (typeof object.description === "string") return stripThinking(object.description);
   if (object.response !== undefined && object.response !== null) {
     return typeof object.response === "string" ? stripThinking(object.response) : JSON.stringify(object.response);
   }

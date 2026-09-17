@@ -18,8 +18,8 @@
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--bg); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; overflow-x: hidden; overscroll-behavior-y: none; color: var(--text); background: radial-gradient(circle at 78% 2%, rgba(0, 229, 208, 0.08), transparent 32rem), var(--bg); }
-button, input, select { font: inherit; }
-button, a, input, select { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button { -webkit-user-select: none; user-select: none; }
 :focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 .hidden { display: none !important; }
@@ -49,8 +49,10 @@ main { max-width: 1240px; margin: auto; padding: 70px 28px 100px; }
 .step-number { display: grid; place-items: center; flex: 0 0 38px; height: 38px; color: var(--cyan); border: 1px solid rgba(0,229,208,.28); border-radius: 50%; font-size: 11px; }
 .card-head h2, .section-title h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }.card-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .new-card > label, .form-row label { display: block; margin-top: 20px; }.new-card label > span:first-child, legend { display: block; margin-bottom: 8px; color: #aeb8c2; font-size: 11px; letter-spacing: .04em; }
-input, select { width: 100%; height: 46px; padding: 0 13px; color: var(--text); border: 1px solid var(--line); border-radius: 11px; outline: none; background: #0c1117; transition: border .2s, box-shadow .2s; }
-input:focus, select:focus { border-color: rgba(0,229,208,.65); box-shadow: 0 0 0 3px rgba(0,229,208,.08); }
+input, select, textarea { width: 100%; padding: 0 13px; color: var(--text); border: 1px solid var(--line); border-radius: 11px; outline: none; background: #0c1117; transition: border .2s, box-shadow .2s; }
+input, select { height: 46px; }
+textarea { padding-block: 12px; resize: vertical; line-height: 1.55; }
+input:focus, select:focus, textarea:focus { border-color: rgba(0,229,208,.65); box-shadow: 0 0 0 3px rgba(0,229,208,.08); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 fieldset { display: grid; gap: 9px; margin: 22px 0 0; padding: 0; border: 0; }
 .choice { position: relative; display: grid; grid-template-columns: 38px 1fr; gap: 10px; align-items: center; min-height: 68px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }

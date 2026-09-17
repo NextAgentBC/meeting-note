@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { isDailyLimitError, modelOptions, modelText, parseModelJson, recordUsage, runModel } from "./ai";
+import { archiveBacklog } from "./audio";
 import { embedBacklog } from "./embed";
 import { getSetting, ownerTimeZone, setSetting } from "./settings";
 import { utcToLocalParts } from "./calendar";
@@ -223,6 +224,8 @@ export async function catchUpMemory(env: Env): Promise<boolean> {
     queued = results.length > 0;
   }
   if (await embedBacklog(env)) queued = true;
+  // Same once-only pattern: audio recorded before the RECORDINGS bucket was bound gets its permanent copy.
+  if (await archiveBacklog(env)) queued = true;
   return queued;
 }
 

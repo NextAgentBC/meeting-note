@@ -241,3 +241,19 @@ body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
 @media (display-mode: standalone) {
   .appbar { padding-top: env(safe-area-inset-top); }
 }
+
+/* Recording sheet (transcription.js): one row per part, with a player and a download link. */
+.audio-parts { display: grid; gap: 8px; margin: 12px 0 4px; }
+.audio-part { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.025); }
+.audio-part-head { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.audio-part-head strong { font-size: 14px; }
+.audio-part-head small { color: var(--muted); font-size: 12px; }
+.audio-part audio { width: 100%; height: 36px; }
+.check-row { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.check-row input { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 2px; accent-color: var(--cyan); }
+.check-row strong, .check-row small { display: block; }
+.check-row strong { font-size: 14px; }
+.check-row small { margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.quick-add-button.danger { color: #ff8a86; border-color: rgba(255,107,103,.35); background: rgba(255,107,103,.06); }
+.sheet textarea { display: block; width: 100%; margin-top: 10px; padding: 12px 13px; color: var(--text); border: 1px solid var(--line); border-radius: 11px; outline: none; background: #0c1117; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
+.sheet textarea:focus { border-color: rgba(0,229,208,.5); }

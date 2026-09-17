@@ -5,7 +5,7 @@ transcribes and writes notes, and only the owner can sign in. Read this before c
 
 ## Keep these true
 
-1. **$0 with no card on file.** No Cloudflare R2 (audio lives in KV with an expiry) and no Cloudflare
+1. **$0 with no card on file.** No Cloudflare R2 in the template (audio lives in KV with an expiry; see 4) and no Cloudflare
    Access / Zero Trust (sign-in is the app's own passkeys). Both ask for a payment method even on the
    free plan.
 2. **One-click deploy.** The Deploy to Cloudflare button provisions D1, KV and the queue from
@@ -16,8 +16,11 @@ transcribes and writes notes, and only the owner can sign in. Read this before c
    code once (stored as SHA-256, replaced every time it's used); a `SETUP_CODE` secret is optional. No
    passwords: the free plan's 10 ms of CPU per request can't afford password hashing. Don't add a
    `.dev.vars.example`: the Deploy button turns every line in it into a form field.
-4. **Audio is temporary.** Chunks expire from KV after `AUDIO_RETENTION_DAYS`. Never move audio into D1
-   or anywhere it would outlive that.
+4. **Audio is temporary, unless the owner binds somewhere to keep it.** Chunks expire from KV after
+   `AUDIO_RETENTION_DAYS`, and KV is what transcription reads. Only the optional `RECORDINGS` R2 binding
+   (never in `wrangler.jsonc`, like `MEMORY_VECTORS`) keeps a permanent copy, per meeting (`keep_audio`),
+   and the owner can turn that off or delete the audio from the meeting's Recording sheet. Never move
+   audio into D1.
 
 ## Where things are
 
@@ -36,8 +39,10 @@ src/memory-routes.ts  the Memory page's API: GET /api/memory, GET /api/memory/fa
 src/captures.ts  quick notes, private WebP uploads, photo-AI setting and queued photo understanding
 src/recall/      hybrid-recall merge, time words, splitting (ported from nextclaw-cloud)
 src/ai.ts        runModel, modelText (every response shape), usage     src/settings.ts owner settings
-public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js,
-                 ask.js, captures.js (client-side WebP conversion and quick notes)
+src/transcript.ts Whisper's decoding options and prompt, loop collapsing, the owner's vocabulary and its correction pass
+src/audio.ts     a meeting's audio: optional permanent copies in RECORDINGS (R2), play/download/keep/delete routes
+public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js, ask.js,
+                 captures.js (WebP quick notes), transcription.js (Vocabulary/Recording sheets), zip.js
 migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory;
                  0008 device links; 0009 memory embedding tracking; 0010 integration tokens;
                  0011 permanent audio/tuned ASR; 0012 quick notes/photos
@@ -92,6 +97,20 @@ npm run typecheck
   `chat_template_kwargs: { enable_thinking: false }` (see `modelOptions`). It answers in
   `choices[0].message.content`. Llama 3.3 with a JSON schema garbles Chinese; don't make it a default.
 - **No colon in a Whisper `initial_prompt`**: with "：" in it, whisper-large-v3-turbo wrote "Ｂ" for commas.
+- **Whisper's settings are measured, not guessed** (`WHISPER_OPTIONS` in `src/transcript.ts`). On a real
+  Mandarin meeting with English product names, the old settings (VAD on, a prompt saying "请用简体中文转写")
+  left a line of Russian, 150 "嗯?" over real speech and a lost price. `condition_on_previous_text: false`,
+  the compression/no-speech/log-prob thresholds, `hallucination_silence_threshold` and VAD **off** fixed
+  those and cut the character error rate by 15–25%. Don't turn VAD back on or tell Whisper to write Chinese.
+- **The vocabulary pass may only fix words.** `correctTranscript` asks the summary model to correct
+  near-misses of the owner's vocabulary; `acceptCorrection` throws the answer away unless it keeps the
+  length within 15% and 80% of the character pairs (real fixes kept 94–100%, two different decodings of
+  the same audio 62%). A failed pass keeps Whisper's words; `transcript_json` always holds the raw result.
+  Deepgram nova-3 on Workers AI has no Chinese, and no Workers AI model hears audio better than Whisper.
+- **Permanent audio is an upload-time copy, with a queue fallback.** The chunk upload writes KV, then
+  `archiveChunk` writes the same key to `RECORDINGS`; if that fails, an `{ type: "archive" }` job copies it
+  from KV later. Audio recorded before the binding existed is copied once by `archiveBacklog` (the
+  catch-up call in `ask.ts`). Transcription falls back to the permanent copy when KV has expired it.
 - **Dates in plans are worked out by `resolveDatePhrase`** from the words the model copies out; the model's
   own date is the fallback. Weeks start on Monday: 下周二 / next Tuesday is Tuesday of next week.
 - **memory_fts is an FTS5 table kept in step by triggers.** Write memory_items with

@@ -170,6 +170,7 @@
             <button id="transcriptTab" role="tab" type="button" aria-selected="false" aria-controls="transcriptPane">Transcript</button>
           </div>
           <div class="note-actions">
+            <button id="audioButton" class="text-button hidden" type="button">Recording</button>
             <button id="rebuildNoteButton" class="text-button hidden" type="button">Rewrite note</button>
             <a id="exportLink" class="text-button hidden" href="#">Export .md</a>
           </div>
@@ -319,6 +320,11 @@
         </div>
 
         <div class="settings-group">
+          <h3>Transcription</h3>
+          <button id="vocabularyRow" class="settings-row" type="button"><span><strong>Vocabulary</strong><small id="vocabularySummary">Names and terms the transcript should spell right</small></span><b aria-hidden="true">›</b></button>
+        </div>
+
+        <div class="settings-group">
           <h3>Sign-in</h3>
           <button id="addDeviceButton" class="settings-row" type="button"><span><strong>Add a phone or computer</strong><small>Show a code the new device scans</small></span><b aria-hidden="true">›</b></button>
           <button id="recoveryCodeRow" class="settings-row" type="button"><span><strong>Recovery code</strong><small>Make a new one if you lost yours</small></span><b aria-hidden="true">›</b></button>
@@ -341,7 +347,7 @@
         </div>
 
         <button id="signOutButton" class="settings-row danger" type="button"><span><strong>Sign out</strong></span></button>
-        <p class="footnote">Only you can sign in · audio deletes itself after 7 days</p>
+        <p id="privacyFootnote" class="footnote">Only you can sign in · audio deletes itself after 7 days</p>
       </section>
     </main>
 
@@ -363,6 +369,37 @@
         <span>Me</span>
       </a>
     </nav>
+
+    <dialog id="audioDialog" class="sheet" aria-labelledby="audioDialogTitle">
+      <div class="sheet-body">
+        <p class="eyebrow">Recording</p>
+        <h2 id="audioDialogTitle">This meeting's audio</h2>
+        <p id="audioStatus">Loading…</p>
+        <label id="keepAudioRow" class="check-row hidden">
+          <input id="keepAudioToggle" type="checkbox" />
+          <span><strong>Keep this recording permanently</strong><small>Turn off for a session where people were told the audio would be deleted.</small></span>
+        </label>
+        <div id="audioParts" class="audio-parts"></div>
+        <div class="feed-actions">
+          <button id="downloadAllAudio" class="quick-add-button hidden" type="button">Download all (.zip)</button>
+          <button id="deleteAudioButton" class="quick-add-button danger hidden" type="button">Delete the audio</button>
+        </div>
+        <p id="audioHint" class="auth-hint"></p>
+        <button id="closeAudioDialog" class="sheet-close" type="button">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="vocabularyDialog" class="sheet" aria-labelledby="vocabularyDialogTitle">
+      <div class="sheet-body">
+        <p class="eyebrow">Transcription</p>
+        <h2 id="vocabularyDialogTitle">Vocabulary</h2>
+        <p>Product names, brands, people and jargon you say often, one per line. The transcription expects them, and a check afterwards fixes near-misses, such as 荔猪蓝 → 丽珠兰. They apply to every meeting, so keep it to words you really use.</p>
+        <textarea id="vocabularyInput" rows="9" spellcheck="false" placeholder="丽珠兰&#10;Rejuran&#10;Restylane Skinbooster Vital&#10;PDRN"></textarea>
+        <button id="saveVocabulary" class="primary-button" type="button"><span>Save vocabulary</span><b>→</b></button>
+        <p id="vocabularyStatus" class="auth-hint"></p>
+        <button id="closeVocabularyDialog" class="sheet-close" type="button">Close</button>
+      </div>
+    </dialog>
 
     <dialog id="calendarDialog" class="sheet" aria-labelledby="calendarDialogTitle">
       <div class="sheet-body">

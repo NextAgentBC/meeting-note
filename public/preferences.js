@@ -127,6 +127,7 @@ const ZH = {
   "Loading…": "正在加载……",
   "Saving…": "正在保存……",
   "Converting to WebP…": "正在转换为 WebP……",
+  "Could not prepare this photo. Please try again. For HEIC, choose “Most Compatible” in iPhone Camera settings.": "无法处理这张照片，请重试。如果是 HEIC，请在 iPhone「设置 → 相机 → 格式」中选择「兼容性最佳」。",
   "No recordings yet. Your first meeting will appear here.": "还没有录音。第一次会议会显示在这里。",
   "Note ready": "笔记已完成",
   "Needs attention": "需要处理",

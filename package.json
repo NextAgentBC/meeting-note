@@ -26,9 +26,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:themes": "node scripts/check-theme-contrast.mjs",
+    "test:photo": "node e2e/photo-client.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@jsquash/webp": "^1.5.0",
     "@simplewebauthn/server": "^14.0.1",
     "hono": "^4.13.7",
     "opencc-js": "^1.4.2",

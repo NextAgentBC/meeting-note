@@ -87,56 +87,70 @@ function canvasFor(image, maxEdge) {
   return canvas;
 }
 
-function webp(canvas, quality) {
-  return new Promise((resolve, reject) => canvas.toBlob(async (blob) => {
-    if (blob?.size && blob.type === "image/webp") {
-      resolve(blob);
-      return;
-    }
-    // Some iOS PWA builds return an empty/incorrect Blob from toBlob while toDataURL still works.
-    try {
-      const url = canvas.toDataURL("image/webp", quality);
-      if (!url.startsWith("data:image/webp")) throw new Error("WebP is not supported");
-      const fallback = await fetch(url).then((response) => response.blob());
-      if (!fallback.size) throw new Error("The converted photo was empty");
-      resolve(new Blob([fallback], { type: "image/webp" }));
-    } catch {
-      reject(new Error("This iPhone could not convert the photo to WebP. Update iOS and try again."));
-    }
-  }, "image/webp", quality));
+let wasmEncoder;
+
+async function wasmWebp(canvas, quality) {
+  wasmEncoder ||= import("./vendor/webp/encoder.js").then((module) => module.encodeWebp);
+  const encode = await wasmEncoder;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("This device could not read the prepared photo.");
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+  const buffer = await encode(pixels, { quality: Math.round(quality * 100) });
+  const blob = new Blob([buffer], { type: "image/webp" });
+  if (!blob.size) throw new Error("The converted photo was empty.");
+  return blob;
 }
 
-async function boundedWebp(canvas, target, qualities) {
+async function webp(canvas, quality, forceWasm = false) {
+  if (!forceWasm && typeof canvas.toBlob === "function") {
+    try {
+      const native = await new Promise((resolve) => {
+        canvas.toBlob(resolve, "image/webp", quality);
+      });
+      if (native?.size && native.type === "image/webp") return native;
+    } catch { /* Fall through to the local encoder. */ }
+  }
+  // Home-screen Safari versions without Canvas WebP encoding use the bundled local encoder.
+  return wasmWebp(canvas, quality);
+}
+
+async function boundedWebp(canvas, target, qualities, forceWasm) {
   let result = null;
   for (const quality of qualities) {
-    result = await webp(canvas, quality);
+    result = await webp(canvas, quality, forceWasm);
     if (result.size <= target) break;
   }
   return result;
 }
 
-export async function compressPhoto(file) {
+export async function compressPhoto(file, { forceWasm = false } = {}) {
   if (!isPhotoFile(file)) throw new Error(`${file.name || "That file"} is not a supported photo.`);
   if (file.size > MAX_SOURCE_BYTES) throw new Error(`${file.name || "That photo"} is larger than 30 MB.`);
   let decoded;
   try {
     decoded = await decode(file);
     const fullCanvas = canvasFor(decoded.source, FULL_EDGE);
+    const width = fullCanvas.width;
+    const height = fullCanvas.height;
+    const full = await boundedWebp(fullCanvas, FULL_TARGET, [0.8, 0.72, 0.64], forceWasm);
+    // Release the large canvas before preparing the thumbnail. This matters on memory-constrained iPhones.
+    fullCanvas.width = 1;
+    fullCanvas.height = 1;
     const thumbCanvas = canvasFor(decoded.source, THUMB_EDGE);
-    // Sequential encoding avoids the memory spike that can terminate an iPhone home-screen PWA.
-    const full = await boundedWebp(fullCanvas, FULL_TARGET, [0.8, 0.72, 0.64]);
-    const thumbnail = await boundedWebp(thumbCanvas, THUMB_TARGET, [0.72, 0.62, 0.52]);
+    const thumbnail = await boundedWebp(thumbCanvas, THUMB_TARGET, [0.72, 0.62, 0.52], forceWasm);
+    thumbCanvas.width = 1;
+    thumbCanvas.height = 1;
     return {
       name: file.name || "Photo",
       originalBytes: file.size,
-      width: fullCanvas.width,
-      height: fullCanvas.height,
+      width,
+      height,
       full,
       thumbnail,
       previewUrl: URL.createObjectURL(thumbnail)
     };
   } catch (error) {
-    throw new Error(`Could not prepare ${file.name || "that photo"}. JPEG, PNG and WebP are supported. If an older iPhone sends HEIC, choose “Most Compatible” in Camera settings or use a screenshot. ${error.message || ""}`.trim());
+    throw new Error(`Could not prepare ${file.name || "that photo"}. JPEG, PNG and WebP are supported. If an older iPhone sends HEIC, choose “Most Compatible” in Camera settings or use a screenshot. ${error.message || "Please try again."}`.trim());
   } finally {
     decoded?.cleanup?.();
   }
@@ -177,9 +191,11 @@ async function choosePhotos(files) {
       renderPreviews();
     }
   } catch (error) {
-    $("#quickNoteCompression").textContent = error.message;
+    console.error("Photo preparation failed", error);
+    const message = t("Could not prepare this photo. Please try again. For HEIC, choose “Most Compatible” in iPhone Camera settings.");
+    $("#quickNoteCompression").textContent = message;
     $("#quickNoteCompression").classList.add("error");
-    window.alert(t(error.message));
+    window.alert(message);
   } finally {
     buttons.forEach((button) => { button.disabled = false; });
     if (pendingPhotos.length) renderPreviews();

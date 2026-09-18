@@ -19,22 +19,29 @@ try {
     const file = new File([jpeg], "iphone-camera.jpeg", { type: "image/jpeg" });
     const { compressPhoto } = await import("/captures.js");
     const photo = await compressPhoto(file);
+    const fallback = await compressPhoto(file, { forceWasm: true });
     URL.revokeObjectURL(photo.previewUrl);
+    URL.revokeObjectURL(fallback.previewUrl);
     return {
       fullType: photo.full.type,
       thumbType: photo.thumbnail.type,
       fullBytes: photo.full.size,
       thumbBytes: photo.thumbnail.size,
       width: photo.width,
-      height: photo.height
+      height: photo.height,
+      fallbackType: fallback.full.type,
+      fallbackBytes: fallback.full.size,
+      fallbackSignature: [...new Uint8Array(await fallback.full.arrayBuffer()).slice(0, 12)]
     };
   });
   if (result.fullType !== "image/webp" || result.thumbType !== "image/webp") throw new Error(`Unexpected output: ${JSON.stringify(result)}`);
   if (!result.fullBytes || result.fullBytes > 2 * 1024 * 1024) throw new Error(`Full image size is invalid: ${result.fullBytes}`);
   if (!result.thumbBytes || result.thumbBytes > 320 * 1024) throw new Error(`Thumbnail size is invalid: ${result.thumbBytes}`);
   if (result.width !== 1200 || result.height !== 900) throw new Error(`Dimensions changed unexpectedly: ${result.width}×${result.height}`);
-  console.log(`JPEG client conversion passed: ${result.width}×${result.height}, ${result.fullBytes} B full, ${result.thumbBytes} B thumbnail.`);
+  if (result.fallbackType !== "image/webp" || !result.fallbackBytes) throw new Error(`WASM fallback failed: ${JSON.stringify(result)}`);
+  const signature = String.fromCharCode(...result.fallbackSignature);
+  if (!signature.startsWith("RIFF") || !signature.endsWith("WEBP")) throw new Error(`Invalid WebP signature: ${JSON.stringify(result.fallbackSignature)}`);
+  console.log(`JPEG client conversion passed: native ${result.fullBytes} B, Safari fallback ${result.fallbackBytes} B.`);
 } finally {
   await browser.close();
 }
-

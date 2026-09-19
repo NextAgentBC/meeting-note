@@ -27,6 +27,8 @@
     "test": "vitest run",
     "test:themes": "node scripts/check-theme-contrast.mjs",
     "test:photo": "node e2e/photo-client.mjs",
+    "build:personal-release": "node scripts/build-standalone-release.mjs",
+    "deploy:installer": "npm run build:personal-release && wrangler deploy --config installer/wrangler.jsonc",
     "test:watch": "vitest"
   },
   "dependencies": {

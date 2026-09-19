@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Meeting Note">
+  <rect width="512" height="512" rx="128" fill="#132d25"/>
+  <rect x="84" y="84" width="344" height="344" rx="92" fill="none" stroke="#365b4c" stroke-width="18"/>
+  <path d="M150 330V230m70 100V150m70 180V200m70 130V125" fill="none" stroke="#d9a441" stroke-width="34" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "meeting-note-installer",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "install.meeting.nextagent.ca", "custom_domain": true }],
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/oauth/*", "/api/*"] },
+  "kv_namespaces": [{ "binding": "INSTALL_SESSIONS", "id": "4304d97ed72443129e3dc8fc8c0e0644" }],
+  "vars": {
+    "INSTALLER_ORIGIN": "https://install.meeting.nextagent.ca",
+    "OAUTH_CLIENT_ID": "c1794fac478aca22cc05d82418ec6e81",
+    "OAUTH_SCOPES": "d1.write queues.write workers-kv-storage.write workers-scripts.write ai.write user-details.read"
+  }
+}

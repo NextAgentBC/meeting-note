@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "meeting-note-standalone-release",
+  "main": "src/standalone.ts",
+  "compatibility_date": "2026-09-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "meeting-note-db",
+    "database_id": "00000000-0000-4000-8000-000000000000"
+  }],
+  "kv_namespaces": [{ "binding": "AUDIO", "id": "00000000000000000000000000000000" }],
+  "queues": { "producers": [{ "binding": "JOBS", "queue": "meeting-note-jobs" }] },
+  "vars": {
+    "ASR_MODEL": "@cf/openai/whisper-large-v3-turbo",
+    "SUMMARY_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "FINAL_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "PLAN_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "ASK_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "VISION_MODEL": "@cf/llava-hf/llava-1.5-7b-hf",
+    "CHINESE_SCRIPT": "simplified",
+    "FREE_DAILY_NEURONS": "10000",
+    "WORKERS_PLAN": "free",
+    "AUDIO_RETENTION_DAYS": "7",
+    "SEGMENT_TARGET_MINUTES": "5"
+  }
+}

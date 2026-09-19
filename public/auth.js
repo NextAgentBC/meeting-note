@@ -106,8 +106,10 @@ function showPanel(name) {
 
 // A link from "Add device" on a signed-in device: #add-device=<token>. Taken out of the address
 // straight away, so it isn't left in the history or bookmarked.
-let deviceLinkToken = new URLSearchParams(location.hash.slice(1)).get("add-device");
-if (deviceLinkToken) history.replaceState(null, "", location.pathname + location.search);
+const hashParams = new URLSearchParams(location.hash.slice(1));
+let deviceLinkToken = hashParams.get("add-device");
+let installerClaimCode = hashParams.get("claim");
+if (deviceLinkToken || installerClaimCode) history.replaceState(null, "", location.pathname + location.search);
 
 function showError(error) {
   $("#authError").textContent = messageFor(error);
@@ -179,9 +181,16 @@ export async function ensureSignedIn() {
   } else {
     $("#authTitle").textContent = "Set up your Meeting Note";
     $("#authLede").textContent = "This copy is brand new. Create your passkey now, and it's yours alone.";
-    show($("#setupCodeField"), me.setupCodeRequired);
+    const hasInstallerClaim = me.setupCodeRequired && Boolean(installerClaimCode);
+    if (hasInstallerClaim) {
+      $("#setupCode").value = installerClaimCode;
+      $("#ownerName").value = "Owner";
+    }
+    show($("#setupCodeField"), me.setupCodeRequired && !hasInstallerClaim);
+    show($("#ownerNameField"), !hasInstallerClaim);
     show($("#noSetupCodeWarning"), !me.setupCodeRequired);
     $("#setupCode").required = me.setupCodeRequired;
+    $("#ownerName").required = !hasInstallerClaim;
     showPanel("setup");
   }
   return new Promise((resolve) => {
@@ -192,7 +201,7 @@ export async function ensureSignedIn() {
 $("#setupForm").addEventListener("submit", (event) => {
   event.preventDefault();
   void run(event.submitter ?? $("#setupForm button"), () =>
-    createPasskey({ purpose: "setup", setupCode: $("#setupCode").value, name: $("#ownerName").value })
+    createPasskey({ purpose: "setup", setupCode: $("#setupCode").value, name: $("#ownerName").value || "Owner" })
   );
 });
 

@@ -4,5 +4,7 @@ node_modules/
 dist/
 coverage/
 output/
+.playwright-cli/
+installer/public/release/
 *.log
 .DS_Store

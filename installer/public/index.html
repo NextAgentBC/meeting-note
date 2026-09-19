@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#132d25" />
+  <title>安装 Meeting Note</title>
+  <meta name="description" content="三步安装属于你自己的私人 AI 笔记。" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23132d25'/%3E%3Cpath d='M18 42V28m9 14V18m10 24V24m9 18V14' stroke='%23d9a441' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main>
+    <header><span class="mark">▥</span><span>Meeting Note</span><button id="language" type="button">EN</button></header>
+    <section class="hero">
+      <p class="eyebrow" data-zh="个人云" data-en="PERSONAL CLOUD">个人云</p>
+      <h1 data-zh="属于你的私人 AI 笔记" data-en="Your private AI memory">属于你的私人 AI 笔记</h1>
+      <p class="lede" data-zh="安装到你自己的 Cloudflare。数据、登录和免费 AI 额度都由你掌握。" data-en="Install into your own Cloudflare account. Your data, sign-in and free AI allowance stay under your control.">安装到你自己的 Cloudflare。数据、登录和免费 AI 额度都由你掌握。</p>
+    </section>
+    <section class="card" id="start">
+      <div class="step"><b>1</b><span data-zh="授权 Cloudflare" data-en="Authorize Cloudflare">授权 Cloudflare</span></div>
+      <div class="step"><b>2</b><span data-zh="自动安装" data-en="Automatic setup">自动安装</span></div>
+      <div class="step"><b>3</b><span data-zh="用 Face ID 认领" data-en="Claim with Face ID">用 Face ID 认领</span></div>
+      <a class="primary" href="/oauth/start" data-zh="免费安装我的 Meeting Note" data-en="Install my Meeting Note free">免费安装我的 Meeting Note</a>
+      <p class="fine" data-zh="无需 GitHub · 无需信用卡 · 约 2 分钟" data-en="No GitHub · No credit card · About 2 minutes">无需 GitHub · 无需信用卡 · 约 2 分钟</p>
+    </section>
+    <section class="card hidden" id="account">
+      <p class="eyebrow" data-zh="已安全授权" data-en="AUTHORIZED">已安全授权</p>
+      <h2 data-zh="选择安装位置" data-en="Choose your account">选择安装位置</h2>
+      <div id="accounts"></div>
+      <button class="primary" id="install" type="button" data-zh="开始自动安装" data-en="Start installation">开始自动安装</button>
+    </section>
+    <section class="card hidden" id="progress">
+      <div class="spinner"></div>
+      <h2 id="progressTitle" data-zh="正在创建你的私人空间" data-en="Creating your private space">正在创建你的私人空间</h2>
+      <p id="progressDetail" data-zh="请保持此页面打开。其余事情由我们完成。" data-en="Keep this page open. We will handle the rest.">请保持此页面打开。其余事情由我们完成。</p>
+      <div class="bar"><i></i></div>
+      <button class="primary hidden" id="retry" type="button" data-zh="重试安装" data-en="Try again">重试安装</button>
+    </section>
+    <section class="card success hidden" id="success">
+      <div class="check">✓</div>
+      <p class="eyebrow" data-zh="安装完成" data-en="READY">安装完成</p>
+      <h2 data-zh="你的 Meeting Note 已准备好" data-en="Your Meeting Note is ready">你的 Meeting Note 已准备好</h2>
+      <p data-zh="最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。" data-en="One last tap: claim it with Face ID. No code to copy and no password to create.">最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。</p>
+      <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID">继续，用 Face ID 认领</a>
+      <p class="fine" data-zh="认领完成后，请截图保存应用显示的恢复码。" data-en="After claiming it, save a screenshot of the recovery code shown by the app.">认领完成后，请截图保存应用显示的恢复码。</p>
+    </section>
+    <section class="trust">
+      <span data-zh="私人部署" data-en="Private deployment">私人部署</span>
+      <span data-zh="随时可撤销授权" data-en="Revocable access">随时可撤销授权</span>
+      <span data-zh="原始录音 7 天删除" data-en="Audio deletes after 7 days">原始录音 7 天删除</span>
+    </section>
+    <footer><a href="/privacy.html" data-zh="隐私" data-en="Privacy">隐私</a><a href="/terms.html" data-zh="使用条款" data-en="Terms">使用条款</a></footer>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

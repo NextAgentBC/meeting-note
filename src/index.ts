@@ -14,6 +14,8 @@ import { memoryRoutes } from "./memory-routes";
 import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import { archiveChunk, audioRetentionDays, audioRoutes, chunkAudio, runArchive } from "./audio";
 import { collapseLoops, correctTranscript, loadVocabulary, transcriptRoutes, whisperInput } from "./transcript";
+import { RELEASE_VERSION } from "./migrations.generated";
+import { ensureSchema } from "./schema";
 import {
   SEGMENT_TARGET_MS,
   SegmentNoteSchema,
@@ -142,7 +144,8 @@ app.route("/api", captureRoutes);
 app.route("/api", audioRoutes);
 app.route("/api", transcriptRoutes);
 
-app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare" }));
+// Public: the version is how an installed copy learns that a newer one has been released.
+app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare", version: RELEASE_VERSION, updateChannel: c.env.UPDATE_CHANNEL || "" }));
 
 /**
  * How much Workers AI this app has consumed, and therefore how much longer it
@@ -862,9 +865,23 @@ async function markJobFailed(env: Env, body: JobMessage, error: unknown) {
   }
 }
 
+/** Never fails a request: an app that cannot update its schema is still better than no app. */
+async function ensureSchemaSafely(env: Env): Promise<void> {
+  try {
+    await ensureSchema(env);
+  } catch (error) {
+    console.error("Schema update did not finish", error);
+  }
+}
+
 export default {
-  fetch: app.fetch,
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    // A copy updated in place brings a new database schema with it; this applies it, once.
+    await ensureSchemaSafely(env);
+    return app.fetch(request, env, ctx);
+  },
   async queue(batch: MessageBatch<JobMessage>, env: Env) {
+    await ensureSchemaSafely(env);
     for (const message of batch.messages) {
       try {
         const body = message.body;

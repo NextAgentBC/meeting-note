@@ -10,7 +10,7 @@ export default {
     if (!path.startsWith("/api/") && !path.startsWith("/cal/")) {
       return serveEmbeddedAsset(request);
     }
-    return appWorker.fetch(request, env);
+    return appWorker.fetch(request, env, ctx);
   },
   queue(batch: MessageBatch<JobMessage>, env: Env, ctx: ExecutionContext): Promise<void> {
     return appWorker.queue(batch, env);

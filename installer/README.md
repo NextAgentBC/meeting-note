@@ -30,6 +30,17 @@ minutes, revokes the token after a successful installation, and deletes the inst
 provisioning fails, newly created resources are rolled back so the user can retry cleanly — the
 token is kept, so Try again re-runs the installation without a second Cloudflare sign-in.
 
+## Updating a copy that is already installed
+
+`POST /api/update` uploads the current release over an existing Worker of this account, keeping its
+D1, KV, queue, R2 and secrets, and `GET /api/release` tells any copy which version that is. The
+account screen marks an installation whose `/api/health` reports an older version and offers to
+update it; the app itself shows the same offer as a banner and links here. Schema changes are not
+this installer's business any more — the uploaded app applies its own (`src/schema.ts`).
+
+An installation nobody claimed is shown as such, and `POST /api/reclaim` writes a fresh `SETUP_CODE`
+secret and returns a one-time claim link. It refuses a copy that already has an owner.
+
 ## Shared into WeChat
 
 Most people receive this link in a chat app and tap it there, which opens it in that app's own

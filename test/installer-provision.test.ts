@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InstallError, listInstalls, provisionMeetingNote } from "../installer/src/provision";
+import { InstallError, listInstalls, provisionMeetingNote, reclaimInstall, upgradeInstall } from "../installer/src/provision";
 
 function response(result: unknown, status = 200) {
   return new Response(JSON.stringify({ success: status < 400, result, errors: status < 400 ? [] : [{ message: "missing" }] }), {
@@ -41,7 +41,8 @@ describe("personal Cloudflare installer", () => {
       accessToken: "secret-oauth-token",
       releaseScript: "export default { fetch(){ return new Response('ok') } }",
       release,
-      installId: "install-1234"
+      installId: "install-1234",
+      updateChannel: "https://install.example.test"
     });
 
     expect(result.appUrl).toBe("https://meeting-note-install1.quiet-harbour.workers.dev");
@@ -90,7 +91,8 @@ describe("personal Cloudflare installer", () => {
       accessToken: "secret-oauth-token",
       releaseScript: "export default {}",
       release,
-      installId: "install-1234"
+      installId: "install-1234",
+      updateChannel: "https://install.example.test"
     });
 
     const registered = JSON.parse(String(requests.find((request) => request.method === "PUT" && request.url.endsWith("/workers/subdomain"))!.body)).subdomain;
@@ -132,7 +134,8 @@ describe("personal Cloudflare installer", () => {
       accessToken: "secret-oauth-token",
       releaseScript: "export default {}",
       release,
-      installId: "install-1234"
+      installId: "install-1234",
+      updateChannel: "https://install.example.test"
     });
 
     expect(asked).toHaveLength(2);
@@ -161,7 +164,8 @@ describe("personal Cloudflare installer", () => {
       accessToken: "secret-oauth-token",
       releaseScript: "export default {}",
       release,
-      installId: "install-1234"
+      installId: "install-1234",
+      updateChannel: "https://install.example.test"
     }).catch((error) => error);
 
     expect(failed).toBeInstanceOf(InstallError);
@@ -181,6 +185,11 @@ describe("personal Cloudflare installer", () => {
           { id: "meeting-note-zz11", created_on: "2026-09-20T10:00:00Z" }
         ]);
       }
+      // The copies answer for themselves: one is running an old release and was never claimed.
+      if (url === "https://meeting-note-zz11.quiet-harbour.workers.dev/api/health") return Response.json({ version: "2.0.0" });
+      if (url === "https://meeting-note-zz11.quiet-harbour.workers.dev/api/auth/me") return Response.json({ hasOwner: true });
+      if (url === "https://meeting-note-abcd1234.quiet-harbour.workers.dev/api/health") return Response.json({ version: "1.0.0" });
+      if (url === "https://meeting-note-abcd1234.quiet-harbour.workers.dev/api/auth/me") return Response.json({ hasOwner: false });
       throw new Error(`Unexpected request ${url}`);
     }));
 
@@ -189,6 +198,7 @@ describe("personal Cloudflare installer", () => {
     // Newest first, and neither the installer itself nor an unrelated Worker counts as an install.
     expect(apps.map((app) => app.name)).toEqual(["meeting-note-zz11", "meeting-note-abcd1234"]);
     expect(apps[0].url).toBe("https://meeting-note-zz11.quiet-harbour.workers.dev");
+    expect(apps.map((app) => [app.version, app.claimed])).toEqual([["2.0.0", true], ["1.0.0", false]]);
   });
 
   it("says an account has nothing rather than failing, when it cannot look", async () => {
@@ -200,6 +210,107 @@ describe("personal Cloudflare installer", () => {
     }));
 
     await expect(listInstalls("secret-oauth-token", "account-1")).resolves.toEqual([]);
+  });
+
+  it("updates a copy in place, keeping its data and its secrets", async () => {
+    const requests: Array<{ url: string; method: string; body?: BodyInit | null }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method || "GET";
+      requests.push({ url, method, body: init?.body });
+      if (url.endsWith("/workers/scripts/meeting-note-zz11/settings")) {
+        return response({
+          bindings: [
+            { type: "d1", name: "DB", database_id: "db-1" },
+            { type: "kv_namespace", name: "AUDIO", namespace_id: "kv-1" },
+            { type: "queue", name: "JOBS", queue_name: "meeting-note-jobs-zz11" },
+            { type: "ai", name: "AI" },
+            { type: "secret_text", name: "SETUP_CODE" },
+            { type: "plain_text", name: "AUDIO_RETENTION_DAYS", text: "30" }
+          ]
+        });
+      }
+      if (url.endsWith("/workers/scripts/meeting-note-zz11") && method === "PUT") return response({ id: "meeting-note-zz11" });
+      throw new Error(`Unexpected request ${method} ${url}`);
+    }));
+
+    const result = await upgradeInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      releaseScript: "export default {}",
+      version: "3.0.0",
+      updateChannel: "https://install.example.test"
+    });
+
+    expect(result.version).toBe("3.0.0");
+    const upload = requests.find((request) => request.method === "PUT");
+    const metadata = JSON.parse(await ((upload!.body as FormData).get("metadata") as Blob).text());
+    // The database, the audio and the queue are exactly the ones that were there.
+    expect(metadata.bindings).toEqual(expect.arrayContaining([
+      { type: "d1", name: "DB", database_id: "db-1" },
+      { type: "kv_namespace", name: "AUDIO", namespace_id: "kv-1" },
+      { type: "queue", name: "JOBS", queue_name: "meeting-note-jobs-zz11" },
+      { type: "ai", name: "AI" }
+    ]));
+    // The owner's own setting is left alone; a setting this release adds arrives with its default.
+    expect(metadata.bindings).toEqual(expect.arrayContaining([
+      { type: "plain_text", name: "AUDIO_RETENTION_DAYS", text: "30" },
+      { type: "plain_text", name: "UPDATE_CHANNEL", text: "https://install.example.test" }
+    ]));
+    // The setup code is never re-sent, and never lost.
+    expect(metadata.keep_bindings).toEqual(["secret_text"]);
+    expect(metadata.bindings.some((binding: { type: string }) => binding.type === "secret_text")).toBe(false);
+  });
+
+  it("refuses to overwrite a Worker that is not one of its own", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/workers/scripts/meeting-note-zz11/settings")) {
+        // No database binding: whatever this is, the installer did not build it.
+        return response({ bindings: [{ type: "plain_text", name: "SOMETHING", text: "else" }] });
+      }
+      throw new Error(`Unexpected request ${url}`);
+    }));
+
+    await expect(upgradeInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      releaseScript: "export default {}",
+      version: "3.0.0",
+      updateChannel: "https://install.example.test"
+    })).rejects.toThrow(/d1 binding/);
+  });
+
+  it("makes a new claim code for a copy nobody has claimed, and refuses one that has an owner", async () => {
+    const requests: Array<{ url: string; method: string; body?: BodyInit | null }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      requests.push({ url, method: init?.method || "GET", body: init?.body });
+      if (url === "https://app.example.test/api/auth/me") return Response.json({ hasOwner: false });
+      if (url === "https://claimed.example.test/api/auth/me") return Response.json({ hasOwner: true });
+      if (url.endsWith("/workers/scripts/meeting-note-zz11/secrets")) return response({ name: "SETUP_CODE" });
+      throw new Error(`Unexpected request ${url}`);
+    }));
+
+    const result = await reclaimInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      url: "https://app.example.test"
+    });
+
+    expect(result.setupCode).toMatch(/^[A-Z2-9]{4}(?:-[A-Z2-9]{4}){3}$/);
+    const secret = JSON.parse(String(requests.find((request) => request.url.endsWith("/secrets"))!.body));
+    expect(secret).toMatchObject({ name: "SETUP_CODE", type: "secret_text", text: result.setupCode });
+
+    await expect(reclaimInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      url: "https://claimed.example.test"
+    })).rejects.toThrow(/already has an owner/);
   });
 
   it("removes half-created resources when installation fails", async () => {
@@ -222,7 +333,8 @@ describe("personal Cloudflare installer", () => {
       accessToken: "secret-oauth-token",
       releaseScript: "export default {}",
       release: { version: "1.2.3", migrations: [{ name: "0001.sql", sql: "broken" }] },
-      installId: "cleanup-1234"
+      installId: "cleanup-1234",
+      updateChannel: "https://install.example.test"
     }).catch((error) => error);
 
     expect(failed).toBeInstanceOf(InstallError);

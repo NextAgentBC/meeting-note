@@ -5,6 +5,8 @@ import { t } from "./preferences.js";
 
 const $ = (selector) => document.querySelector(selector);
 const MAX_IMAGES = 6;
+/** A spoken note stops itself here, the same ceiling the server accepts. */
+const MAX_VOICE_MS = 3 * 60_000;
 const MAX_SOURCE_BYTES = 30 * 1024 * 1024;
 const FULL_EDGE = 2048;
 const THUMB_EDGE = 480;
@@ -259,9 +261,100 @@ export async function loadImageAiSetting() {
   }
 }
 
+// Speaking a note is faster than typing one, and on a phone it is the only comfortable way. The
+// recording is transcribed and thrown away: what lands in the box is text the owner can edit.
+let voice = null;
+
+function voiceLabel(text) {
+  $("#recordQuickNote").textContent = t(text);
+}
+
+function clock(ms) {
+  const seconds = Math.floor(ms / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+async function startVoiceNote() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    window.alert(t("Meeting Note could not use the microphone. Check the permission for this site."));
+    return;
+  }
+  const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"]
+    .find((type) => MediaRecorder.isTypeSupported(type)) || "";
+  const parts = [];
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 48_000 });
+  } catch (error) {
+    stream.getTracks().forEach((track) => track.stop());
+    window.alert(t("This browser cannot record audio."));
+    return;
+  }
+  recorder.ondataavailable = (event) => {
+    if (event.data.size) parts.push(event.data);
+  };
+  recorder.start(1000);
+  const button = $("#recordQuickNote");
+  button.classList.add("recording");
+  voice = { recorder, stream, parts, mimeType, startedAt: Date.now(), timer: 0 };
+  const tick = () => {
+    if (!voice) return;
+    const elapsed = Date.now() - voice.startedAt;
+    button.textContent = `${t("Listening")} ${clock(elapsed)} · ${t("tap to stop")}`;
+    if (elapsed >= MAX_VOICE_MS) void stopVoiceNote();
+  };
+  tick();
+  voice.timer = window.setInterval(tick, 250);
+}
+
+async function stopVoiceNote() {
+  const current = voice;
+  voice = null;
+  if (!current) return;
+  window.clearInterval(current.timer);
+  const button = $("#recordQuickNote");
+  button.classList.remove("recording");
+  button.disabled = true;
+  voiceLabel("Writing it down…");
+  if (current.recorder.state !== "inactive") {
+    await new Promise((resolve) => {
+      current.recorder.addEventListener("stop", resolve, { once: true });
+      try { current.recorder.stop(); } catch { resolve(); }
+    });
+  }
+  current.stream.getTracks().forEach((track) => track.stop());
+  try {
+    const audio = new Blob(current.parts, { type: current.mimeType || "audio/webm" });
+    if (!audio.size) throw new Error(t("Nothing was recorded."));
+    const result = await api("/api/captures/voice", {
+      method: "POST",
+      headers: { "content-type": audio.type || "audio/webm", "x-duration-ms": String(Date.now() - current.startedAt) },
+      body: audio
+    });
+    const spoken = (result.text || "").trim();
+    if (!spoken) {
+      window.alert(t("Nothing was heard. Try again, a little closer to the microphone."));
+    } else {
+      const box = $("#quickNoteBody");
+      box.value = box.value.trim() ? `${box.value.trim()}\n${spoken}` : spoken;
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+    }
+  } catch (error) {
+    window.alert(t(error.message));
+  } finally {
+    button.disabled = false;
+    voiceLabel("Say it instead");
+  }
+}
+
 export function initCaptures() {
   if (initialized) return;
   initialized = true;
+  $("#recordQuickNote").addEventListener("click", () => void (voice ? stopVoiceNote() : startVoiceNote()));
   $("#takeQuickNotePhoto").addEventListener("click", () => $("#quickNoteCamera").click());
   $("#addQuickNoteImages").addEventListener("click", () => $("#quickNoteImages").click());
   for (const input of [$("#quickNoteCamera"), $("#quickNoteImages")]) {

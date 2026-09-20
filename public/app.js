@@ -17,6 +17,9 @@ const CHUNK_BITRATE = 48_000;
 const BACKUP_BITRATE = 64_000;
 const FINALIZE_PREFIX = "meetingnote-pending-finalize:";
 const HOMESCREEN_KEY = "meetingnote:homescreen-offered";
+const UPDATE_CHECKED_KEY = "meetingnote:update-checked";
+const UPDATE_SKIPPED_KEY = "meetingnote:update-skipped";
+const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
 
 initPreferences();
 
@@ -154,6 +157,32 @@ async function installApp() {
 function dismissHomeScreenBanner() {
   $("#homeScreenBanner").classList.add("hidden");
   try { localStorage.setItem(HOMESCREEN_KEY, "1"); } catch { /* private browsing can deny storage */ }
+}
+
+// An installed copy is one Worker in its owner's own Cloudflare account: nobody can push new code
+// into it. So it asks the installer that made it whether a newer release exists, and says so.
+// The owner authorizes once there, and the update keeps the database, the audio and the passkey.
+async function checkForUpdate() {
+  let skipped = "";
+  try {
+    if (Date.now() - Number(localStorage.getItem(UPDATE_CHECKED_KEY) || 0) < UPDATE_CHECK_INTERVAL) return;
+    localStorage.setItem(UPDATE_CHECKED_KEY, String(Date.now()));
+    skipped = localStorage.getItem(UPDATE_SKIPPED_KEY) || "";
+  } catch { /* private browsing denies storage; asking every time is better than never */ }
+  try {
+    const health = await api("/api/health");
+    if (!health.updateChannel || !health.version) return;
+    const response = await fetch(`${health.updateChannel}/api/release`, { cache: "no-store" });
+    if (!response.ok) return;
+    const latest = await response.json();
+    if (!latest.version || latest.version === health.version || latest.version === skipped) return;
+    $("#updateLink").href = health.updateChannel;
+    $("#updateBanner").dataset.version = latest.version;
+    // One banner at a time: getting onto the home screen comes first.
+    if ($("#homeScreenBanner").classList.contains("hidden")) $("#updateBanner").classList.remove("hidden");
+  } catch {
+    // Offline, or the installer is gone. The app carries on as it is.
+  }
 }
 
 function offerHomeScreen() {
@@ -1108,6 +1137,12 @@ $("#installButton").addEventListener("click", openHomeScreenSheet);
 $("#homeScreenInstall").addEventListener("click", () => void installApp());
 $("#homeScreenShow").addEventListener("click", openHomeScreenSheet);
 $("#homeScreenLater").addEventListener("click", dismissHomeScreenBanner);
+$("#updateLater").addEventListener("click", () => {
+  const banner = $("#updateBanner");
+  banner.classList.add("hidden");
+  // Asked again when the next release comes out, not for this one.
+  try { localStorage.setItem(UPDATE_SKIPPED_KEY, banner.dataset.version || ""); } catch { /* denied */ }
+});
 $("#closeHomeScreenDialog").addEventListener("click", () => $("#homeScreenDialog").close());
 $("#copyAppAddress").addEventListener("click", async (event) => {
   try {
@@ -1152,6 +1187,7 @@ void ensureSignedIn().then(() => {
   void loadImageAiSetting();
   renderRoute();
   offerHomeScreen();
+  window.setTimeout(() => void checkForUpdate(), 4000);
   if (shortcut === "record") window.setTimeout(() => $("#meetingTitle").focus(), 300);
   if (shortcut === "note") window.setTimeout(() => $("#quickNoteBody").focus(), 300);
 });

@@ -19,6 +19,8 @@ export interface Env {
   WORKERS_PLAN: string;
   AUDIO_RETENTION_DAYS: string;
   SEGMENT_TARGET_MINUTES: string;
+  /** Where this copy asks whether a newer release exists; empty means it never asks. */
+  UPDATE_CHANNEL?: string;
   /** Secret chosen at deploy time; needed once to claim the app, and to recover the owner. */
   SETUP_CODE?: string;
   /**

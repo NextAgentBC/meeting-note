@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { modelOptions, modelText, parseModelJson, recordUsage, runModel } from "./ai";
+import { Buffer } from "node:buffer";
+import { DICTATION_TRANSCRIBE_PROMPT } from "./plans";
+import { simplifyEnabled, toSimplified } from "./chinese";
 import { captureItem, rememberSource, safely } from "./memory";
 import { getSetting, setSetting } from "./settings";
 import type { Env, JobMessage } from "./types";
@@ -13,6 +16,9 @@ export const captureRoutes = new Hono<{ Bindings: Env }>();
 
 const IMAGE_AI_KEY = "image_ai_enabled";
 const MAX_IMAGES = 6;
+/** A spoken note, at the bitrate the browser records: the same ceiling a spoken plan has. */
+const MAX_VOICE_BYTES = 8 * 1024 * 1024;
+const MAX_VOICE_MS = 3 * 60_000;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_THUMB_BYTES = 320 * 1024;
 const CATEGORIES = ["inbox", "idea", "journal", "meeting", "plan", "life", "reference"] as const;
@@ -147,6 +153,39 @@ const newCapture = z.object({
   title: z.string().trim().max(100).optional(),
   category: z.enum(CATEGORIES).default("inbox"),
   occurredAt: z.string().datetime().optional()
+});
+
+/**
+ * POST /api/captures/voice with the recording as the body: the words come back, and the audio is
+ * thrown away. Saying a note is the fastest way to write one, and on a phone it is the only
+ * comfortable one. The note itself is saved by POST /captures like any other.
+ */
+captureRoutes.post("/captures/voice", async (c) => {
+  const env = c.env;
+  const mimeType = (c.req.header("content-type") || "").split(";")[0];
+  if (!mimeType.startsWith("audio/")) return c.json({ error: "Send the recording as audio" }, 415);
+  const audio = await c.req.arrayBuffer();
+  if (audio.byteLength === 0) return c.json({ error: "The recording is empty" }, 400);
+  if (audio.byteLength > MAX_VOICE_BYTES) return c.json({ error: "Keep a spoken note under three minutes" }, 413);
+  const durationMs = Math.min(MAX_VOICE_MS, Math.max(0, Number(c.req.header("x-duration-ms")) || 0));
+  try {
+    const result = await runModel(env, env.ASR_MODEL, {
+      audio: Buffer.from(audio).toString("base64"),
+      vad_filter: true,
+      initial_prompt: DICTATION_TRANSCRIBE_PROMPT
+    }) as Record<string, unknown>;
+    await recordUsage(env, null, "dictation", env.ASR_MODEL, result, durationMs);
+    const info = result.transcription_info as Record<string, unknown> | undefined;
+    const raw = String(result.text ?? info?.text ?? result.transcription ?? "").trim();
+    const text = simplifyEnabled(env.CHINESE_SCRIPT) ? toSimplified(raw) : raw;
+    return c.json({ ok: true, text });
+  } catch (error) {
+    console.error("Voice note transcription failed", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return /daily limit|capacity temporarily exceeded/i.test(message)
+      ? c.json({ error: "Today's free AI allowance is used up. It comes back at 00:00 UTC." }, 429)
+      : c.json({ error: "Couldn't transcribe that recording. Please try again." }, 502);
+  }
 });
 
 captureRoutes.post("/captures", async (c) => {

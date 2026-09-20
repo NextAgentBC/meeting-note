@@ -274,6 +274,7 @@
             <input id="quickNoteCamera" class="hidden" type="file" accept="image/*" capture="environment" />
             <input id="quickNoteImages" class="hidden" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple />
             <div class="photo-source-actions">
+              <button id="recordQuickNote" class="quick-add-button ghost" type="button">Say it instead</button>
               <button id="takeQuickNotePhoto" class="quick-add-button ghost" type="button">＋ Take photo</button>
               <button id="addQuickNoteImages" class="quick-add-button ghost" type="button">Choose photos</button>
             </div>
@@ -558,6 +559,11 @@
     <div id="reauthBanner" class="reauth-banner hidden" role="alert">
       <span id="reauthMessage">Your sign-in has expired. Recording continues, and new audio waits on this device.</span>
       <button id="reauthButton" type="button">Sign in again</button>
+    </div>
+    <div id="updateBanner" class="reauth-banner homescreen-banner hidden" role="status">
+      <span>A newer Meeting Note is out. Updating takes a minute and keeps your meetings and notes.</span>
+      <a id="updateLink" href="#" target="_blank" rel="noopener noreferrer">Update</a>
+      <button id="updateLater" class="ghost" type="button">Not now</button>
     </div>
     <div id="homeScreenBanner" class="reauth-banner homescreen-banner hidden" role="status">
       <span>Add Meeting Note to your home screen and it opens in one tap.</span>

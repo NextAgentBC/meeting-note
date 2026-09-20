@@ -118,3 +118,6 @@ fieldset { display: grid; gap: 9px; margin: 22px 0 0; padding: 0; border: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* A quick note being spoken: the button is the recorder, and says so. */
+.quick-add-button.recording { color: var(--text); border-color: var(--red); background: rgba(255, 107, 103, .14); }

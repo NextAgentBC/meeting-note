@@ -39,6 +39,7 @@ src/memory-routes.ts  the Memory page's API: GET /api/memory, GET /api/memory/fa
 src/captures.ts  quick notes, private WebP uploads, photo-AI setting and queued photo understanding
 src/recall/      hybrid-recall merge, time words, splitting (ported from nextclaw-cloud)
 src/ai.ts        runModel, modelText (every response shape), usage     src/settings.ts owner settings
+src/schema.ts   the app's own migration runner: an updated copy brings its database with it
 src/transcript.ts Whisper's decoding options and prompt, loop collapsing, the owner's vocabulary and its correction pass
 src/audio.ts     a meeting's audio: optional permanent copies in RECORDINGS (R2), play/download/keep/delete routes
 public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js, ask.js,
@@ -53,6 +54,31 @@ installer/       install.meeting.nextagent.ca: Cloudflare OAuth, then one accoun
                  scripts/build-standalone-release.mjs into public/release/ (src/standalone.ts + the
                  embedded public/ files). public/app.js is the page, in both languages.
 ```
+
+## Updating an installed copy
+
+Every copy is one Worker in **its owner's** Cloudflare account. Nobody can push code into it: the
+OAuth token is revoked the moment the installation finishes, on purpose. So updates are pulled, and
+three pieces make that work.
+
+1. **The copy knows what it is running.** `RELEASE_VERSION` comes from `src/migrations.generated.ts`
+   (written by `scripts/build-standalone-release.mjs` from the git sha) and `GET /api/health`
+   reports it, publicly, together with `UPDATE_CHANNEL` — the installer that made it.
+2. **The copy asks.** `checkForUpdate()` in `public/app.js` reads `/api/health`, then
+   `<UPDATE_CHANNEL>/api/release` (CORS `*`, cached five minutes), at most once every six hours, and
+   shows a banner when the versions differ. "Not now" remembers that version, not the question.
+3. **The owner authorizes once, and the installer replaces the script.** `POST /api/update` reads the
+   Worker's current bindings, carries every data binding over untouched, keeps the owner's own
+   variables, adds the ones this release introduces, and uploads the new module with
+   `keep_bindings: ["secret_text"]` so the setup code survives. It refuses any Worker without a d1,
+   kv, queue and ai binding.
+
+**The schema comes with the code.** `src/schema.ts` runs at the start of every fetch and queue batch
+(once per isolate) and applies what `MIGRATIONS` has and `schema_migrations` does not. A copy from
+before that table existed is adopted rather than rebuilt: each migration carries a sentinel (a table,
+or a column in a table) extracted at build time, and a migration whose sentinel is already there is
+recorded without running. Each migration runs as one `db.batch`, so a failure leaves nothing half
+done. `migrations/*.sql` stays the source; never write a migration that only makes sense once.
 
 ## Memory API
 

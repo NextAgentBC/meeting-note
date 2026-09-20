@@ -1,4 +1,4 @@
-import { InstallError, listInstalls, provisionMeetingNote } from "./provision";
+import { InstallError, listInstalls, provisionMeetingNote, reclaimInstall, upgradeInstall } from "./provision";
 
 type Env = {
   ASSETS: Fetcher;
@@ -154,6 +154,83 @@ function sameOrigin(request: Request, env: Env): boolean {
   return request.headers.get("origin") === env.INSTALLER_ORIGIN;
 }
 
+type Release = { version: string; migrations: Array<{ name: string; sql: string }> };
+
+/** The Worker this installer hands out, and the release it belongs to. */
+async function loadRelease(request: Request, env: Env): Promise<{ script: string; release: Release }> {
+  const origin = new URL(request.url).origin;
+  const [scriptResponse, migrationsResponse] = await Promise.all([
+    env.ASSETS.fetch(`${origin}/release/standalone.js`),
+    env.ASSETS.fetch(`${origin}/release/migrations.json`)
+  ]);
+  if (!scriptResponse.ok || !migrationsResponse.ok) throw new InstallError("unknown", "Installation release is unavailable");
+  return { script: await scriptResponse.text(), release: await migrationsResponse.json<Release>() };
+}
+
+/** An installed copy, asking whether it is still current. Answered for any origin, on purpose. */
+async function releaseVersion(request: Request, env: Env): Promise<Response> {
+  const { release } = await loadRelease(request, env);
+  return json({ ok: true, version: release.version }, 200, {
+    "access-control-allow-origin": "*",
+    "cache-control": "public, max-age=300"
+  });
+}
+
+/** The account's own copy of an install, checked against the session before anything is touched. */
+async function ownInstall(session: { value: Session }, accountId: string, workerName: string) {
+  const installs = await listInstalls(session.value.accessToken, encodeURIComponent(accountId));
+  return installs.find((install) => install.name === workerName) || null;
+}
+
+async function update(request: Request, env: Env): Promise<Response> {
+  if (!sameOrigin(request, env)) return json({ error: "Invalid request origin" }, 403);
+  const body = await request.json<{ accountId?: string; workerName?: string }>().catch(() => ({}) as { accountId?: string; workerName?: string });
+  const session = await getSession(request, env);
+  if (!session || !body.accountId || !session.value.accounts.some((account) => account.id === body.accountId)) {
+    return json({ error: "Installation session expired" }, 401, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
+  }
+  const install = body.workerName ? await ownInstall(session, body.accountId, body.workerName) : null;
+  if (!install) return json({ error: "That installation is not in this account" }, 404);
+  try {
+    const { script, release } = await loadRelease(request, env);
+    const result = await upgradeInstall({
+      accountId: body.accountId,
+      accessToken: session.value.accessToken,
+      workerName: install.name,
+      releaseScript: script,
+      version: release.version,
+      updateChannel: env.INSTALLER_ORIGIN
+    });
+    return json({ ok: true, url: install.url, ...result });
+  } catch (error) {
+    console.error("Update failed", error);
+    return json({ error: error instanceof Error ? error.message : "Update failed", code: error instanceof InstallError ? error.code : "unknown" }, 502);
+  }
+}
+
+async function reclaim(request: Request, env: Env): Promise<Response> {
+  if (!sameOrigin(request, env)) return json({ error: "Invalid request origin" }, 403);
+  const body = await request.json<{ accountId?: string; workerName?: string }>().catch(() => ({}) as { accountId?: string; workerName?: string });
+  const session = await getSession(request, env);
+  if (!session || !body.accountId || !session.value.accounts.some((account) => account.id === body.accountId)) {
+    return json({ error: "Installation session expired" }, 401, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
+  }
+  const install = body.workerName ? await ownInstall(session, body.accountId, body.workerName) : null;
+  if (!install) return json({ error: "That installation is not in this account" }, 404);
+  try {
+    const { setupCode } = await reclaimInstall({
+      accountId: body.accountId,
+      accessToken: session.value.accessToken,
+      workerName: install.name,
+      url: install.url
+    });
+    return json({ ok: true, url: install.url, setupCode });
+  } catch (error) {
+    console.error("Re-claim failed", error);
+    return json({ error: error instanceof Error ? error.message : "Could not make a new claim link", code: error instanceof InstallError ? error.code : "unknown" }, 502);
+  }
+}
+
 async function install(request: Request, env: Env): Promise<Response> {
   if (!sameOrigin(request, env)) return json({ error: "Invalid request origin" }, 403);
   const body = await request.json<{ accountId?: string }>().catch(() => ({}) as { accountId?: string });
@@ -163,18 +240,14 @@ async function install(request: Request, env: Env): Promise<Response> {
     return json({ error: "Installation session expired" }, 401, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
   }
   try {
-    const origin = new URL(request.url).origin;
-    const [scriptResponse, migrationsResponse] = await Promise.all([
-      env.ASSETS.fetch(`${origin}/release/standalone.js`),
-      env.ASSETS.fetch(`${origin}/release/migrations.json`)
-    ]);
-    if (!scriptResponse.ok || !migrationsResponse.ok) throw new InstallError("unknown", "Installation release is unavailable");
+    const { script, release } = await loadRelease(request, env);
     const result = await provisionMeetingNote({
       accountId: body.accountId,
       accessToken: session.value.accessToken,
-      releaseScript: await scriptResponse.text(),
-      release: await migrationsResponse.json(),
-      installId: session.id
+      releaseScript: script,
+      release,
+      installId: session.id,
+      updateChannel: env.INSTALLER_ORIGIN
     });
     await revoke(session.value.accessToken, env).catch((error) => console.error("OAuth revoke failed", error));
     await env.INSTALL_SESSIONS.delete(`session:${session.id}`);
@@ -217,7 +290,10 @@ export default {
       }
       return json({ ok: true, apps: await listInstalls(session.value.accessToken, encodeURIComponent(accountId)) });
     }
+    if (url.pathname === "/api/release" && request.method === "GET") return releaseVersion(request, env);
     if (url.pathname === "/api/install" && request.method === "POST") return install(request, env);
+    if (url.pathname === "/api/update" && request.method === "POST") return update(request, env);
+    if (url.pathname === "/api/reclaim" && request.method === "POST") return reclaim(request, env);
     return secureAsset(await env.ASSETS.fetch(request));
   }
 };

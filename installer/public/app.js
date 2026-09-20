@@ -22,6 +22,7 @@ const IN_APP_BROWSERS = [
 const inApp = IN_APP_BROWSERS.find(([, , pattern]) => pattern.test(navigator.userAgent || ""));
 const appleDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let installHereAnyway = false;
+let releaseVersion = "";
 let view = null;        // what the progress card is showing, so a language switch can redraw it
 let retryAction = () => location.assign("/oauth/start");
 
@@ -190,6 +191,10 @@ async function showExisting() {
   if (!accountId) return;
   let apps = [];
   try {
+    if (!releaseVersion) {
+      const release = await fetch("/api/release").then((response) => (response.ok ? response.json() : null)).catch(() => null);
+      releaseVersion = release?.version || "";
+    }
     const response = await fetch(`/api/installs?accountId=${encodeURIComponent(accountId)}`, { credentials: "same-origin" });
     if (!response.ok) return;
     apps = (await response.json()).apps || [];
@@ -197,16 +202,94 @@ async function showExisting() {
     return;
   }
   if (!apps.length || selectedAccount() !== accountId) return;
-  $("#existingList").replaceChildren(...apps.map((app) => {
-    const link = document.createElement("a");
-    link.href = app.url;
-    link.textContent = app.url.replace("https://", "");
-    link.rel = "noopener noreferrer";
-    return link;
-  }));
+  $("#existingList").replaceChildren(...apps.map((app) => installRow(app, accountId)));
   panel.classList.remove("hidden");
   $("#install").classList.add("hidden");
   $("#installAnother").classList.remove("hidden");
+}
+
+function installRow(app, accountId) {
+  const row = document.createElement("div");
+  row.className = "existing-app";
+  const link = document.createElement("a");
+  link.href = app.url;
+  link.textContent = app.url.replace("https://", "");
+  link.rel = "noopener noreferrer";
+  row.append(link);
+
+  const outdated = Boolean(app.version && releaseVersion && app.version !== releaseVersion);
+  if (outdated || !app.claimed) {
+    const tag = document.createElement("p");
+    tag.className = "existing-tag";
+    tag.textContent = !app.claimed
+      ? (language === "zh" ? "还没有人认领这个应用" : "Nobody has claimed this app yet")
+      : (language === "zh" ? "有新版本可以更新" : "A newer version is available");
+    row.append(tag);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "existing-actions";
+  if (outdated) {
+    const update = document.createElement("button");
+    update.type = "button";
+    update.className = "ghost-button";
+    update.textContent = language === "zh" ? "更新到最新版" : "Update it";
+    update.addEventListener("click", () => void act(update, "/api/update", { accountId, workerName: app.name }, (data) => {
+      row.append(note(language === "zh"
+        ? `已更新到 ${data.version}。打开应用即可，数据都在。`
+        : `Updated to ${data.version}. Open it as usual; everything is still there.`));
+    }));
+    actions.append(update);
+  }
+  if (!app.claimed) {
+    const reclaim = document.createElement("button");
+    reclaim.type = "button";
+    reclaim.className = "ghost-button";
+    reclaim.textContent = language === "zh" ? "重新获取认领链接" : "Make a new claim link";
+    reclaim.addEventListener("click", () => void act(reclaim, "/api/reclaim", { accountId, workerName: app.name }, (data) => {
+      const claim = document.createElement("a");
+      claim.className = "claim-link";
+      claim.href = `${data.url}#claim=${encodeURIComponent(data.setupCode)}`;
+      claim.textContent = language === "zh" ? "用 Face ID 认领这个应用" : "Claim it with Face ID";
+      row.append(claim);
+      row.append(note(language === "zh"
+        ? "这个链接只用一次，认领后旧的认领码就作废了。"
+        : "This link works once; the old claim code stops working."));
+    }));
+    actions.append(reclaim);
+  }
+  if (actions.children.length) row.append(actions);
+  return row;
+}
+
+function note(text) {
+  const line = document.createElement("p");
+  line.className = "existing-tag";
+  line.textContent = text;
+  return line;
+}
+
+// One place for the two buttons above: both talk to the installer and both can fail.
+async function act(button, path, body, done) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = language === "zh" ? "请稍候…" : "Working…";
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "That did not work");
+    button.remove();
+    done(data);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = label;
+    fail("unknown", error.message);
+  }
 }
 
 async function install() {

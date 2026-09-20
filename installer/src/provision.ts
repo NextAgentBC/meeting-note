@@ -39,6 +39,8 @@ export type ProvisionInput = {
   releaseScript: string;
   release: Release;
   installId: string;
+  /** Where the copy asks whether a newer release exists. Empty to leave it checking nothing. */
+  updateChannel: string;
 };
 
 export type ProvisionResult = {
@@ -146,17 +148,62 @@ export async function ensureWorkersSubdomain(token: string, account: string): Pr
   throw new InstallError("workers_subdomain", lastError || "Could not register a workers.dev subdomain", lastCodes);
 }
 
-export type ExistingInstall = { name: string; url: string; createdOn: string };
+/** What every copy runs with. The upgrade adds the ones an older copy has never had. */
+export const APP_VARS: Record<string, string> = {
+  ASR_MODEL: "@cf/openai/whisper-large-v3-turbo",
+  SUMMARY_MODEL: "@cf/zai-org/glm-4.7-flash",
+  FINAL_MODEL: "@cf/zai-org/glm-4.7-flash",
+  PLAN_MODEL: "@cf/zai-org/glm-4.7-flash",
+  ASK_MODEL: "@cf/zai-org/glm-4.7-flash",
+  VISION_MODEL: "@cf/llava-hf/llava-1.5-7b-hf",
+  CHINESE_SCRIPT: "simplified",
+  FREE_DAILY_NEURONS: "10000",
+  WORKERS_PLAN: "free",
+  AUDIO_RETENTION_DAYS: "7",
+  SEGMENT_TARGET_MINUTES: "5"
+};
+
+const SCRIPT_METADATA = {
+  main_module: "standalone.js",
+  compatibility_date: "2026-09-10",
+  compatibility_flags: ["nodejs_compat"]
+};
+
+function scriptUpload(metadata: Record<string, unknown>, script: string): FormData {
+  const form = new FormData();
+  form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+  form.set("standalone.js", new Blob([script], { type: "application/javascript+module" }), "standalone.js");
+  return form;
+}
+
+export type ExistingInstall = {
+  name: string;
+  url: string;
+  createdOn: string;
+  /** The release the copy is running, as it reports itself; empty when it could not be asked. */
+  version: string;
+  /** False while nobody has created the owner passkey yet: that copy is still up for grabs. */
+  claimed: boolean;
+};
 
 // A failed attempt leaves nothing behind, but a finished one does, and its owner may have lost the
 // address. Before installing again, the page says what this account already has.
+async function ask(url: string): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await fetch(url, { headers: { accept: "application/json" } });
+    return response.ok ? await response.json<Record<string, unknown>>() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function listInstalls(token: string, account: string): Promise<ExistingInstall[]> {
   try {
     const current = await cf<{ subdomain?: string | null }>(token, `/accounts/${account}/workers/subdomain`);
     const subdomain = current?.subdomain;
     if (!subdomain) return [];
     const scripts = await cf<Array<{ id?: string; created_on?: string }>>(token, `/accounts/${account}/workers/scripts`);
-    return (scripts || [])
+    const found = (scripts || [])
       .filter((script) => typeof script.id === "string" && /^meeting-note-[a-z0-9]{1,8}$/.test(script.id))
       .map((script) => ({
         name: script.id as string,
@@ -164,6 +211,12 @@ export async function listInstalls(token: string, account: string): Promise<Exis
         createdOn: script.created_on || ""
       }))
       .sort((first, second) => second.createdOn.localeCompare(first.createdOn));
+    // Each copy says what it is running and whether anyone has claimed it. Both routes are public,
+    // and neither answer is worth failing the page over.
+    return await Promise.all(found.map(async (install) => {
+      const [health, me] = await Promise.all([ask(`${install.url}/api/health`), ask(`${install.url}/api/auth/me`)]);
+      return { ...install, version: String(health?.version || ""), claimed: Boolean(me?.hasOwner) };
+    }));
   } catch (error) {
     // Never a reason to stop someone installing: an unreadable account simply has nothing to show.
     console.error("Could not list existing installations", error);
@@ -218,30 +271,14 @@ export async function provisionMeetingNote(input: ProvisionInput): Promise<Provi
       { type: "queue", name: "JOBS", queue_name: queueName },
       { type: "ai", name: "AI" },
       { type: "secret_text", name: "SETUP_CODE", text: ownerCode },
-      ...Object.entries({
-        ASR_MODEL: "@cf/openai/whisper-large-v3-turbo",
-        SUMMARY_MODEL: "@cf/zai-org/glm-4.7-flash",
-        FINAL_MODEL: "@cf/zai-org/glm-4.7-flash",
-        PLAN_MODEL: "@cf/zai-org/glm-4.7-flash",
-        ASK_MODEL: "@cf/zai-org/glm-4.7-flash",
-        VISION_MODEL: "@cf/llava-hf/llava-1.5-7b-hf",
-        CHINESE_SCRIPT: "simplified",
-        FREE_DAILY_NEURONS: "10000",
-        WORKERS_PLAN: "free",
-        AUDIO_RETENTION_DAYS: "7",
-        SEGMENT_TARGET_MINUTES: "5"
-      }).map(([name, text]) => ({ type: "plain_text", name, text }))
+      ...Object.entries({ ...APP_VARS, UPDATE_CHANNEL: input.updateChannel })
+        .map(([name, text]) => ({ type: "plain_text", name, text }))
     ];
-    const metadata = {
-      main_module: "standalone.js",
-      compatibility_date: "2026-09-10",
-      compatibility_flags: ["nodejs_compat"],
+    const form = scriptUpload({
+      ...SCRIPT_METADATA,
       bindings,
       annotations: { "workers/message": `Meeting Note personal installer ${input.release.version}` }
-    };
-    const form = new FormData();
-    form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-    form.set("standalone.js", new Blob([input.releaseScript], { type: "application/javascript+module" }), "standalone.js");
+    }, input.releaseScript);
     await step("worker", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}`, { method: "PUT", body: form }));
     workerCreated = true;
 
@@ -274,4 +311,76 @@ export async function provisionMeetingNote(input: ProvisionInput): Promise<Provi
     if (databaseId) await remove(input.accessToken, `/accounts/${account}/d1/database/${databaseId}`);
     throw error;
   }
+}
+
+
+export type UpgradeInput = {
+  accountId: string;
+  accessToken: string;
+  workerName: string;
+  releaseScript: string;
+  version: string;
+  updateChannel: string;
+};
+
+const INSTALL_NAME = /^meeting-note-[a-z0-9]{1,8}$/;
+
+/**
+ * Replaces the code of a copy that is already installed, keeping its database, its audio, its queue
+ * and its owner. The new code applies whatever database changes it needs the first time it runs
+ * (src/schema.ts), so this only has to get the script and the bindings right.
+ */
+export async function upgradeInstall(input: UpgradeInput): Promise<{ version: string }> {
+  if (!INSTALL_NAME.test(input.workerName)) throw new InstallError("worker", "That is not a Meeting Note installation");
+  const account = encodeURIComponent(input.accountId);
+  const settings = await step("worker", () => cf<{ bindings?: Array<Record<string, unknown>> }>(
+    input.accessToken,
+    `/accounts/${account}/workers/scripts/${encodeURIComponent(input.workerName)}/settings`
+  ));
+  const existing = settings?.bindings || [];
+  // Data bindings are carried over exactly as they are: this is what keeps the owner's meetings.
+  const carried = existing.filter((binding) => binding.type !== "secret_text" && binding.type !== "plain_text");
+  for (const required of ["d1", "kv_namespace", "queue", "ai"]) {
+    if (!carried.some((binding) => binding.type === required)) {
+      throw new InstallError("worker", `This Worker has no ${required} binding; the installer will not overwrite it`);
+    }
+  }
+  // Settings the owner may have changed stay as they are; only missing ones take the new default.
+  const vars = new Map(existing
+    .filter((binding) => binding.type === "plain_text")
+    .map((binding) => [String(binding.name), String(binding.text ?? "")]));
+  for (const [name, text] of Object.entries(APP_VARS)) if (!vars.has(name)) vars.set(name, text);
+  if (input.updateChannel) vars.set("UPDATE_CHANNEL", input.updateChannel);
+
+  const form = scriptUpload({
+    ...SCRIPT_METADATA,
+    bindings: [...carried, ...[...vars].map(([name, text]) => ({ type: "plain_text", name, text }))],
+    // The owner's setup code, and anything else secret, survives the upload untouched.
+    keep_bindings: ["secret_text"],
+    annotations: { "workers/message": `Meeting Note update ${input.version}` }
+  }, input.releaseScript);
+  await step("worker", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${encodeURIComponent(input.workerName)}`, {
+    method: "PUT",
+    body: form
+  }));
+  return { version: input.version };
+}
+
+/**
+ * A copy that was installed but never claimed — the claim link was lost, or it was opened in a
+ * browser that cannot make a passkey — is otherwise a dead end, because claiming needs the setup
+ * code the installer showed once. The Cloudflare account owner can replace that code here.
+ */
+export async function reclaimInstall(input: { accountId: string; accessToken: string; workerName: string; url: string }): Promise<{ setupCode: string }> {
+  if (!INSTALL_NAME.test(input.workerName)) throw new InstallError("worker", "That is not a Meeting Note installation");
+  const claimed = await ask(`${input.url}/api/auth/me`);
+  // Never touch a copy that already has an owner: a new code could not take it over anyway.
+  if (claimed?.hasOwner) throw new InstallError("worker", "This app already has an owner");
+  const code = setupCode();
+  const account = encodeURIComponent(input.accountId);
+  await step("worker", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${encodeURIComponent(input.workerName)}/secrets`, {
+    method: "PUT",
+    body: JSON.stringify({ name: "SETUP_CODE", text: code, type: "secret_text" })
+  }));
+  return { setupCode: code };
 }

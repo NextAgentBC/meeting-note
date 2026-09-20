@@ -1,6 +1,8 @@
 // Memory: ask about past meetings and plans, and see (and forget) what's remembered. An answer lists
 // the passages it came from; one from a meeting opens that meeting.
 
+import { memoryOrbs } from "./memory-orbs.js";
+
 const $ = (selector) => document.querySelector(selector);
 
 function escapeHtml(value = "") {
@@ -125,26 +127,13 @@ function memoryRowHtml(item) {
     </div>`;
 }
 
-function factRowHtml(fact) {
-  const earlier = Number(fact.priorVersions ?? 0);
-  const source = [fact.meetingTitle, shortDate(fact.occurredAt)].filter(Boolean).join(" · ");
-  return `
-    <div class="memory-row" data-id="${escapeHtml(fact.id)}">
-      <button class="memory-open" type="button" data-kind="fact" data-meeting="${escapeHtml(fact.meetingId ?? "")}">
-        <span class="kind">${escapeHtml(fact.topic ?? fact.title ?? "fact")}${earlier ? ` · updated ${earlier}×` : ""}</span>
-        <strong>${escapeHtml(fact.statement ?? fact.snippet ?? "")}</strong>
-        ${source ? `<small>${escapeHtml(source)}</small>` : ""}
-      </button>
-      <button class="plan-remove" type="button" data-forget="${escapeHtml(fact.id)}" aria-label="Forget this fact" title="Forget this fact">✕</button>
-    </div>`;
-}
-
 async function loadFacts() {
   try {
     const data = await api("/api/memory/facts");
     const facts = data.facts || [];
     $("#factsBlock").classList.toggle("hidden", facts.length === 0);
-    $("#factsList").innerHTML = facts.map(factRowHtml).join("");
+    // Facts are circles now, not rows: they drift, knock into each other, and open when tapped.
+    memoryOrbs($("#factsList"), facts.map((fact) => ({ ...fact, when: shortDate(fact.occurredAt) })));
   } catch {
     $("#factsBlock").classList.add("hidden"); // not available on this copy yet
   }
@@ -184,7 +173,10 @@ for (const list of ["#memoryList", "#factsList"]) {
       forget.disabled = true;
       try {
         await api(`/api/memory/${encodeURIComponent(forget.dataset.forget)}`, { method: "DELETE" });
-        forget.closest(".memory-row")?.remove();
+        const row = forget.closest(".memory-row");
+        // A row goes on its own; a forgotten circle takes the field with it, so it is rebuilt.
+        if (row) row.remove();
+        else void loadFacts();
       } catch (error) {
         forget.disabled = false;
         window.alert(error.message);

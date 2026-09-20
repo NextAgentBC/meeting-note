@@ -120,39 +120,33 @@ function lagFor(index) {
 }
 
 function shapeList(lag) {
-  // A wide window shows whole rows side by side; the curve belongs to a phone's single column.
-  const curve = window.innerWidth <= 760;
+  // A phone shows one column: sections there breathe as they pass the middle of the screen. A wide
+  // window puts them side by side, where the same motion reads as wobble, so it only gets the lag.
+  const breathe = window.innerWidth <= 760;
   const middle = window.innerHeight / 2;
   for (const list of document.querySelectorAll("[data-cylinder]")) {
     [...list.children].forEach((item, index) => {
+      if (item.classList.contains("hidden")) return;
       const rect = item.getBoundingClientRect();
-      if (rect.bottom < -80 || rect.top > window.innerHeight + 80) {
+      if (rect.bottom < -120 || rect.top > window.innerHeight + 120) {
         item.style.removeProperty("transform");
         item.style.removeProperty("opacity");
         return;
       }
       const drift = `translateY(${(lag * lagFor(index)).toFixed(2)}px)`;
-      if (!curve) {
+      if (!breathe) {
         item.style.transform = drift;
         item.style.removeProperty("opacity");
         return;
       }
-      // How far this row sits from the middle of the screen, as -1 … 0 … 1.
-      const offset = Math.max(-1, Math.min(1, (rect.top + rect.height / 2 - middle) / middle));
-      const away = Math.abs(offset);
-      item.style.transform = `perspective(900px) ${drift} rotateX(${(-offset * 7).toFixed(2)}deg) scale(${(1 - away * 0.035).toFixed(4)})`;
-      item.style.opacity = (1 - away * 0.28).toFixed(3);
+      // 0 in the middle of the screen, 1 at either edge. No rotation: a tilted block's corners
+      // reach past its own box and sit on top of the next one.
+      const away = Math.min(1, Math.abs(rect.top + rect.height / 2 - middle) / middle);
+      const eased = away * away * (3 - 2 * away);
+      item.style.transform = `${drift} scale(${(1 - eased * 0.1).toFixed(4)})`;
+      item.style.opacity = (1 - eased * 0.45).toFixed(3);
     });
   }
-}
-
-function rest() {
-  flow = 0;
-  lastFrame = 0;
-  const root = document.documentElement;
-  root.style.setProperty("--flow", "0px");
-  root.style.setProperty("--flow-strength", "0");
-  shapeList(0);
 }
 
 function flowTick(now) {
@@ -168,11 +162,11 @@ function flowTick(now) {
   // A spring with heavy damping: the scroll pulls the content, and it settles back on its own.
   flow = (flow + velocity * 0.45) * 0.86 ** steps;
   if (Math.abs(flow) < 0.05) flow = 0;
-  const lag = Math.max(-9, Math.min(9, flow));
+  const lag = Math.max(-14, Math.min(14, flow));
   const root = document.documentElement;
   root.style.setProperty("--flow", `${lag.toFixed(2)}px`);
   // 0 when still, 1 when moving fast: the glass saturates and brightens with the movement.
-  root.style.setProperty("--flow-strength", Math.min(1, Math.abs(lag) / 9).toFixed(3));
+  root.style.setProperty("--flow-strength", Math.min(1, Math.abs(lag) / 14).toFixed(3));
   shapeList(lag);
   // Frames can stop coming — a background tab, a phone saving power — and content must not be
   // left leaning. If no frame arrives for a while, everything goes back to rest on a timer.

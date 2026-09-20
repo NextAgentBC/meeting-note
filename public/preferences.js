@@ -61,6 +61,7 @@ const ZH = {
   "Choose photos": "从相册选择",
   "Save note": "保存笔记",
   "Up to 6 photos. They are resized and converted to WebP on this device before upload.": "最多 6 张照片。上传前会在本机缩小并转换为 WebP。",
+  "Forget": "忘记",
   "All": "全部",
   "Filter notes by kind": "按分类筛选笔记",
   "Nothing in this kind yet.": "这个分类还没有内容。",

@@ -2,6 +2,8 @@
 // metadata, never leave this browser.
 
 import { t } from "./preferences.js";
+import { ambientGlow, glowForImage } from "./motion.js";
+import { metaballDrag } from "./metaball.js";
 
 const $ = (selector) => document.querySelector(selector);
 const MAX_IMAGES = 6;
@@ -171,11 +173,12 @@ function renderPreviews() {
   const container = $("#quickNotePreviews");
   container.classList.toggle("hidden", pendingPhotos.length === 0);
   container.innerHTML = pendingPhotos.map((photo, index) => `
-    <figure class="photo-preview">
-      <img src="${escapeHtml(photo.previewUrl)}" width="160" height="160" alt="Photo ready to upload" />
+    <figure class="photo-preview" data-photo-index="${index}" data-glow-target>
+      <img src="${escapeHtml(photo.previewUrl)}" data-glow width="160" height="160" alt="Photo ready to upload" />
       <button type="button" data-remove-photo="${index}" aria-label="Remove photo">×</button>
       <figcaption>${escapeHtml(bytes(photo.originalBytes))} → ${escapeHtml(bytes(photo.full.size))}</figcaption>
     </figure>`).join("");
+  ambientGlow(container);
   $("#quickNoteCompression").textContent = pendingPhotos.length ? `${pendingPhotos.length}/${MAX_IMAGES} ready` : "";
 }
 
@@ -224,8 +227,8 @@ const CATEGORY = {
 function captureHtml(capture) {
   const photos = (capture.attachments || []).filter((item) => item.status === "ready");
   const images = photos.length ? `<div class="capture-photos">${photos.map((photo) => `
-    <button type="button" data-view-photo="${escapeHtml(photo.imageUrl)}" data-photo-alt="${escapeHtml(photo.caption || "Photo attached to this note")}">
-      <img src="${escapeHtml(photo.thumbnailUrl)}" loading="lazy" width="180" height="180" alt="${escapeHtml(photo.caption || "Photo attached to this note")}" />
+    <button type="button" data-glow-target data-view-photo="${escapeHtml(photo.imageUrl)}" data-photo-alt="${escapeHtml(photo.caption || "Photo attached to this note")}">
+      <img src="${escapeHtml(photo.thumbnailUrl)}" data-glow loading="lazy" width="180" height="180" alt="${escapeHtml(photo.caption || "Photo attached to this note")}" />
       ${photo.aiStatus === "queued" || photo.aiStatus === "processing" ? '<span>AI reading…</span>' : photo.aiStatus === "failed" ? '<span>AI skipped</span>' : ""}
     </button>`).join("")}</div>` : "";
   const captions = photos.map((photo) => photo.caption).filter(Boolean);
@@ -247,6 +250,7 @@ export async function loadCaptures() {
     const captures = data.captures || [];
     $("#capturesBlock").classList.toggle("hidden", captures.length === 0);
     $("#capturesList").innerHTML = captures.map(captureHtml).join("");
+    ambientGlow($("#capturesList"));
   } catch {
     $("#capturesBlock").classList.add("hidden");
   }
@@ -354,6 +358,12 @@ async function stopVoiceNote() {
 export function initCaptures() {
   if (initialized) return;
   initialized = true;
+  // A photo can be pulled out of the note: the neck between it and its place thins, then breaks.
+  metaballDrag($("#quickNotePreviews"), ".photo-preview", (figure) => {
+    const [photo] = pendingPhotos.splice(Number(figure.dataset.photoIndex), 1);
+    if (photo) URL.revokeObjectURL(photo.previewUrl);
+    renderPreviews();
+  });
   $("#recordQuickNote").addEventListener("click", () => void (voice ? stopVoiceNote() : startVoiceNote()));
   $("#takeQuickNotePhoto").addEventListener("click", () => $("#quickNoteCamera").click());
   $("#addQuickNoteImages").addEventListener("click", () => $("#quickNoteImages").click());
@@ -411,8 +421,16 @@ export function initCaptures() {
   $("#capturesList").addEventListener("click", async (event) => {
     const photo = event.target.closest("[data-view-photo]");
     if (photo) {
-      $("#captureLightboxImage").src = photo.dataset.viewPhoto;
-      $("#captureLightboxImage").alt = photo.dataset.photoAlt || "Photo attached to this note";
+      const full = $("#captureLightboxImage");
+      full.src = photo.dataset.viewPhoto;
+      full.alt = photo.dataset.photoAlt || "Photo attached to this note";
+      // Start from the thumbnail's colour so the room is already lit, then settle on the full
+      // photo's own: the change between two photos is one interpolation, done by CSS.
+      const thumbnail = photo.querySelector("img");
+      if (thumbnail) $("#captureLightbox").style.setProperty("--glow-color", `rgb(${glowForImage(thumbnail)})`);
+      full.addEventListener("load", () => {
+        $("#captureLightbox").style.setProperty("--glow-color", `rgb(${glowForImage(full)})`);
+      }, { once: true });
       $("#captureLightbox").showModal();
       return;
     }

@@ -389,6 +389,8 @@ function setLanguage(language, persist = true) {
 }
 
 function refreshThemeMeta() {
+  // The glass bars re-measure what is behind them whenever the colours change.
+  window.dispatchEvent(new CustomEvent("meetingnote:appearance-changed"));
   requestAnimationFrame(() => {
     const color = getComputedStyle(document.documentElement).getPropertyValue("--canvas").trim();
     const meta = document.querySelector('meta[name="theme-color"]');

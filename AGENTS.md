@@ -55,6 +55,28 @@ installer/       install.meeting.nextagent.ca: Cloudflare OAuth, then one accoun
                  embedded public/ files). public/app.js is the page, in both languages.
 ```
 
+## The moving parts of the look
+
+Four effects, all decoration, all skipped under `prefers-reduced-motion`, none of them touching data.
+
+- **`public/glass.js` — liquid glass.** The app bar and the tab bar blur and saturate what passes
+  under them; a highlight rides the edge the content meets, pushed by the scroll and drifting back
+  when it stops (`--glass-shift`, `--glass-lean`). Every 250 ms the module reads the colour just
+  outside each bar with `elementFromPoint`, walks up for the first element with a colour of its
+  own, and sets `data-glass="light" | "dark"` — over bright content the glass turns bright and its
+  labels go dark. The rules live in `shell.css`; `preferences.css` gives them the theme's colours.
+- **`public/motion.js` — glow, depth, curve.** `ambientGlow` averages a photo down to one colour,
+  weighted towards the colourful pixels, and hands it to the card as `--glow-color`, which is
+  registered with `@property` so a new photo is an interpolation and not a jump. `depthScroll`
+  drives three distances from one scroll (`--depth-far`, `--depth-mid`, `--depth-blur`,
+  `--depth-dim`; the two background washes are `body::before` and `body::after`). `cylinderScroll`
+  leans and fades the rows of a `[data-cylinder]` list by their distance from the middle of the
+  screen — phone widths only, where the list is one column.
+- **`public/metaball.js` — pulling a photo out of a note.** One SVG filter (blur, then a steep alpha
+  curve) over two circles and the bar between them: the neck thins with distance and breaks past
+  96px, and the caller decides what breaking means. The × button on each photo still does the same
+  thing for anyone who would rather tap.
+
 ## Updating an installed copy
 
 Every copy is one Worker in **its owner's** Cloudflare account. Nobody can push code into it: the

@@ -64,9 +64,15 @@ html[data-mode="dark"] {
 /* Backwards-compatible aliases while old components are progressively moved to semantic names. */
 :root { --bg: var(--canvas); --panel: var(--surface); --panel-2: var(--surface-2); --line: var(--hairline); --line-strong: var(--hairline-strong); --text: var(--ink); --muted: var(--ink-3); --cyan: var(--brand-text); --cyan-soft: rgba(var(--brand-rgb),.13); --red: var(--danger); --amber: var(--warning); }
 
-body { color: var(--ink); background: radial-gradient(circle at 78% 2%, rgba(var(--brand-rgb),.08), transparent 32rem), var(--canvas); font-family: var(--font-ui); }
+/* The brand wash moved into the depth layers (shell.css); the page itself is one flat colour. */
+body { color: var(--ink); background: var(--canvas); font-family: var(--font-ui); }
 .meeting-head h2, .quick-note-head h2, .usage-head h2, .auth-card h1 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
-.appbar, .tabbar { border-color: var(--hairline); background: color-mix(in srgb, var(--canvas) 90%, transparent); }
+/* Glass, in this theme's colour: see the liquid-glass block in shell.css. */
+.appbar, .tabbar { border-color: var(--hairline); background: color-mix(in srgb, var(--canvas) 58%, transparent); }
+/* Over bright content the glass itself goes bright, whatever the theme's own mode is. */
+.appbar[data-glass="light"], .tabbar[data-glass="light"] { background: color-mix(in srgb, var(--theme-light-surface, #fbf9f4) 66%, transparent); }
+.tabbar[data-glass="light"] a { color: color-mix(in srgb, var(--theme-light-ink, #17201d) 70%, transparent); }
+.tabbar[data-glass="dark"] a { color: color-mix(in srgb, var(--ink-3, #f4f7f9) 92%, transparent); }
 .card, .new-card, .note-card, .transcript-card, .plan-block, .usage-card, .settings-group, .meeting-row, .memory-row, .capture-card, .ask-form, .dictate-result { border-color: var(--hairline); background: var(--surface); box-shadow: 0 14px 40px rgba(var(--shadow-color),.12); }
 input, select, textarea, .segmented, .recovery-code, .sheet textarea { color: var(--ink); border-color: var(--hairline); background: var(--surface-2); }
 .field > span, .record-options summary, .segmented label, .segmented button, .home-notes-entry small, .plan-notes, .auth-hint { color: var(--ink-2); }

@@ -2,6 +2,8 @@ import { ensureSignedIn } from "./auth.js";
 import { initCaptures, loadImageAiSetting } from "./captures.js";
 import { initPreferences } from "./preferences.js";
 import { inAppBrowser, openOutsideSteps } from "./in-app-browser.js";
+import { initGlass } from "./glass.js";
+import { cylinderScroll, depthScroll } from "./motion.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
 import "./transcription.js";
@@ -1186,6 +1188,9 @@ void ensureSignedIn().then(() => {
   void loadUsage();
   void loadImageAiSetting();
   renderRoute();
+  initGlass();
+  depthScroll();
+  cylinderScroll();
   offerHomeScreen();
   window.setTimeout(() => void checkForUpdate(), 4000);
   if (shortcut === "record") window.setTimeout(() => $("#meetingTitle").focus(), 300);

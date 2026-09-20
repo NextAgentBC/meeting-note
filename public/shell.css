@@ -22,9 +22,7 @@ main {
   min-height: calc(56px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(11, 14, 18, 0.88);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  background: rgba(11, 14, 18, 0.62);
 }
 .appbar-back { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--text); border: 0; background: none; cursor: pointer; }
 .appbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; grid-column: 2; }
@@ -180,15 +178,71 @@ main {
   grid-template-columns: repeat(4, 1fr);
   padding: 6px 8px env(safe-area-inset-bottom);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(11, 14, 18, 0.94);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  background: rgba(11, 14, 18, 0.62);
 }
 .tabbar a { position: relative; display: grid; justify-items: center; gap: 3px; min-height: 54px; padding-top: 5px; color: #7d8894; text-decoration: none; font-size: 11px; font-weight: 650; }
 .tabbar a[aria-current="page"] { color: var(--cyan); }
 .tab-new { position: absolute; top: 3px; left: calc(50% + 10px); min-width: 25px; padding: 2px 5px; color: #071311; border-radius: 99px; background: var(--cyan); font-size: 8px; font-weight: 850; line-height: 1.15; text-transform: uppercase; }
 .tabbar a[aria-current="page"] .tab-new { display: none; }
 .tab-badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; color: #1a1406; border-radius: 999px; background: var(--amber); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
+
+/* Liquid glass. The bars blur and bend what slides under them; a highlight rides the edge the
+   content meets and is pushed along by the scroll (--glass-shift / --glass-lean come from
+   glass.js, which also measures the backdrop and sets data-glass to light or dark). */
+.appbar, .tabbar {
+  --glass-shift: 0px;
+  --glass-lean: 0;
+  --glass-sheen: 255 255 255;
+  overflow: hidden;
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(0, 0, 0, .12);
+}
+/* The refraction: light gathers along the edge and bends across the face as the page moves. */
+.appbar::before, .tabbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(150% 120% at calc(50% + var(--glass-shift) * 2) var(--glass-origin, 0%),
+      rgba(var(--glass-sheen) / .18), transparent 62%),
+    linear-gradient(var(--glass-angle, 180deg), rgba(var(--glass-sheen) / .13), transparent 46%);
+  opacity: calc(.72 + var(--glass-lean) * .28);
+  transition: opacity .18s ease-out;
+}
+/* The bright edge itself, sliding with the scroll and settling back when it stops. */
+.appbar::after, .tabbar::after {
+  content: "";
+  position: absolute;
+  left: -25%;
+  width: 150%;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(var(--glass-sheen) / .55), transparent);
+  transform: translateX(var(--glass-shift));
+}
+.appbar::after { bottom: 0; }
+.tabbar { --glass-origin: 100%; --glass-angle: 0deg; }
+.tabbar::after { top: 0; }
+/* Text and icons sit above the sheen. */
+.appbar > *, .tabbar a { position: relative; }
+
+/* Over something bright the glass turns light and its labels go dark; over something dark, back. */
+.appbar[data-glass="light"], .tabbar[data-glass="light"] {
+  --glass-sheen: 255 255 255;
+  background: color-mix(in srgb, #ffffff 58%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -1px 0 rgba(0, 0, 0, .08);
+}
+.tabbar[data-glass="light"] a { color: color-mix(in srgb, #0d1418 62%, transparent); }
+.tabbar[data-glass="dark"] a { color: color-mix(in srgb, #f4f7f9 64%, transparent); }
+.tabbar a[aria-current="page"] { color: var(--cyan); }
+
+/* No backdrop blur (older Android WebViews): keep the bars readable instead of translucent. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .appbar, .tabbar { background: var(--canvas, #0b0e12); }
+  .appbar::before, .tabbar::before { opacity: .4; }
+}
 
 body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
 
@@ -274,3 +328,76 @@ body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
 .quick-add-button.danger { color: #ff8a86; border-color: rgba(255,107,103,.35); background: rgba(255,107,103,.06); }
 .sheet textarea { display: block; width: 100%; margin-top: 10px; padding: 12px 13px; color: var(--text); border: 1px solid var(--line); border-radius: 11px; outline: none; background: #0c1117; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
 .sheet textarea:focus { border-color: rgba(0,229,208,.5); }
+
+
+/* A photo lends its colour to the space around it. Registering the property is what makes the
+   change from one photo to the next an interpolation rather than a jump (motion.js measures it). */
+@property --glow-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(128 138 148);
+}
+.capture-photos button {
+  box-shadow: 0 12px 30px -10px color-mix(in srgb, var(--glow-color) 60%, transparent);
+  transition: box-shadow .5s ease, --glow-color .6s ease;
+}
+.capture-lightbox {
+  background:
+    radial-gradient(78% 60% at 50% 42%, color-mix(in srgb, var(--glow-color) 34%, transparent), transparent 72%),
+    var(--canvas);
+  transition: --glow-color .6s ease;
+}
+.capture-lightbox img { box-shadow: 0 30px 90px -20px color-mix(in srgb, var(--glow-color) 55%, transparent); }
+
+/* Depth of field: one page, three distances. The far wash drifts slowest and softens as it goes,
+   the middle one follows, and the content itself — the near layer — is never touched (motion.js). */
+body::before, body::after {
+  content: "";
+  position: fixed;
+  inset: -25vh -25vw;
+  z-index: -2;
+  pointer-events: none;
+  opacity: var(--depth-dim, 1);
+  will-change: transform;
+}
+body::before {
+  background: radial-gradient(46vmax 46vmax at 78% 4%, rgba(var(--brand-rgb, 0 229 208), .22), transparent 66%);
+  filter: blur(var(--depth-blur, 16px));
+  transform: translate3d(0, var(--depth-far, 0px), 0);
+}
+body::after {
+  z-index: -1;
+  background: radial-gradient(38vmax 38vmax at 8% 88%, rgba(var(--brand-rgb, 0 229 208), .12), transparent 70%);
+  filter: blur(calc(var(--depth-blur, 16px) * .6));
+  transform: translate3d(0, var(--depth-mid, 0px), 0);
+}
+
+/* The curve of a long list: rows lean away and fade towards both ends (motion.js). */
+[data-cylinder] > * {
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  transition: transform .12s linear, opacity .12s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-cylinder] > * { transform: none !important; opacity: 1 !important; }
+  body::before, body::after { transform: none !important; }
+}
+
+
+/* The liquid neck that follows a photo out of a note (metaball.js). */
+.metaball-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .18s ease-out;
+}
+/* The drag goes in every direction, so the chip keeps the gesture to itself. */
+.photo-preview { touch-action: none; }
+.photo-preview.dragging { z-index: 41; cursor: grabbing; }
+.photo-preview.returning { transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.photo-preview.breaking { transition: transform .16s ease-in, opacity .16s ease-in; opacity: 0; }
+.photo-preview img { box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--glow-color) 70%, transparent); }

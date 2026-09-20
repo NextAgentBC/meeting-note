@@ -161,6 +161,8 @@ async function run(button, action, { replacesCode = false } = {}) {
 /** Resolves once the owner is signed in, showing the sign-in or setup screen until then. */
 export async function ensureSignedIn() {
   const me = await fetch("/api/auth/me", { credentials: "same-origin" }).then((r) => r.json());
+  // Connected apps belong to a deployment that has one; everywhere else the row never appears.
+  show($("#connectedAppsGroup"), Boolean(me.nextNote));
   if (me.signedIn) {
     deviceLinkToken = null; // this device is already signed in
     document.body.classList.remove("auth-pending");

@@ -147,7 +147,14 @@ async function ownerForSession(c: AppContext): Promise<OwnerRow | null> {
   ).bind(await sha256Hex(token), Date.now()).first<OwnerRow>();
 }
 
+/** True only where the owner has connected their own desktop app; see Env.NEXTNOTE. */
+export function nextNoteEnabled(env: { NEXTNOTE?: string }): boolean {
+  const setting = (env.NEXTNOTE || "").trim().toLowerCase();
+  return setting !== "" && setting !== "off" && setting !== "false" && setting !== "0";
+}
+
 async function ownerForIntegrationToken(c: AppContext): Promise<OwnerRow | null> {
+  if (!nextNoteEnabled(c.env)) return null;
   const authorization = c.req.header("authorization") ?? "";
   const match = /^Bearer\s+(mn_[A-Za-z0-9_-]{20,})$/i.exec(authorization);
   if (!match) return null;
@@ -270,7 +277,9 @@ authRoutes.get("/me", async (c) => {
     signedIn: Boolean(owner),
     name: owner?.name ?? null,
     hasOwner: Boolean(await currentOwner(c.env.DB)),
-    setupCodeRequired: Boolean(c.env.SETUP_CODE?.trim())
+    setupCodeRequired: Boolean(c.env.SETUP_CODE?.trim()),
+    // The Connected apps row stays out of the Me tab everywhere this is off.
+    nextNote: nextNoteEnabled(c.env)
   });
 });
 
@@ -442,6 +451,7 @@ const integrationTokenBody = z.object({
 
 /** List revocable app connections. Secret values are never returned after creation. */
 authRoutes.get("/integration-tokens", async (c) => {
+  if (!nextNoteEnabled(c.env)) fail(404, "not_found", "This app has no connected apps.");
   const owner = await ownerForSession(c);
   if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   const { results } = await c.env.DB.prepare(
@@ -463,6 +473,7 @@ authRoutes.get("/integration-tokens", async (c) => {
 
 /** Make a token for a native app. The plaintext is shown exactly once. */
 authRoutes.post("/integration-tokens", async (c) => {
+  if (!nextNoteEnabled(c.env)) fail(404, "not_found", "This app has no connected apps.");
   const owner = await ownerForSession(c);
   if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   const body = await readBody(c, integrationTokenBody);
@@ -476,6 +487,7 @@ authRoutes.post("/integration-tokens", async (c) => {
 });
 
 authRoutes.delete("/integration-tokens/:id", async (c) => {
+  if (!nextNoteEnabled(c.env)) fail(404, "not_found", "This app has no connected apps.");
   const owner = await ownerForSession(c);
   if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   const result = await c.env.DB.prepare(

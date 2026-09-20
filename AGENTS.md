@@ -180,6 +180,13 @@ npm run typecheck
   *finished* install, so `listInstalls` shows the account's existing `meeting-note-<id>` Workers on
   the account screen before installing another — that is also how someone who lost their address
   finds it again. It never throws: an account it cannot read simply has nothing to show.
+- **NextNote is one deployment's feature, not the product's.** The desktop vault that pulls
+  recordings out of this app belongs to the owner of `meeting.nextagent.ca`, so `NEXTNOTE` in
+  `wrangler.production.jsonc` is the only place it is on. Everywhere else `nextNoteEnabled` is false:
+  `/api/auth/me` reports `nextNote: false` and the Me tab's Connected apps group stays hidden, the
+  three `/api/auth/integration-tokens` routes answer 404, and a `Bearer mn_…` token is not accepted
+  at all. The `integration_tokens` table still ships in migration 0010 — a migration is never
+  un-run — it is simply never written to.
 - **A brand-new Cloudflare account has no workers.dev subdomain**, and uploading a Worker to it fails
   with error **10063** ("You need a workers.dev subdomain in order to proceed"). `ensureWorkersSubdomain`
   registers one (`PUT /accounts/:id/workers/subdomain`, a random `meeting-note-xxxxxx`) **before** the

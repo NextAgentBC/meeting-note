@@ -1,5 +1,8 @@
 # Meeting Note — notes for AI coding tools
 
+> Picking this up cold? `HANDOFF.md` is the whole project in one file: what is deployed where,
+> how an installed copy is updated, the visual system and its budget, and what is still missing.
+
 A meeting recorder that runs on its owner's own free Cloudflare account: the browser records, Workers AI
 transcribes and writes notes, and only the owner can sign in. Read this before changing it.
 

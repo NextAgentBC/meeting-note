@@ -217,30 +217,33 @@ function installRow(app, accountId) {
   link.rel = "noopener noreferrer";
   row.append(link);
 
-  const outdated = Boolean(app.version && releaseVersion && app.version !== releaseVersion);
-  if (outdated || !app.claimed) {
+  // Older copies may not expose /api/health, so an empty version means "needs repair/update",
+  // not "hide the update action". Keep a reapply action even for the current release so the
+  // owner always has a one-tap recovery path instead of being trapped at "already installed".
+  const current = Boolean(app.version && releaseVersion && app.version === releaseVersion);
+  if (!current || !app.claimed) {
     const tag = document.createElement("p");
     tag.className = "existing-tag";
     tag.textContent = !app.claimed
       ? (language === "zh" ? "还没有人认领这个应用" : "Nobody has claimed this app yet")
-      : (language === "zh" ? "有新版本可以更新" : "A newer version is available");
+      : (language === "zh" ? "可以更新或修复到最新版" : "Update or repair this app to the latest version");
     row.append(tag);
   }
 
   const actions = document.createElement("div");
   actions.className = "existing-actions";
-  if (outdated) {
-    const update = document.createElement("button");
-    update.type = "button";
-    update.className = "ghost-button";
-    update.textContent = language === "zh" ? "更新到最新版" : "Update it";
-    update.addEventListener("click", () => void act(update, "/api/update", { accountId, workerName: app.name }, (data) => {
-      row.append(note(language === "zh"
-        ? `已更新到 ${data.version}。打开应用即可，数据都在。`
-        : `Updated to ${data.version}. Open it as usual; everything is still there.`));
-    }));
-    actions.append(update);
-  }
+  const update = document.createElement("button");
+  update.type = "button";
+  update.className = "ghost-button";
+  update.textContent = current
+    ? (language === "zh" ? "重新应用最新版" : "Reapply latest version")
+    : (language === "zh" ? "更新到最新版" : "Update to latest");
+  update.addEventListener("click", () => void act(update, "/api/update", { accountId, workerName: app.name }, (data) => {
+    row.append(note(language === "zh"
+      ? `已更新到 ${data.version}。打开应用即可，数据都在。`
+      : `Updated to ${data.version}. Open it as usual; everything is still there.`));
+  }));
+  actions.append(update);
   if (!app.claimed) {
     const reclaim = document.createElement("button");
     reclaim.type = "button";

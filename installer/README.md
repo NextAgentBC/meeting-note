@@ -41,9 +41,11 @@ token is kept, so Try again re-runs the installation without a second Cloudflare
 
 `POST /api/update` uploads the current release over an existing Worker of this account, keeping its
 D1, KV, queue, R2 and secrets, and `GET /api/release` tells any copy which version that is. The
-account screen marks an installation whose `/api/health` reports an older version and offers to
-update it; the app itself shows the same offer as a banner and links here. Schema changes are not
-this installer's business any more — the uploaded app applies its own (`src/schema.ts`).
+account screen always offers an update/reapply action. A copy whose `/api/health` reports an older
+version, or an older copy that cannot report a version at all, is marked for update; a current copy
+keeps a reapply action as a recovery path. The app itself shows the same offer as a banner and links
+here. Schema changes are not this installer's business any more — the uploaded app applies its own
+(`src/schema.ts`).
 
 An installation nobody claimed is shown as such, and `POST /api/reclaim` writes a fresh `SETUP_CODE`
 secret and returns a one-time claim link. It refuses a copy that already has an owner.

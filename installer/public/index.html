@@ -3,41 +3,81 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#132d25" />
-  <title>安装 Meeting Note</title>
-  <meta name="description" content="三步安装属于你自己的私人 AI 笔记。" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23132d25'/%3E%3Cpath d='M18 42V28m9 14V18m10 24V24m9 18V14' stroke='%23d9a441' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <meta name="theme-color" content="#0c1411" />
+  <title>Meeting Note · 你的私人 AI 记忆</title>
+  <meta name="description" content="把会议、灵感、照片和计划整理成可搜索、可提问的私人 AI 记忆，并一键安装到你自己的 Cloudflare。" />
+  <link rel="canonical" href="https://install.meeting.nextagent.ca/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Meeting Note · 你的私人 AI 记忆" />
+  <meta property="og:description" content="会议纪要、随心笔记、照片、计划和 AI 问答，全部运行在你自己的 Cloudflare。" />
+  <meta property="og:url" content="https://install.meeting.nextagent.ca/" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Meeting Note · 你的私人 AI 记忆" />
+  <meta name="twitter:description" content="三步安装到你自己的 Cloudflare。" />
+  <link rel="icon" href="/logo.svg" />
   <link rel="stylesheet" href="/styles.css" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Meeting Note",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web, iOS, Android, macOS, Windows",
+      "url": "https://install.meeting.nextagent.ca/",
+      "description": "A privately deployed AI memory for meetings, notes, photos and plans.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CAD" }
+    }
+  </script>
 </head>
 <body>
   <main>
-    <header><span class="mark">▥</span><span>Meeting Note</span><button id="language" type="button">EN</button></header>
-    <section class="hero">
-      <p class="eyebrow" data-zh="个人云" data-en="PERSONAL CLOUD">个人云</p>
-      <h1 data-zh="属于你的私人 AI 笔记" data-en="Your private AI memory">属于你的私人 AI 笔记</h1>
-      <p class="lede" data-zh="安装到你自己的 Cloudflare。数据、登录和免费 AI 额度都由你掌握。" data-en="Install into your own Cloudflare account. Your data, sign-in and free AI allowance stay under your control.">安装到你自己的 Cloudflare。数据、登录和免费 AI 额度都由你掌握。</p>
-    </section>
-    <section class="card" id="start">
-      <div class="step"><b>1</b><span data-zh="授权 Cloudflare" data-en="Authorize Cloudflare">授权 Cloudflare</span></div>
-      <div class="step"><b>2</b><span data-zh="自动安装" data-en="Automatic setup">自动安装</span></div>
-      <div class="step"><b>3</b><span data-zh="用 Face ID 认领" data-en="Claim with Face ID">用 Face ID 认领</span></div>
-      <a class="primary" href="/oauth/start" data-zh="免费安装我的 Meeting Note" data-en="Install my Meeting Note free">免费安装我的 Meeting Note</a>
-      <p class="fine" data-zh="无需 GitHub · 无需信用卡 · 约 2 分钟" data-en="No GitHub · No credit card · About 2 minutes">无需 GitHub · 无需信用卡 · 约 2 分钟</p>
-    </section>
-    <section class="card hidden" id="account">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Meeting Note home"><span class="mark" aria-hidden="true">▥</span><span>Meeting Note</span></a>
+      <a class="header-link" href="#features" data-zh="功能" data-en="Features">功能</a>
+      <button id="language" type="button" aria-label="Change language">EN</button>
+    </header>
+
+    <!-- module:hero start -->
+    <div class="hero-install-grid">
+      <section class="hero" id="hero">
+        <p class="eyebrow" data-zh="你的私人 AI 记忆" data-en="YOUR PRIVATE AI MEMORY">你的私人 AI 记忆</p>
+        <h1 data-zh="记住每次会议，也记住生活。" data-en="Remember every meeting—and the life around it.">记住每次会议，也记住生活。</h1>
+        <p class="lede" data-zh="录会议、写灵感、存照片、说计划，再直接问 AI。所有内容都自动整理，并留在你自己的 Cloudflare 账户。" data-en="Record meetings, capture ideas and photos, speak your plans, then ask AI about any of it. Everything is organized inside your own Cloudflare account.">录会议、写灵感、存照片、说计划，再直接问 AI。所有内容都自动整理，并留在你自己的 Cloudflare 账户。</p>
+        <div class="hero-pills" aria-label="Product highlights">
+          <span data-zh="中英双语" data-en="English + 中文">中英双语</span>
+          <span data-zh="手机优先" data-en="Made for mobile">手机优先</span>
+          <span data-zh="数据归你" data-en="Your data">数据归你</span>
+        </div>
+      </section>
+      <!-- module:hero end -->
+
+      <!-- module:steps start -->
+      <section class="card install-card" id="start" aria-labelledby="install-title">
+        <p class="eyebrow" data-zh="约 2 分钟" data-en="ABOUT 2 MINUTES">约 2 分钟</p>
+        <h2 id="install-title" data-zh="装到自己的云里" data-en="Install into your own cloud">装到自己的云里</h2>
+        <div class="step"><b>1</b><span><strong data-zh="安装" data-en="Install">安装</strong><small data-zh="打开免费安装器" data-en="Open the free installer">打开免费安装器</small></span></div>
+        <div class="step"><b>2</b><span><strong data-zh="授权" data-en="Authorize">授权</strong><small data-zh="登录或注册 Cloudflare" data-en="Sign in or create Cloudflare">登录或注册 Cloudflare</small></span></div>
+        <div class="step"><b>3</b><span><strong data-zh="Face ID" data-en="Face ID">Face ID</strong><small data-zh="认领你的私人应用" data-en="Claim your private app">认领你的私人应用</small></span></div>
+        <a class="primary" href="/oauth/start" data-zh="免费安装我的 Meeting Note" data-en="Install my Meeting Note free">免费安装我的 Meeting Note</a>
+        <p class="fine" data-zh="无需 GitHub · 无需信用卡 · 无需写代码" data-en="No GitHub · No credit card · No coding">无需 GitHub · 无需信用卡 · 无需写代码</p>
+      </section>
+      <!-- module:steps end -->
+    </div>
+
+    <section class="card workflow-card hidden" id="account">
       <p class="eyebrow" data-zh="已安全授权" data-en="AUTHORIZED">已安全授权</p>
       <h2 data-zh="选择安装位置" data-en="Choose your account">选择安装位置</h2>
       <div id="accounts"></div>
       <button class="primary" id="install" type="button" data-zh="开始自动安装" data-en="Start installation">开始自动安装</button>
     </section>
-    <section class="card hidden" id="progress">
+    <section class="card workflow-card hidden" id="progress">
       <div class="spinner"></div>
       <h2 id="progressTitle" data-zh="正在创建你的私人空间" data-en="Creating your private space">正在创建你的私人空间</h2>
       <p id="progressDetail" data-zh="请保持此页面打开。其余事情由我们完成。" data-en="Keep this page open. We will handle the rest.">请保持此页面打开。其余事情由我们完成。</p>
       <div class="bar"><i></i></div>
       <button class="primary hidden" id="retry" type="button" data-zh="重试安装" data-en="Try again">重试安装</button>
     </section>
-    <section class="card success hidden" id="success">
+    <section class="card workflow-card success hidden" id="success">
       <div class="check">✓</div>
       <p class="eyebrow" data-zh="安装完成" data-en="READY">安装完成</p>
       <h2 data-zh="你的 Meeting Note 已准备好" data-en="Your Meeting Note is ready">你的 Meeting Note 已准备好</h2>
@@ -45,12 +85,101 @@
       <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID">继续，用 Face ID 认领</a>
       <p class="fine" data-zh="认领完成后，请截图保存应用显示的恢复码。" data-en="After claiming it, save a screenshot of the recovery code shown by the app.">认领完成后，请截图保存应用显示的恢复码。</p>
     </section>
-    <section class="trust">
-      <span data-zh="私人部署" data-en="Private deployment">私人部署</span>
-      <span data-zh="随时可撤销授权" data-en="Revocable access">随时可撤销授权</span>
-      <span data-zh="原始录音 7 天删除" data-en="Audio deletes after 7 days">原始录音 7 天删除</span>
+
+    <section class="trust-strip" aria-label="Trust points">
+      <span><i aria-hidden="true">✓</i><b data-zh="私人部署" data-en="Private deployment">私人部署</b></span>
+      <span><i aria-hidden="true">✓</i><b data-zh="每日额度可见" data-en="Visible daily usage">每日额度可见</b></span>
+      <span><i aria-hidden="true">✓</i><b data-zh="授权自动撤销" data-en="Access auto-revoked">授权自动撤销</b></span>
     </section>
-    <footer><a href="/privacy.html" data-zh="隐私" data-en="Privacy">隐私</a><a href="/terms.html" data-zh="使用条款" data-en="Terms">使用条款</a></footer>
+
+    <!-- module:features start -->
+    <section class="module product-section" id="features">
+      <div class="section-heading">
+        <p class="eyebrow" data-zh="不只是会议纪要" data-en="MORE THAN MEETING NOTES">不只是会议纪要</p>
+        <h2 data-zh="把散落的一天，整理成可用的记忆。" data-en="Turn a scattered day into useful memory.">把散落的一天，整理成可用的记忆。</h2>
+        <p data-zh="工作和生活不用再分散在录音、相册、备忘录和日历里。" data-en="Work and life no longer need to be scattered across recordings, photos, notes and calendars.">工作和生活不用再分散在录音、相册、备忘录和日历里。</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature feature-wide">
+          <span class="feature-icon" aria-hidden="true">◉</span>
+          <div><p class="feature-label" data-zh="会议" data-en="MEETINGS">会议</p><h3 data-zh="录完就有重点，不用重听两小时" data-en="Finish with the decisions, not two hours to replay">录完就有重点，不用重听两小时</h3><p data-zh="边录边转写；停止后自动生成摘要、决定、问答和行动项。保留原文，也能导出 Markdown。" data-en="Transcribe while you record, then create a structured summary with decisions, questions and action items. Keep the transcript and export Markdown.">边录边转写；停止后自动生成摘要、决定、问答和行动项。保留原文，也能导出 Markdown。</p></div>
+          <div class="mini-note" aria-hidden="true"><span></span><span></span><span class="short"></span><em>✓ Action item</em></div>
+        </article>
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">✦</span>
+          <p class="feature-label" data-zh="随心笔记" data-en="QUICK NOTES">随心笔记</p>
+          <h3 data-zh="灵感、日记、清单，想到就记" data-en="Ideas, journals and lists in seconds">灵感、日记、清单，想到就记</h3>
+          <p data-zh="让 AI 自动分类，也可以自己选择灵感、日常、计划或资料。" data-en="Let AI organize it, or choose Idea, Journal, Plan, Life or Reference yourself.">让 AI 自动分类，也可以自己选择灵感、日常、计划或资料。</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">▧</span>
+          <p class="feature-label" data-zh="照片" data-en="PHOTOS">照片</p>
+          <h3 data-zh="照片和文字放在同一段记忆里" data-en="Keep photos and words in one memory">照片和文字放在同一段记忆里</h3>
+          <p data-zh="拍照或从 iPhone 相册选择；上传前在手机上缩小并转成 WebP，节省空间。" data-en="Take a photo or choose from iPhone. Images are resized and converted to WebP on your device before upload.">拍照或从 iPhone 相册选择；上传前在手机上缩小并转成 WebP，节省空间。</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">◷</span>
+          <p class="feature-label" data-zh="计划" data-en="PLANS">计划</p>
+          <h3 data-zh="说一句话，变成能执行的计划" data-en="Say it once. Get an actionable plan.">说一句话，变成能执行的计划</h3>
+          <p data-zh="AI 提取日期、时间和负责人；你确认后再加入，并可发送到 Apple、Google 或 Outlook 日历。" data-en="AI extracts dates, times and owners. You approve each item before adding it to Apple, Google or Outlook Calendar.">AI 提取日期、时间和负责人；你确认后再加入，并可发送到 Apple、Google 或 Outlook 日历。</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon" aria-hidden="true">⌕</span>
+          <p class="feature-label" data-zh="提问" data-en="ASK">提问</p>
+          <h3 data-zh="直接问：上次到底决定了什么？" data-en="Just ask: what did we decide last time?">直接问：上次到底决定了什么？</h3>
+          <p data-zh="同时搜索会议、笔记、照片和计划；每个答案都会标出来源，方便回到原文核对。" data-en="Search meetings, notes, photos and plans together. Every answer shows its sources so you can verify the original.">同时搜索会议、笔记、照片和计划；每个答案都会标出来源，方便回到原文核对。</p>
+        </article>
+        <article class="feature feature-wide language-feature">
+          <span class="feature-icon" aria-hidden="true">中A</span>
+          <div><p class="feature-label" data-zh="随你怎么说" data-en="SPEAK NATURALLY">随你怎么说</p><h3 data-zh="中文、英文，或者一句话里来回切换" data-en="Chinese, English, or both in the same sentence">中文、英文，或者一句话里来回切换</h3><p data-zh="会议转写、语音计划和 AI 提问都支持中英文。手机和电脑都能用，也可以添加新的设备。" data-en="Meeting transcription, spoken plans and AI questions work in Chinese and English. Use it on phone or desktop and add new devices anytime.">会议转写、语音计划和 AI 提问都支持中英文。手机和电脑都能用，也可以添加新的设备。</p></div>
+          <div class="language-sample" aria-hidden="true"><span>Let's confirm the venue</span><span>场地就定在这里</span><span>Action · Friday</span></div>
+        </article>
+      </div>
+    </section>
+    <!-- module:features end -->
+
+    <!-- module:problem start -->
+    <section class="module ownership-section" id="privacy">
+      <div class="ownership-copy">
+        <p class="eyebrow" data-zh="不是另一个共享云盘" data-en="NOT ANOTHER SHARED CLOUD">不是另一个共享云盘</p>
+        <h2 data-zh="应用是你的，账户是你的，数据也是你的。" data-en="Your app. Your account. Your data.">应用是你的，账户是你的，数据也是你的。</h2>
+        <p data-zh="安装器只负责搭建。完成后，Meeting Note 独立运行在你选择的 Cloudflare 账户中。" data-en="The installer only performs setup. Afterwards, Meeting Note runs independently inside the Cloudflare account you choose.">安装器只负责搭建。完成后，Meeting Note 独立运行在你选择的 Cloudflare 账户中。</p>
+      </div>
+      <div class="ownership-list">
+        <article><b>01</b><div><h3 data-zh="独立私人部署" data-en="Independent private deployment">独立私人部署</h3><p data-zh="每位用户都有自己的 Worker、数据库和存储，不和其他用户混在一起。" data-en="Every user gets their own Worker, database and storage—never mixed with other users.">每位用户都有自己的 Worker、数据库和存储，不和其他用户混在一起。</p></div></article>
+        <article><b>02</b><div><h3 data-zh="免费额度看得见" data-en="Free allowance you can see">免费额度看得见</h3><p data-zh="应用显示每天用了多少 AI、还剩多少录音时间；到上限就暂停，不会自动收费。" data-en="See daily AI use and estimated recording time left. At the limit, AI pauses instead of billing you automatically.">应用显示每天用了多少 AI、还剩多少录音时间；到上限就暂停，不会自动收费。</p></div></article>
+        <article><b>03</b><div><h3 data-zh="一次授权，用完即撤销" data-en="One-time access, then revoked">一次授权，用完即撤销</h3><p data-zh="OAuth 令牌加密保存，最长 30 分钟；安装成功后立即撤销并删除安装会话。" data-en="The OAuth token is encrypted for no more than 30 minutes, then revoked and deleted after installation.">OAuth 令牌加密保存，最长 30 分钟；安装成功后立即撤销并删除安装会话。</p></div></article>
+      </div>
+    </section>
+    <!-- module:problem end -->
+
+    <!-- module:faq start -->
+    <section class="module faq-section" id="faq">
+      <div class="section-heading compact">
+        <p class="eyebrow" data-zh="第一次听说 Cloudflare？没关系" data-en="NEW TO CLOUDFLARE? THAT'S OKAY">第一次听说 Cloudflare？没关系</p>
+        <h2 data-zh="你不需要懂服务器。" data-en="You do not need to understand servers.">你不需要懂服务器。</h2>
+      </div>
+      <div class="faq-list">
+        <details><summary data-zh="Cloudflare 是什么？" data-en="What is Cloudflare?">Cloudflare 是什么？</summary><p data-zh="它是 Meeting Note 运行的云平台。你只需免费注册并授权，安装器会自动完成技术设置。" data-en="It is the cloud platform where Meeting Note runs. Create a free account and authorize once; the installer handles the technical setup.">它是 Meeting Note 运行的云平台。你只需免费注册并授权，安装器会自动完成技术设置。</p></details>
+        <details><summary data-zh="只有手机也能安装吗？" data-en="Can I install with only a phone?">只有手机也能安装吗？</summary><p data-zh="可以。注册、授权、安装和 Face ID 认领都能在手机浏览器完成。完成后可把 PWA 添加到主屏幕，像 App 一样使用。" data-en="Yes. Registration, authorization, installation and Face ID claiming all work in a mobile browser. Add the PWA to your home screen and use it like an app.">可以。注册、授权、安装和 Face ID 认领都能在手机浏览器完成。完成后可把 PWA 添加到主屏幕，像 App 一样使用。</p></details>
+        <details><summary data-zh="安装器能看到我的会议和笔记吗？" data-en="Can the installer see my meetings and notes?">安装器能看到我的会议和笔记吗？</summary><p data-zh="不能。安装器只创建资源，不读取你的会议、录音或笔记；这些内容保存在你自己的 Cloudflare 账户。" data-en="No. The installer creates resources but does not read your meetings, recordings or notes. They stay in your own Cloudflare account.">不能。安装器只创建资源，不读取你的会议、录音或笔记；这些内容保存在你自己的 Cloudflare 账户。</p></details>
+        <details><summary data-zh="以后可以停止使用或删除吗？" data-en="Can I stop or delete it later?">以后可以停止使用或删除吗？</summary><p data-zh="可以。你可以随时在自己的 Cloudflare 账户中删除应用及数据，不需要联系我们。" data-en="Yes. You can delete the app and its data from your own Cloudflare account at any time, without contacting us.">可以。你可以随时在自己的 Cloudflare 账户中删除应用及数据，不需要联系我们。</p></details>
+      </div>
+    </section>
+    <!-- module:faq end -->
+
+    <!-- module:cta start -->
+    <section class="module final-cta">
+      <p class="eyebrow" data-zh="从下一次会议开始" data-en="START WITH YOUR NEXT MEETING">从下一次会议开始</p>
+      <h2 data-zh="两分钟，拥有自己的私人 AI 记忆。" data-en="Two minutes to your own private AI memory.">两分钟，拥有自己的私人 AI 记忆。</h2>
+      <p data-zh="不用 GitHub，不用 API Token，不用复制任何代码。" data-en="No GitHub, no API token, and no code to copy.">不用 GitHub，不用 API Token，不用复制任何代码。</p>
+      <a class="primary final-button" href="/oauth/start" data-zh="现在免费安装" data-en="Install free now">现在免费安装</a>
+    </section>
+    <!-- module:cta end -->
+
+    <!-- module:footer start -->
+    <footer><span>Meeting Note · Personal Cloud</span><nav aria-label="Legal"><a href="/privacy.html" data-zh="隐私" data-en="Privacy">隐私</a><a href="/terms.html" data-zh="使用条款" data-en="Terms">使用条款</a></nav></footer>
+    <!-- module:footer end -->
   </main>
   <script type="module" src="/app.js"></script>
 </body>

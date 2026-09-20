@@ -37,6 +37,16 @@
       <button id="language" type="button" aria-label="Change language">EN</button>
     </header>
 
+    <section class="card browser-card hidden" id="browserWarning" aria-live="polite">
+      <p class="eyebrow" data-zh="先换个浏览器" data-en="FIRST, SWITCH BROWSERS">先换个浏览器</p>
+      <h2 id="browserWarningTitle"></h2>
+      <p data-zh="App 自带的浏览器不能调用 Face ID 或指纹，安装到认领那一步就会卡住。换成系统浏览器再来，两分钟就装好。" data-en="An app's built-in browser cannot ask for Face ID or a fingerprint, so the installation stops at the moment you claim the app. In Safari or Chrome it takes two minutes.">App 自带的浏览器不能调用 Face ID 或指纹，安装到认领那一步就会卡住。换成系统浏览器再来，两分钟就装好。</p>
+      <ol id="browserSteps"></ol>
+      <input id="browserUrl" readonly aria-label="Installer address" />
+      <button class="ghost-button wide" id="copyBrowserUrl" type="button" data-zh="复制安装网址" data-en="Copy the address">复制安装网址</button>
+      <button class="link-button" id="ignoreBrowser" type="button" data-zh="我知道，仍要在这里安装" data-en="I understand, install here anyway">我知道，仍要在这里安装</button>
+    </section>
+
     <!-- module:hero start -->
     <div class="hero-install-grid">
       <section class="hero" id="hero">

@@ -2,6 +2,26 @@ const $ = (selector) => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
 let language = navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
 let accounts = [];
+
+// A link shared in WeChat opens in WeChat's own browser, where claiming the finished app — Face ID,
+// a fingerprint, the screen lock — never works. Better to say so than to leave someone with an app
+// they cannot sign into. The app keeps its own copy of this list (public/in-app-browser.js).
+const IN_APP_BROWSERS = [
+  ["WeChat", "微信", /MicroMessenger/i],
+  ["QQ", "QQ", /\bQQ\/[\d.]+/i],
+  ["Weibo", "微博", /Weibo/i],
+  ["DingTalk", "钉钉", /DingTalk/i],
+  ["Feishu", "飞书", /Lark|Feishu/i],
+  ["Alipay", "支付宝", /AlipayClient/i],
+  ["Douyin", "抖音", /aweme|BytedanceWebview/i],
+  ["Xiaohongshu", "小红书", /xhsdiscover|XHS\//i],
+  ["Facebook", "Facebook", /FBAN|FBAV/i],
+  ["Instagram", "Instagram", /Instagram/i],
+  ["LINE", "LINE", /\bLine\/\d/i]
+];
+const inApp = IN_APP_BROWSERS.find(([, , pattern]) => pattern.test(navigator.userAgent || ""));
+const appleDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let installHereAnyway = false;
 let view = null;        // what the progress card is showing, so a language switch can redraw it
 let retryAction = () => location.assign("/oauth/start");
 
@@ -56,7 +76,29 @@ function translate() {
     element.textContent = element.dataset[language];
   });
   $("#language").textContent = language === "zh" ? "EN" : "中文";
+  if (inApp && !installHereAnyway) renderBrowserWarning();
   if (view) render();
+}
+
+function renderBrowserWarning() {
+  const [name, chineseName] = inApp;
+  $("#browserWarningTitle").textContent = language === "zh"
+    ? `请用 Safari 或 Chrome 打开，不要用${chineseName}内置浏览器`
+    : `Open this in Safari or Chrome, not ${name}`;
+  const steps = language === "zh"
+    ? ["点这个页面右上角的「···」。", appleDevice ? "选「在 Safari 中打开」。" : "选「在浏览器打开」。", "在那边点安装，全程两分钟。"]
+    : [
+        "Tap the ••• button at the top right of this screen.",
+        appleDevice ? "Choose “Open in Safari”." : "Choose “Open in browser”.",
+        "Install from there: the whole thing takes two minutes."
+      ];
+  $("#browserSteps").replaceChildren(...steps.map((step) => {
+    const item = document.createElement("li");
+    item.textContent = step;
+    return item;
+  }));
+  $("#browserUrl").value = `${location.origin}/`;
+  $("#browserUrl").scrollLeft = 0;
 }
 
 function show(id) {
@@ -193,6 +235,29 @@ async function install() {
   show("success");
 }
 
+$("#copyBrowserUrl").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText($("#browserUrl").value);
+    button.textContent = language === "zh" ? "已复制" : "Copied";
+    window.setTimeout(() => { button.textContent = button.dataset[language]; }, 2000);
+  } catch {
+    $("#browserUrl").select();
+  }
+});
+$("#ignoreBrowser").addEventListener("click", () => {
+  installHereAnyway = true;
+  $("#browserWarning").classList.add("hidden");
+});
+if (inApp) {
+  $("#browserWarning").classList.remove("hidden");
+  // The install links stay where they are; until the warning is dismissed they lead to it.
+  document.querySelectorAll('a[href="/oauth/start"]').forEach((link) => link.addEventListener("click", (event) => {
+    if (installHereAnyway) return;
+    event.preventDefault();
+    $("#browserWarning").scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+}
 $("#language").addEventListener("click", () => { language = language === "zh" ? "en" : "zh"; translate(); });
 $("#install").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));
 $("#installAnother").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));

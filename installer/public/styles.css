@@ -202,6 +202,11 @@ p { line-height: 1.65; }
 .existing a::after { content: " \2192"; color: var(--color-brand); }
 .existing .fine { margin: 0; text-align: left; }
 .ghost-button.wide { width: 100%; }
+.browser-card { max-width: 720px; margin: 18px auto 0; border-color: var(--color-brand); text-align: left; }
+.browser-card h2 { margin: 6px 0 10px; }
+.browser-card ol { margin: 14px 0; padding-left: 20px; color: var(--color-ink-soft); font-size: 15px; line-height: 1.7; }
+.browser-card input { width: 100%; min-height: 46px; margin-bottom: 10px; padding: 0 14px; color: var(--color-ink); border: 1px solid var(--color-line); border-radius: var(--radius-control); background: rgba(255, 255, 255, .03); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.link-button { display: block; width: 100%; min-height: 40px; margin-top: 12px; padding: 0; color: var(--color-faint); border: 0; background: none; font-size: 13px; text-decoration: underline; cursor: pointer; }
 
 footer { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 4px; color: var(--color-faint); font-size: 12px; }
 footer nav { display: flex; gap: 8px 24px; }

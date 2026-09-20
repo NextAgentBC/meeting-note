@@ -2,7 +2,11 @@
 // confirms it's you with Face ID, a fingerprint or the screen lock, and the server checks
 // a signature. There is no password anywhere.
 
+import { inAppBrowser, openOutsideSteps } from "./in-app-browser.js";
+
 const $ = (selector) => document.querySelector(selector);
+// Set when someone insists on staying inside an app's browser after being warned.
+let inAppBrowserIgnored = false;
 
 // ── WebAuthn: turn the server's JSON into browser calls and back ─────────────
 
@@ -90,12 +94,14 @@ function messageFor(error) {
 // ── The sign-in screen ───────────────────────────────────────────────────────
 
 let whenSignedIn = null;
+let lastMe = null;
 
 function show(element, visible) {
   element.classList.toggle("hidden", !visible);
 }
 
 function showPanel(name) {
+  show($("#inAppPanel"), name === "inapp");
   show($("#setupForm"), name === "setup");
   show($("#signInPanel"), name === "signin");
   show($("#recoverForm"), name === "recover");
@@ -106,6 +112,9 @@ function showPanel(name) {
 
 // A link from "Add device" on a signed-in device: #add-device=<token>. Taken out of the address
 // straight away, so it isn't left in the history or bookmarked.
+// Kept before the fragment is stripped: inside an app's browser this is what the owner copies over
+// to Safari, and it has to carry the claim or device-link code with it.
+const arrivalUrl = location.href;
 const hashParams = new URLSearchParams(location.hash.slice(1));
 let deviceLinkToken = hashParams.get("add-device");
 let installerClaimCode = hashParams.get("claim");
@@ -170,6 +179,32 @@ export async function ensureSignedIn() {
     return new Promise(() => {});
   }
 
+  lastMe = me;
+  renderChoice(me);
+  return new Promise((resolve) => {
+    whenSignedIn = resolve;
+  });
+}
+
+// Which of the sign-in screens this visit needs. Separate from ensureSignedIn so that leaving the
+// in-app warning redraws the screen without starting a second wait for the same sign-in.
+function renderChoice(me) {
+  // WeChat and the rest do have PublicKeyCredential, and the prompt still never appears.
+  const inApp = inAppBrowserIgnored ? "" : inAppBrowser();
+  if (inApp) {
+    $("#authTitle").textContent = `Open this in Safari or Chrome, not ${inApp}`;
+    $("#authLede").textContent = "An app's own browser cannot ask for Face ID, a fingerprint or your screen lock, and cannot put this on your home screen. Your Meeting Note is fine — it needs a real browser.";
+    $("#inAppSteps").replaceChildren(...openOutsideSteps().map((step) => {
+      const item = document.createElement("li");
+      item.textContent = step;
+      return item;
+    }));
+    $("#inAppUrl").value = arrivalUrl;
+    showPanel("inapp");
+    $("#inAppUrl").scrollLeft = 0;
+    return;
+  }
+
   if (me.hasOwner && deviceLinkToken) {
     $("#authTitle").textContent = "Add this device";
     $("#authLede").textContent = "You opened a link from a device where you're signed in. Create a passkey here, and this phone or computer can sign in with Face ID, a fingerprint or its screen lock.";
@@ -193,10 +228,22 @@ export async function ensureSignedIn() {
     $("#ownerName").required = !hasInstallerClaim;
     showPanel("setup");
   }
-  return new Promise((resolve) => {
-    whenSignedIn = resolve;
-  });
 }
+
+$("#copyInAppUrl").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText($("#inAppUrl").value);
+    button.querySelector("span").textContent = "Copied";
+  } catch {
+    $("#inAppUrl").select();
+  }
+});
+
+$("#inAppAnyway").addEventListener("click", () => {
+  inAppBrowserIgnored = true;
+  if (lastMe) renderChoice(lastMe);
+});
 
 $("#setupForm").addEventListener("submit", (event) => {
   event.preventDefault();

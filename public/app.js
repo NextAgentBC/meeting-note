@@ -1,6 +1,7 @@
 import { ensureSignedIn } from "./auth.js";
 import { initCaptures, loadImageAiSetting } from "./captures.js";
 import { initPreferences } from "./preferences.js";
+import { inAppBrowser, openOutsideSteps } from "./in-app-browser.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
 import "./transcription.js";
@@ -101,6 +102,8 @@ async function releaseWakeLock() {
 // Safari never fires beforeinstallprompt, so on an iPhone — where most of this app is used — the
 // only way onto the home screen is the Share menu, and someone has to say so.
 function homeScreenSteps() {
+  // No app's built-in browser can add anything to a home screen: that starts with leaving it.
+  if (inAppBrowser()) return openOutsideSteps();
   const agent = navigator.userAgent;
   if (/iPad|iPhone|iPod/.test(agent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
     return [

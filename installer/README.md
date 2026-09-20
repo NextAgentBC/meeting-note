@@ -30,6 +30,14 @@ minutes, revokes the token after a successful installation, and deletes the inst
 provisioning fails, newly created resources are rolled back so the user can retry cleanly — the
 token is kept, so Try again re-runs the installation without a second Cloudflare sign-in.
 
+## Shared into WeChat
+
+Most people receive this link in a chat app and tap it there, which opens it in that app's own
+browser. The claim step needs a passkey, which those webviews never show, so the page detects them
+by user agent and asks the reader to reopen it in Safari or Chrome — with the steps for their
+phone, the address to copy, and a way through if the guess was wrong. The install buttons lead to
+that warning until it is dismissed. The app itself does the same on its sign-in screen.
+
 ## Installing twice
 
 Nothing blocks a second run. A failed installation rolls its resources back and the next attempt

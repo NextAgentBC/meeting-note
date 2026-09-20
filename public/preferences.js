@@ -111,6 +111,16 @@ const ZH = {
   "Show me how": "教我怎么加",
   "Not now": "以后再说",
   "Meeting Note is installed and ready from your home screen.": "Meeting Note 已安装，可以从主屏幕打开了。",
+  "An app's own browser cannot ask for Face ID, a fingerprint or your screen lock, and cannot put this on your home screen. Your Meeting Note is fine — it needs a real browser.": "App 自带的浏览器无法调用 Face ID、指纹或屏幕锁，也不能把它加到主屏幕。你的 Meeting Note 没有问题，换成系统浏览器就行。",
+  "Tap the ••• button at the top right of this screen.": "点这个页面右上角的「···」。",
+  "Choose “Open in Safari”.": "选「在 Safari 中打开」。",
+  "Choose “Open in browser”.": "选「在浏览器打开」。",
+  "Carry on there: Face ID only works in Safari.": "在那边继续：Face ID 只能在 Safari 里用。",
+  "Carry on there: your fingerprint or screen lock only works in a real browser.": "在那边继续：指纹和屏幕锁只能在系统浏览器里用。",
+  "Copy this address": "复制这个网址",
+  "Paste it into Safari or Chrome if the menu has no such choice.": "如果菜单里没有这一项，就把网址粘贴到 Safari 或 Chrome 打开。",
+  "Try it here anyway": "仍然在这里试试",
+  "The address of this page": "这个页面的网址",
   "Time zone": "时区",
   "Sign out": "退出登录",
   "Only you can sign in · audio deletes itself after 7 days": "只有你能登录 · 录音将在 7 天后自动删除",
@@ -270,6 +280,14 @@ function translateDynamic(value) {
     if ((durationMatch = text.match(/^(\d+) minutes?$/))) return `${durationMatch[1]} 分钟`;
     return text;
   };
+  const inAppNames = {
+    WeChat: "微信", QQ: "QQ", Weibo: "微博", DingTalk: "钉钉", Feishu: "飞书",
+    Alipay: "支付宝", Douyin: "抖音", Xiaohongshu: "小红书", Facebook: "Facebook",
+    Instagram: "Instagram", LINE: "LINE"
+  };
+  if ((match = value.match(/^Open this in Safari or Chrome, not (.+)$/))) {
+    return `请用 Safari 或 Chrome 打开，不要用${inAppNames[match[1]] || match[1]}内置浏览器`;
+  }
   if ((match = value.match(/^(\d+)\/(\d+) ready$/))) return `${match[1]}/${match[2]} 张已准备`;
   if ((match = value.match(/^Uploading photo (\d+)\/(\d+)…$/))) return `正在上传照片 ${match[1]}/${match[2]}…`;
   if ((match = value.match(/^About (.+) of free recording left today$/))) return `今天约剩 ${duration(match[1])}免费录音额度`;

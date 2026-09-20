@@ -116,6 +116,16 @@ npm run typecheck
   `archiveChunk` writes the same key to `RECORDINGS`; if that fails, an `{ type: "archive" }` job copies it
   from KV later. Audio recorded before the binding existed is copied once by `archiveBacklog` (the
   catch-up call in `ask.ts`). Transcription falls back to the permanent copy when KV has expired it.
+- **An app's built-in browser cannot finish any of this.** A link shared in WeChat (or QQ, Weibo,
+  DingTalk, Feishu, Alipay, Douyin, Xiaohongshu, Facebook, Instagram, LINE) opens in that app's
+  webview, where `window.PublicKeyCredential` exists but the passkey prompt never appears, and
+  nothing can be added to the home screen. `public/in-app-browser.js` recognises them by user agent;
+  the sign-in screen then shows how to reopen the page in Safari or the system browser instead of a
+  passkey button, and the installer page (its own copy of the same list, in `installer/public/app.js`
+  — keep the two in step) shows the same thing and sends its install links to that warning. Both
+  leave a way through for a wrong guess. The address the sign-in screen offers to copy is
+  `arrivalUrl`, captured **before** `#claim=` / `#add-device=` is stripped, or the owner would arrive
+  in Safari without the code.
 - **Installing twice is allowed, and a failed install leaves nothing behind.** The rollback removes
   the Worker, queue, KV namespace and database it made, and the next attempt draws new names from a
   new install id, so the same account can retry as often as it likes. What does survive is a

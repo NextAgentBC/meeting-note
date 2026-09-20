@@ -82,6 +82,14 @@
               <button id="hideRecover" class="auth-link" type="button">← Back to sign in</button>
             </form>
 
+            <div id="inAppPanel" class="auth-form hidden">
+              <ol id="inAppSteps"></ol>
+              <input id="inAppUrl" readonly aria-label="The address of this page" />
+              <button id="copyInAppUrl" class="primary-button" type="button"><span>Copy this address</span><b>&#8594;</b></button>
+              <p class="auth-hint">Paste it into Safari or Chrome if the menu has no such choice.</p>
+              <button id="inAppAnyway" class="auth-link" type="button">Try it here anyway</button>
+            </div>
+
             <div id="linkPanel" class="auth-form hidden">
               <button id="linkDeviceButton" class="primary-button" type="button"><span>Add this device</span><b>→</b></button>
               <small class="auth-hint">Your other devices keep working. The link works once.</small>

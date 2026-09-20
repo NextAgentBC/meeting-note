@@ -194,9 +194,12 @@ main {
   --glass-lean: 0;
   --glass-sheen: 255 255 255;
   overflow: hidden;
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
-  backdrop-filter: blur(26px) saturate(180%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(0, 0, 0, .12);
+  -webkit-backdrop-filter: blur(40px) saturate(210%) brightness(1.06);
+  backdrop-filter: blur(40px) saturate(210%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    inset 0 -1px 0 rgba(0, 0, 0, .18),
+    inset 0 14px 26px -16px rgba(255, 255, 255, .22);
 }
 /* The refraction: light gathers along the edge and bends across the face as the page moves. */
 .appbar::before, .tabbar::before {
@@ -205,9 +208,9 @@ main {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(150% 120% at calc(50% + var(--glass-shift) * 2) var(--glass-origin, 0%),
-      rgba(var(--glass-sheen) / .18), transparent 62%),
-    linear-gradient(var(--glass-angle, 180deg), rgba(var(--glass-sheen) / .13), transparent 46%);
+    radial-gradient(150% 130% at calc(50% + var(--glass-shift) * 2) var(--glass-origin, 0%),
+      rgba(var(--glass-sheen) / .3), transparent 64%),
+    linear-gradient(var(--glass-angle, 180deg), rgba(var(--glass-sheen) / .22), transparent 52%);
   opacity: calc(.72 + var(--glass-lean) * .28);
   transition: opacity .18s ease-out;
 }
@@ -219,7 +222,7 @@ main {
   width: 150%;
   height: 1px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(var(--glass-sheen) / .55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(var(--glass-sheen) / .8), transparent);
   transform: translateX(var(--glass-shift));
 }
 .appbar::after { bottom: 0; }
@@ -264,8 +267,10 @@ body.auth-pending .tabbar, body:not(.signed-in) .tabbar { display: none; }
   border: 1px solid var(--line-strong);
   border-bottom: 0;
   border-radius: 22px 22px 0 0;
-  background: #121820;
-  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--surface, #121820) 78%, transparent);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 -20px 60px rgba(0, 0, 0, 0.5);
 }
 .sheet::backdrop { background: rgba(4, 6, 9, 0.7); }
 .sheet-body { padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); }

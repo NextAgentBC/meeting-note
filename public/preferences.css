@@ -2,38 +2,38 @@
 :root, html[data-theme="pine"] {
   --font-display: "Iowan Old Style", "Palatino Linotype", "Songti SC", "STSong", Georgia, serif;
   --font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --theme-light-canvas: #faf8f4; --theme-light-surface: #ffffff; --theme-light-surface-2: #f1eee8; --theme-light-brand: #365b4c; --theme-light-brand-text: #365b4c; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d9a441; --theme-light-rgb: 54,91,76;
-  --theme-dark-canvas: #101614; --theme-dark-surface: #18201d; --theme-dark-surface-2: #212a26; --theme-dark-brand: #2f5a4a; --theme-dark-brand-text: #86c0aa; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #d9a441; --theme-dark-rgb: 134,192,170;
+  --theme-light-canvas: #e7f0e7; --theme-light-surface: #f9fdf8; --theme-light-surface-2: #d6e7d6; --theme-light-brand: #2f6b4f; --theme-light-brand-text: #245c43; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c98a2b; --theme-light-rgb: 47,107,79;
+  --theme-dark-canvas: #07160f; --theme-dark-surface: #0e2318; --theme-dark-surface-2: #16301f; --theme-dark-brand: #2f7a55; --theme-dark-brand-text: #7fe0ac; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #d9a441; --theme-dark-rgb: 127,224,172;
   --radius: 10px;
 }
 html[data-theme="celadon"] {
-  --theme-light-canvas: #f8f7f2; --theme-light-surface: #ffffff; --theme-light-surface-2: #eeeee8; --theme-light-brand: #1c7a68; --theme-light-brand-text: #1c7a68; --theme-light-brand-fg: #ffffff; --theme-light-gold: #3fa796; --theme-light-rgb: 28,122,104;
-  --theme-dark-canvas: #0e1614; --theme-dark-surface: #141e1b; --theme-dark-surface-2: #1c2926; --theme-dark-brand: #1e8571; --theme-dark-brand-text: #6fd3bc; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8d9b5; --theme-dark-rgb: 111,211,188;
+  --theme-light-canvas: #e1f1ee; --theme-light-surface: #f6fffd; --theme-light-surface-2: #cde7e1; --theme-light-brand: #0f6f5e; --theme-light-brand-text: #0b5d4f; --theme-light-brand-fg: #ffffff; --theme-light-gold: #2f9c8a; --theme-light-rgb: 15,111,94;
+  --theme-dark-canvas: #04161a; --theme-dark-surface: #0a2228; --theme-dark-surface-2: #113038; --theme-dark-brand: #188271; --theme-dark-brand-text: #63e8cd; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8d9b5; --theme-dark-rgb: 99,232,205;
   --radius: 12px;
 }
 html[data-theme="dusk"] {
-  --theme-light-canvas: #f8f8f9; --theme-light-surface: #ffffff; --theme-light-surface-2: #eff0f3; --theme-light-brand: #4a5f8c; --theme-light-brand-text: #4a5f8c; --theme-light-brand-fg: #ffffff; --theme-light-gold: #e8b4a2; --theme-light-rgb: 74,95,140;
-  --theme-dark-canvas: #0d1017; --theme-dark-surface: #141821; --theme-dark-surface-2: #1c2130; --theme-dark-brand: #4a5f8c; --theme-dark-brand-text: #9fb4df; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8b4a2; --theme-dark-rgb: 159,180,223;
+  --theme-light-canvas: #e6eaf7; --theme-light-surface: #f7f9ff; --theme-light-surface-2: #d2dbf1; --theme-light-brand: #3d55a3; --theme-light-brand-text: #33488f; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d98f74; --theme-light-rgb: 61,85,163;
+  --theme-dark-canvas: #070c1c; --theme-dark-surface: #0d1430; --theme-dark-surface-2: #151d42; --theme-dark-brand: #4a63bd; --theme-dark-brand-text: #9fb2ff; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8b4a2; --theme-dark-rgb: 159,178,255;
   --radius: 12px;
 }
 html[data-theme="pomegranate"] {
-  --theme-light-canvas: #fdf9f4; --theme-light-surface: #ffffff; --theme-light-surface-2: #f5eee9; --theme-light-brand: #b5485d; --theme-light-brand-text: #a83d52; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d99872; --theme-light-rgb: 181,72,93;
-  --theme-dark-canvas: #17100f; --theme-dark-surface: #1f1616; --theme-dark-surface-2: #291d1e; --theme-dark-brand: #b5485d; --theme-dark-brand-text: #f08aa0; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f3e2d1; --theme-dark-rgb: 240,138,160;
+  --theme-light-canvas: #fae5e5; --theme-light-surface: #fff8f7; --theme-light-surface-2: #f2d1d1; --theme-light-brand: #ab2f44; --theme-light-brand-text: #97263a; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c9704a; --theme-light-rgb: 171,47,68;
+  --theme-dark-canvas: #1b0709; --theme-dark-surface: #280d11; --theme-dark-surface-2: #35141a; --theme-dark-brand: #c33d55; --theme-dark-brand-text: #ff93a6; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f3e2d1; --theme-dark-rgb: 255,147,166;
   --radius: 12px;
 }
 html[data-theme="lilac"] {
-  --theme-light-canvas: #faf7f2; --theme-light-surface: #ffffff; --theme-light-surface-2: #f1ece9; --theme-light-brand: #6b58b0; --theme-light-brand-text: #6b58b0; --theme-light-brand-fg: #ffffff; --theme-light-gold: #8877c7; --theme-light-rgb: 107,88,176;
-  --theme-dark-canvas: #12101a; --theme-dark-surface: #1a1724; --theme-dark-surface-2: #241f31; --theme-dark-brand: #6b58b0; --theme-dark-brand-text: #b3a1ee; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f0e7db; --theme-dark-rgb: 179,161,238;
+  --theme-light-canvas: #ebe5f8; --theme-light-surface: #fbf8ff; --theme-light-surface-2: #dcd2f1; --theme-light-brand: #5b45a8; --theme-light-brand-text: #4f3b96; --theme-light-brand-fg: #ffffff; --theme-light-gold: #7a63c9; --theme-light-rgb: 91,69,168;
+  --theme-dark-canvas: #100826; --theme-dark-surface: #190f36; --theme-dark-surface-2: #221647; --theme-dark-brand: #6d55c9; --theme-dark-brand-text: #bda8ff; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f0e7db; --theme-dark-rgb: 189,168,255;
   --radius: 14px;
 }
 html[data-theme="rosewood"] {
-  --theme-light-canvas: #fbf8f8; --theme-light-surface: #ffffff; --theme-light-surface-2: #f3edef; --theme-light-brand: #a15268; --theme-light-brand-text: #93475c; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c88697; --theme-light-rgb: 161,82,104;
-  --theme-dark-canvas: #130f11; --theme-dark-surface: #1b1517; --theme-dark-surface-2: #251d20; --theme-dark-brand: #a15268; --theme-dark-brand-text: #eb92a9; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #c88697; --theme-dark-rgb: 235,146,169;
+  --theme-light-canvas: #f7e5ea; --theme-light-surface: #fff8fa; --theme-light-surface-2: #eecfd7; --theme-light-brand: #9c3350; --theme-light-brand-text: #8b2b45; --theme-light-brand-fg: #ffffff; --theme-light-gold: #bd6b82; --theme-light-rgb: 156,51,80;
+  --theme-dark-canvas: #190a10; --theme-dark-surface: #24101a; --theme-dark-surface-2: #311624; --theme-dark-brand: #b44667; --theme-dark-brand-text: #ff9ab4; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #c88697; --theme-dark-rgb: 255,154,180;
   --radius: 14px;
 }
 html[data-theme="butter"] {
-  --theme-light-canvas: #fbf9f3; --theme-light-surface: #ffffff; --theme-light-surface-2: #f4f0e3; --theme-light-brand: #8a6a16; --theme-light-brand-text: #765a10; --theme-light-brand-fg: #ffffff; --theme-light-gold: #5d7e7a; --theme-light-rgb: 138,106,22;
-  --theme-dark-canvas: #121009; --theme-dark-surface: #1a1710; --theme-dark-surface-2: #241f15; --theme-dark-brand: #8a6a16; --theme-dark-brand-text: #e7c86a; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #5d7e7a; --theme-dark-rgb: 231,200,106;
+  --theme-light-canvas: #f7eed6; --theme-light-surface: #fffdf3; --theme-light-surface-2: #ebdeb8; --theme-light-brand: #7a5c12; --theme-light-brand-text: #6a4f0d; --theme-light-brand-fg: #ffffff; --theme-light-gold: #4f736e; --theme-light-rgb: 122,92,18;
+  --theme-dark-canvas: #16120a; --theme-dark-surface: #201a0d; --theme-dark-surface-2: #2c2413; --theme-dark-brand: #8f6d1a; --theme-dark-brand-text: #f0cd6c; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #5d7e7a; --theme-dark-rgb: 240,205,108;
   --radius: 12px;
 }
 
@@ -68,12 +68,20 @@ html[data-mode="dark"] {
 body { color: var(--ink); background: var(--canvas); font-family: var(--font-ui); }
 .meeting-head h2, .quick-note-head h2, .usage-head h2, .auth-card h1 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
 /* Glass, in this theme's colour: see the liquid-glass block in shell.css. */
-.appbar, .tabbar { border-color: var(--hairline); background: color-mix(in srgb, var(--canvas) 58%, transparent); }
+.appbar, .tabbar { border-color: var(--hairline); background: color-mix(in srgb, var(--canvas) 42%, transparent); }
 /* Over bright content the glass itself goes bright, whatever the theme's own mode is. */
-.appbar[data-glass="light"], .tabbar[data-glass="light"] { background: color-mix(in srgb, var(--theme-light-surface, #fbf9f4) 66%, transparent); }
+.appbar[data-glass="light"], .tabbar[data-glass="light"] { background: color-mix(in srgb, var(--theme-light-surface, #fbf9f4) 52%, transparent); }
 .tabbar[data-glass="light"] a { color: color-mix(in srgb, var(--theme-light-ink, #17201d) 70%, transparent); }
 .tabbar[data-glass="dark"] a { color: color-mix(in srgb, var(--ink-3, #f4f7f9) 92%, transparent); }
-.card, .new-card, .note-card, .transcript-card, .plan-block, .usage-card, .settings-group, .meeting-row, .memory-row, .capture-card, .ask-form, .dictate-result { border-color: var(--hairline); background: var(--surface); box-shadow: 0 14px 40px rgba(var(--shadow-color),.12); }
+/* Glass everywhere, not only on the bars: a card lets the theme's own colour through, and the
+   blur behind it is what keeps text readable over whatever is scrolling past. */
+.card, .new-card, .note-card, .transcript-card, .plan-block, .usage-card, .settings-group, .meeting-row, .memory-row, .capture-card, .ask-form, .dictate-result {
+  border-color: var(--hairline);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 30%, transparent), 0 16px 44px rgba(var(--shadow-color),.16);
+}
 input, select, textarea, .segmented, .recovery-code, .sheet textarea { color: var(--ink); border-color: var(--hairline); background: var(--surface-2); }
 .field > span, .record-options summary, .segmented label, .segmented button, .home-notes-entry small, .plan-notes, .auth-hint { color: var(--ink-2); }
 .primary-button, .segmented label:has(input:checked), .segmented button[aria-selected="true"] { color: var(--brand-fg); background: var(--brand); }

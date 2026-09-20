@@ -189,26 +189,28 @@ function rest() {
   shapeList(0);
 }
 
-// A phone that cannot keep up gets the app without the movement, rather than the movement badly.
-const FRAME_BUDGET_MS = 26;
+// A device that cannot keep up gets the app without the movement, rather than the movement badly.
+// The judgement is made fresh every visit: it is never remembered, because the thing being judged
+// is this build, and the next one may be lighter.
+const FRAME_BUDGET_MS = 32;
 let slowFrames = 0;
 let watchedFrames = 0;
+let badWindows = 0;
+
+function degrade() {
+  document.documentElement.dataset.motion = "light";
+  clearShapes();
+  window.dispatchEvent(new CustomEvent("meetingnote:motion-light"));
+}
 
 function watchFrameRate(elapsed) {
   if (document.documentElement.dataset.motion === "light") return;
   watchedFrames += 1;
   if (elapsed > FRAME_BUDGET_MS) slowFrames += 1;
-  if (watchedFrames < 48) return;
-  // More than a third of a second's worth of frames late: this device is not enjoying this.
-  if (slowFrames / watchedFrames > 0.34) {
-    document.documentElement.dataset.motion = "light";
-    try { localStorage.setItem("meetingnote:motion", "light"); } catch { /* denied */ }
-    for (const entry of measured) {
-      entry.item.style.removeProperty("transform");
-      entry.item.style.removeProperty("opacity");
-      entry.last = "off";
-    }
-  }
+  if (watchedFrames < 60) return;
+  // Half the frames late, twice in a row: a stutter someone can see, not a slow first paint.
+  badWindows = slowFrames / watchedFrames > 0.5 ? badWindows + 1 : 0;
+  if (badWindows >= 2) degrade();
   watchedFrames = 0;
   slowFrames = 0;
 }
@@ -244,9 +246,8 @@ function flowTick(now) {
 
 export function cylinderScroll() {
   if (still()) return;
-  try {
-    if (localStorage.getItem("meetingnote:motion") === "light") document.documentElement.dataset.motion = "light";
-  } catch { /* denied */ }
+  // An older build remembered its own verdict. It does not get to hold this one back.
+  try { localStorage.removeItem("meetingnote:motion"); } catch { /* denied */ }
   lastScroll = window.scrollY || 0;
   measure();
   const schedule = () => {

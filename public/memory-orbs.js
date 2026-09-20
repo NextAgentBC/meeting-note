@@ -62,8 +62,15 @@ function remeasureField() {
   fieldHeight = box.height || fieldHeight;
 }
 
-function step() {
+let lastStep = 0;
+
+function step(now) {
   frame = 0;
+  const elapsed = lastStep ? Math.min(80, now - lastStep) : 16.7;
+  lastStep = now;
+  const steps = elapsed / 16.7;
+  // 0.94 per frame at 60Hz: about half a second to settle, and the same on a 120Hz screen.
+  const swell = 1 - 0.94 ** steps;
   // Measured on resize, not on every frame: reading a box mid-animation forces a layout.
   const width = fieldWidth;
   const height = fieldHeight;
@@ -73,14 +80,14 @@ function step() {
     // Growing and shrinking is part of the physics, not a CSS transition, so the circles around an
     // opened one are pushed aside by it as it grows.
     if (Math.abs(orb.targetR - orb.r) > 0.3) {
-      orb.r += (orb.targetR - orb.r) * 0.18;
+      orb.r += (orb.targetR - orb.r) * swell;
       orb.element.style.width = `${(orb.r * 2).toFixed(1)}px`;
       orb.element.style.height = `${(orb.r * 2).toFixed(1)}px`;
     }
     if (orb.open) {
       // An opened circle stays put, and stays inside the field.
-      orb.x += (Math.min(Math.max(orb.r + 6, orb.x), Math.max(orb.r + 6, width - orb.r - 6)) - orb.x) * 0.2;
-      orb.y += (Math.min(Math.max(orb.r + 6, orb.y), Math.max(orb.r + 6, height - orb.r - 6)) - orb.y) * 0.2;
+      orb.x += (Math.min(Math.max(orb.r + 6, orb.x), Math.max(orb.r + 6, width - orb.r - 6)) - orb.x) * swell;
+      orb.y += (Math.min(Math.max(orb.r + 6, orb.y), Math.max(orb.r + 6, height - orb.r - 6)) - orb.y) * swell;
       continue;
     }
     if (orb === held) continue;
@@ -129,14 +136,25 @@ function step() {
   if (visible) frame = requestAnimationFrame(step);
 }
 
-function start() {
+function run() {
   if (document.documentElement.dataset.motion === "light") return;
   if (!frame && visible && !still()) frame = requestAnimationFrame(step);
+}
+
+/** Physics off: the circles become a plain wrapped row rather than a frozen tangle. */
+function settle() {
+  stop();
+  field.classList.add("orb-field-static");
+  for (const orb of orbs) {
+    orb.element.style.removeProperty("transform");
+    orb.element.style.removeProperty("opacity");
+  }
 }
 
 function stop() {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
+  lastStep = 0;
 }
 
 /** How big an opened circle gets: most of the field, but never past its edges. */
@@ -236,11 +254,11 @@ export function memoryOrbs(host, facts) {
       moved = 0;
       element.classList.add("held");
       try { element.setPointerCapture(event.pointerId); } catch { /* nothing to capture */ }
-      const start = { x: event.clientX, y: event.clientY, ox: orb.x, oy: orb.y };
+      const from = { x: event.clientX, y: event.clientY, ox: orb.x, oy: orb.y };
       const move = (pointer) => {
-        moved = Math.hypot(pointer.clientX - start.x, pointer.clientY - start.y);
-        const nextX = start.ox + (pointer.clientX - start.x);
-        const nextY = start.oy + (pointer.clientY - start.y);
+        moved = Math.hypot(pointer.clientX - from.x, pointer.clientY - from.y);
+        const nextX = from.ox + (pointer.clientX - from.x);
+        const nextY = from.oy + (pointer.clientY - from.y);
         orb.vx = nextX - orb.x;
         orb.vy = nextY - orb.y;
         orb.x = nextX;
@@ -258,27 +276,30 @@ export function memoryOrbs(host, facts) {
           if (orb.open) close(orb);
           else open(orb);
         }
-        start();
+        run();
       };
       element.addEventListener("pointermove", move);
       element.addEventListener("pointerup", end);
       element.addEventListener("pointercancel", end);
-      start();
+      run();
     });
   }
 
   remeasureField();
   if (still() || document.documentElement.dataset.motion === "light") {
-    field.classList.add("orb-field-static");
+    settle();
     return true;
   }
+  // If the page decides this device cannot keep up, the circles line up instead of freezing
+  // wherever they happened to be.
+  window.addEventListener("meetingnote:motion-light", settle, { once: true });
   // Only while the field is actually on screen.
   new IntersectionObserver((entries) => {
     visible = entries.some((entry) => entry.isIntersecting);
-    if (visible) start();
+    if (visible) run();
     else stop();
   }, { threshold: 0.05 }).observe(field);
-  window.addEventListener("resize", () => { remeasureField(); start(); });
-  start();
+  window.addEventListener("resize", () => { remeasureField(); run(); });
+  run();
   return true;
 }

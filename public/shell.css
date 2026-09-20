@@ -508,6 +508,7 @@ body::after {
   transition: box-shadow .25s ease, filter .25s ease;
 }
 .orb span {
+  transition: color .4s ease, font-size .4s ease, letter-spacing .4s ease;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -526,6 +527,7 @@ body::after {
   z-index: 3;
   padding: 16px;
   cursor: default;
+  transition: box-shadow .4s ease;
   box-shadow: var(--glass-edge), 0 26px 50px -20px hsl(var(--orb-hue) 62% 40% / .95);
 }
 .orb.open > span {
@@ -535,15 +537,25 @@ body::after {
   text-transform: uppercase;
   -webkit-line-clamp: 2;
 }
-.orb-body { display: none; }
-.orb.open .orb-body {
+/* The contents fade in behind the swell, and out ahead of it. */
+.orb-body {
   display: grid;
   gap: 6px;
   max-width: 82%;
-  margin-top: 6px;
-  animation: orb-open .25s ease-out;
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .28s ease, max-height .4s ease, margin-top .4s ease;
 }
-@keyframes orb-open { from { opacity: 0; } to { opacity: 1; } }
+.orb.open .orb-body {
+  max-height: 260px;
+  margin-top: 6px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity .38s ease .16s, max-height .45s ease, margin-top .45s ease;
+}
 .orb-statement {
   display: -webkit-box;
   -webkit-line-clamp: 6;

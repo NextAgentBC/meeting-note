@@ -600,3 +600,32 @@ html[data-motion="light"] .appbar::before,
 html[data-motion="light"] .tabbar::before,
 html[data-motion="light"] .appbar::after,
 html[data-motion="light"] .tabbar::after { display: none; }
+
+
+/* One meeting's many pieces, folded into one card until asked (ask.js). */
+.memory-group { grid-template-areas: "open remove" "expand expand" "pieces pieces"; }
+.memory-group .memory-open { grid-area: open; }
+.memory-group > .plan-remove { grid-area: remove; }
+.memory-expand {
+  grid-area: expand;
+  justify-self: start;
+  margin-top: 8px;
+  padding: 0;
+  color: var(--brand-text);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.memory-pieces { grid-area: pieces; display: grid; gap: 8px; margin-top: 10px; }
+.memory-piece {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+.memory-piece p { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.5; }

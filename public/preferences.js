@@ -61,6 +61,7 @@ const ZH = {
   "Choose photos": "从相册选择",
   "Save note": "保存笔记",
   "Up to 6 photos. They are resized and converted to WebP on this device before upload.": "最多 6 张照片。上传前会在本机缩小并转换为 WebP。",
+  "Show less": "收起",
   "Date": "日期",
   "Time": "时间",
   "Forget": "忘记",
@@ -305,6 +306,7 @@ function translateDynamic(value) {
   if ((match = value.match(/^Open this in Safari or Chrome, not (.+)$/))) {
     return `请用 Safari 或 Chrome 打开，不要用${inAppNames[match[1]] || match[1]}内置浏览器`;
   }
+  if ((match = value.match(/^(\d+) more pieces$/))) return `还有 ${match[1]} 段`;
   if ((match = value.match(/^(\d+)\/(\d+) ready$/))) return `${match[1]}/${match[2]} 张已准备`;
   if ((match = value.match(/^Uploading photo (\d+)\/(\d+)…$/))) return `正在上传照片 ${match[1]}/${match[2]}…`;
   if ((match = value.match(/^About (.+) of free recording left today$/))) return `今天约剩 ${duration(match[1])}免费录音额度`;

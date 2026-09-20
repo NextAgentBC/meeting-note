@@ -2,6 +2,7 @@
 // the passages it came from; one from a meeting opens that meeting.
 
 import { memoryOrbs } from "./memory-orbs.js";
+import { t } from "./preferences.js";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -127,6 +128,47 @@ function memoryRowHtml(item) {
     </div>`;
 }
 
+/**
+ * One meeting leaves many pieces behind — a passage per chunk of transcript, a note per five
+ * minutes — and every one of them carries the meeting's title, so a list of them looks like the
+ * same thing over and over. Consecutive pieces of one meeting, of one kind, are one card.
+ */
+function groupMemory(items) {
+  const groups = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    const sameSource = last
+      && last.kind === item.kind
+      && (item.meetingId ? last.meetingId === item.meetingId : last.title === item.title);
+    if (sameSource) last.items.push(item);
+    else groups.push({ kind: item.kind, meetingId: item.meetingId ?? "", title: item.title || "", items: [item] });
+  }
+  return groups;
+}
+
+function memoryGroupHtml(group) {
+  if (group.items.length === 1) return memoryRowHtml(group.items[0]);
+  const [first, ...rest] = group.items;
+  const when = shortDate(first.occurredAt);
+  return `
+    <div class="memory-row memory-group" data-id="${escapeHtml(first.id)}">
+      <button class="memory-open" type="button" data-kind="${escapeHtml(first.kind)}" data-meeting="${escapeHtml(first.meetingId ?? "")}">
+        <span class="kind">${escapeHtml(KIND[first.kind] ?? first.kind)}${when ? ` · ${escapeHtml(when)}` : ""}</span>
+        <strong>${escapeHtml(first.title || "")}</strong>
+        <small>${escapeHtml(first.snippet || "")}</small>
+      </button>
+      <button class="plan-remove" type="button" data-forget="${escapeHtml(first.id)}" aria-label="Forget this" title="Forget this">✕</button>
+      <button class="memory-expand" type="button" data-expand>${group.items.length - 1} more pieces</button>
+      <div class="memory-pieces hidden">
+        ${rest.map((item) => `
+          <div class="memory-piece" data-id="${escapeHtml(item.id)}">
+            <p>${escapeHtml(item.snippet || "")}</p>
+            <button class="plan-remove" type="button" data-forget="${escapeHtml(item.id)}" aria-label="Forget this" title="Forget this">✕</button>
+          </div>`).join("")}
+      </div>
+    </div>`;
+}
+
 async function loadFacts() {
   try {
     const data = await api("/api/memory/facts");
@@ -147,7 +189,7 @@ async function loadMemory(append = false) {
   try {
     const data = await api(`/api/memory?${params}`);
     memoryCursor = data.nextCursor || null;
-    const html = (data.items || []).map(memoryRowHtml).join("");
+    const html = groupMemory(data.items || []).map(memoryGroupHtml).join("");
     $("#memoryList").innerHTML = append ? $("#memoryList").innerHTML + html : html || '<p class="empty-state">Nothing remembered here yet.</p>';
     $("#memoryMore").classList.toggle("hidden", !memoryCursor);
     $("#memoryBlock").classList.remove("hidden");
@@ -167,15 +209,26 @@ $("#memoryMore").addEventListener("click", () => void loadMemory(true));
 
 for (const list of ["#memoryList", "#factsList"]) {
   $(list).addEventListener("click", async (event) => {
+    const expand = event.target.closest("[data-expand]");
+    if (expand) {
+      // The label it arrived with is the one to go back to when the pieces are folded away again.
+      if (!expand.dataset.more) expand.dataset.more = expand.textContent;
+      const folded = expand.parentElement.querySelector(".memory-pieces").classList.toggle("hidden");
+      expand.textContent = folded ? expand.dataset.more : t("Show less");
+      return;
+    }
     const forget = event.target.closest("[data-forget]");
     if (forget) {
       if (!window.confirm("Forget this? Ask won't find it any more. The meeting itself is kept.")) return;
       forget.disabled = true;
       try {
         await api(`/api/memory/${encodeURIComponent(forget.dataset.forget)}`, { method: "DELETE" });
+        const piece = forget.closest(".memory-piece");
         const row = forget.closest(".memory-row");
-        // A row goes on its own; a forgotten circle takes the field with it, so it is rebuilt.
-        if (row) row.remove();
+        // One piece of a group goes on its own; a whole row takes its pieces with it; a forgotten
+        // circle takes the field with it, so the field is rebuilt.
+        if (piece) piece.remove();
+        else if (row) row.remove();
         else void loadFacts();
       } catch (error) {
         forget.disabled = false;

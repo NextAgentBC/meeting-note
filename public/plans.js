@@ -140,8 +140,8 @@ function editHtml(task) {
       <span></span>
       <div class="plan-edit">
         <input name="title" value="${escapeHtml(task.title)}" maxlength="200" required aria-label="Plan" />
-        <input name="date" type="date" value="${escapeHtml(task.date ?? "")}" aria-label="Date" />
-        <input name="time" type="time" value="${escapeHtml(task.time ?? "")}" aria-label="Time" />
+        <label class="stamp"><span>Date</span><input name="date" type="date" value="${escapeHtml(task.date ?? "")}" aria-label="Date" /></label>
+        <label class="stamp"><span>Time</span><input name="time" type="time" value="${escapeHtml(task.time ?? "")}" aria-label="Time" /></label>
         <input class="notes" name="notes" value="${escapeHtml(task.notes)}" maxlength="2000" placeholder="Notes" aria-label="Notes" />
         <div class="edit-actions">
           <button class="quick-add-button" type="submit">Save</button>

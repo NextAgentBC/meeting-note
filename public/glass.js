@@ -3,7 +3,8 @@
 // slides as the page moves, and the whole thing takes its tint from whatever is passing behind it.
 // Everything is CSS custom properties; this file only measures.
 
-const SAMPLE_INTERVAL_MS = 250;
+/** Each sample reads elements under a point, which forces a layout; twice a second is plenty. */
+const SAMPLE_INTERVAL_MS = 500;
 const MAX_SHIFT_PX = 26;
 /** Below this the glass is sitting over something dark, and its text has to go light. */
 const LIGHT_BACKDROP = 0.55;

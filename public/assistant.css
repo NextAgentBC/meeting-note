@@ -42,6 +42,11 @@
 
 .quick-add { display: grid; grid-template-columns: minmax(0, 1fr) 132px 96px auto; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 .quick-add input { height: 42px; padding: 0 10px; font-size: 13px; }
+/* A labelled well for the native date and time controls, which show nothing when they are empty. */
+.stamp { display: grid; gap: 3px; align-content: start; }
+.stamp > span { color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.stamp input { width: 100%; min-width: 0; }
+.stamp input::-webkit-date-and-time-value { text-align: left; min-height: 1.2em; }
 /* The native date and time controls paint their own text: told "dark" on a light theme, they
    painted it white on white. They follow the page now, and the value keeps the page's ink. */
 .quick-add input[type="date"], .quick-add input[type="time"],

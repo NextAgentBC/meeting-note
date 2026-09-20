@@ -86,18 +86,15 @@ let depthFrame = 0;
 function depthTick() {
   depthFrame = 0;
   const scrolled = window.scrollY || document.documentElement.scrollTop || 0;
-  const reach = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-  const progress = Math.min(1, scrolled / reach);
   const root = document.documentElement;
-  // The far layer drifts slowest and softens; the near layer is the content itself, untouched.
+  // Only the two translations. Animating the blur radius or the opacity of a full-screen layer
+  // repaints it every frame; moving it is a compositor job and costs nothing.
   root.style.setProperty("--depth-far", `${(-scrolled * 0.12).toFixed(1)}px`);
   root.style.setProperty("--depth-mid", `${(-scrolled * 0.04).toFixed(1)}px`);
-  root.style.setProperty("--depth-blur", `${(14 + progress * 26).toFixed(1)}px`);
-  root.style.setProperty("--depth-dim", (1 - progress * 0.35).toFixed(3));
 }
 
 export function depthScroll() {
-  if (still()) return;
+  if (still() || document.documentElement.dataset.motion === "light") return;
   const schedule = () => {
     if (!depthFrame) depthFrame = requestAnimationFrame(depthTick);
   };
@@ -119,40 +116,109 @@ function lagFor(index) {
   return 0.55 + (index % 3) * 0.22;
 }
 
-function shapeList(lag) {
-  // A phone shows one column: sections there breathe as they pass the middle of the screen. A wide
-  // window puts them side by side, where the same motion reads as wobble, so it only gets the lag.
-  const breathe = window.innerWidth <= 760;
-  const middle = window.innerHeight / 2;
+// Reading an element's box forces the browser to work out the layout again. Doing that for every
+// block on every frame is most of what a phone was choking on, so the boxes are measured once and
+// re-measured only when something could have moved them.
+let measured = [];
+let measuredAt = 0;
+// A transformed ancestor moves the native date and time pickers with it, which puts them off the
+// screen and paints them wrong. While anything is being typed into, nothing is transformed.
+let formFocus = false;
+
+function clearShapes() {
+  for (const entry of measured) {
+    entry.item.style.removeProperty("transform");
+    entry.item.style.removeProperty("opacity");
+    entry.last = "off";
+  }
+}
+
+function measure() {
+  measured = [];
+  const scrolled = window.scrollY || document.documentElement.scrollTop || 0;
   for (const list of document.querySelectorAll("[data-cylinder]")) {
     [...list.children].forEach((item, index) => {
       if (item.classList.contains("hidden")) return;
       const rect = item.getBoundingClientRect();
-      if (rect.bottom < -120 || rect.top > window.innerHeight + 120) {
-        item.style.removeProperty("transform");
-        item.style.removeProperty("opacity");
-        return;
-      }
-      const drift = `translateY(${(lag * lagFor(index)).toFixed(2)}px)`;
-      if (!breathe) {
-        item.style.transform = drift;
-        item.style.removeProperty("opacity");
-        return;
-      }
-      // 0 in the middle of the screen, 1 at either edge. No rotation: a tilted block's corners
-      // reach past its own box and sit on top of the next one.
-      const away = Math.min(1, Math.abs(rect.top + rect.height / 2 - middle) / middle);
-      const eased = away * away * (3 - 2 * away);
-      item.style.transform = `${drift} scale(${(1 - eased * 0.1).toFixed(4)})`;
-      item.style.opacity = (1 - eased * 0.45).toFixed(3);
+      if (!rect.height) return;
+      measured.push({ item, index, top: rect.top + scrolled, height: rect.height, last: "" });
     });
   }
+  measuredAt = performance.now();
+}
+
+function shapeList(lag) {
+  if (!measured.length || formFocus) return;
+  const breathe = window.innerWidth <= 760;
+  const middle = window.innerHeight / 2;
+  const scrolled = window.scrollY || document.documentElement.scrollTop || 0;
+  for (const entry of measured) {
+    const top = entry.top - scrolled;
+    if (top + entry.height < -120 || top > window.innerHeight + 120) {
+      if (entry.last !== "off") {
+        entry.item.style.removeProperty("transform");
+        entry.item.style.removeProperty("opacity");
+        entry.last = "off";
+      }
+      continue;
+    }
+    const drift = `translateY(${(lag * lagFor(entry.index)).toFixed(2)}px)`;
+    if (!breathe) {
+      if (entry.last !== drift) {
+        entry.item.style.transform = drift;
+        entry.item.style.removeProperty("opacity");
+        entry.last = drift;
+      }
+      continue;
+    }
+    // 0 in the middle of the screen, 1 at either edge. No rotation: a tilted block's corners
+    // reach past its own box and sit on top of the next one.
+    const away = Math.min(1, Math.abs(top + entry.height / 2 - middle) / middle);
+    const eased = away * away * (3 - 2 * away);
+    const transform = `${drift} scale(${(1 - eased * 0.1).toFixed(3)})`;
+    if (entry.last === transform) continue;
+    entry.item.style.transform = transform;
+    entry.item.style.opacity = (1 - eased * 0.45).toFixed(2);
+    entry.last = transform;
+  }
+}
+
+function rest() {
+  flow = 0;
+  lastFrame = 0;
+  shapeList(0);
+}
+
+// A phone that cannot keep up gets the app without the movement, rather than the movement badly.
+const FRAME_BUDGET_MS = 26;
+let slowFrames = 0;
+let watchedFrames = 0;
+
+function watchFrameRate(elapsed) {
+  if (document.documentElement.dataset.motion === "light") return;
+  watchedFrames += 1;
+  if (elapsed > FRAME_BUDGET_MS) slowFrames += 1;
+  if (watchedFrames < 48) return;
+  // More than a third of a second's worth of frames late: this device is not enjoying this.
+  if (slowFrames / watchedFrames > 0.34) {
+    document.documentElement.dataset.motion = "light";
+    try { localStorage.setItem("meetingnote:motion", "light"); } catch { /* denied */ }
+    for (const entry of measured) {
+      entry.item.style.removeProperty("transform");
+      entry.item.style.removeProperty("opacity");
+      entry.last = "off";
+    }
+  }
+  watchedFrames = 0;
+  slowFrames = 0;
 }
 
 function flowTick(now) {
   cylinderFrame = 0;
   const elapsed = lastFrame ? Math.min(80, now - lastFrame) : 16.7;
   lastFrame = now;
+  watchFrameRate(elapsed);
+  if (document.documentElement.dataset.motion === "light") return;
   // Damping per frame would settle at whatever speed the device happens to draw; per millisecond
   // it settles in the same quarter of a second on a 120Hz phone and on a throttled background tab.
   const steps = elapsed / 16.7;
@@ -163,13 +229,8 @@ function flowTick(now) {
   flow = (flow + velocity * 0.45) * 0.86 ** steps;
   if (Math.abs(flow) < 0.05) flow = 0;
   const lag = Math.max(-14, Math.min(14, flow));
-  const root = document.documentElement;
-  root.style.setProperty("--flow", `${lag.toFixed(2)}px`);
-  // 0 when still, 1 when moving fast: the glass saturates and brightens with the movement.
-  root.style.setProperty("--flow-strength", Math.min(1, Math.abs(lag) / 14).toFixed(3));
+  if (now - measuredAt > 1200) measure();
   shapeList(lag);
-  // Frames can stop coming — a background tab, a phone saving power — and content must not be
-  // left leaning. If no frame arrives for a while, everything goes back to rest on a timer.
   window.clearTimeout(restTimer);
   if (flow !== 0) restTimer = window.setTimeout(rest, 400);
   if (document.visibilityState === "hidden") {
@@ -183,11 +244,19 @@ function flowTick(now) {
 
 export function cylinderScroll() {
   if (still()) return;
+  try {
+    if (localStorage.getItem("meetingnote:motion") === "light") document.documentElement.dataset.motion = "light";
+  } catch { /* denied */ }
   lastScroll = window.scrollY || 0;
+  measure();
   const schedule = () => {
     if (!cylinderFrame) cylinderFrame = requestAnimationFrame(flowTick);
   };
   shapeList(0);
+  const remeasure = () => { measure(); schedule(); };
+  window.addEventListener("resize", remeasure);
+  window.addEventListener("hashchange", () => window.setTimeout(remeasure, 60));
+  new MutationObserver(remeasure).observe(document.body, { childList: true, subtree: true });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       lastScroll = window.scrollY || 0;
@@ -195,8 +264,13 @@ export function cylinderScroll() {
     }
   });
   window.addEventListener("scroll", schedule, { passive: true });
-  window.addEventListener("resize", schedule);
-  window.addEventListener("hashchange", () => window.setTimeout(schedule, 60));
-  // Lists are rebuilt whenever their data changes.
-  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("focusin", (event) => {
+    if (!event.target.closest?.("input, textarea, select")) return;
+    formFocus = true;
+    clearShapes();
+  });
+  document.addEventListener("focusout", () => {
+    formFocus = false;
+    window.setTimeout(schedule, 120);
+  });
 }

@@ -200,8 +200,8 @@ main {
   --glass-lean: 0;
   --glass-sheen: 255 255 255;
   overflow: hidden;
-  -webkit-backdrop-filter: blur(52px) saturate(220%) brightness(1.06);
-  backdrop-filter: blur(52px) saturate(220%) brightness(1.06);
+  -webkit-backdrop-filter: blur(34px) saturate(200%) brightness(1.05);
+  backdrop-filter: blur(34px) saturate(200%) brightness(1.05);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, .28),
     inset 0 -1px 0 rgba(0, 0, 0, .18),
@@ -370,18 +370,17 @@ body::before, body::after {
   inset: -25vh -25vw;
   z-index: -2;
   pointer-events: none;
-  opacity: var(--depth-dim, 1);
   will-change: transform;
 }
 body::before {
   background: radial-gradient(46vmax 46vmax at 78% 4%, rgba(var(--brand-rgb, 0 229 208), .22), transparent 66%);
-  filter: blur(var(--depth-blur, 16px));
+  filter: blur(26px);
   transform: translate3d(0, var(--depth-far, 0px), 0);
 }
 body::after {
   z-index: -1;
   background: radial-gradient(38vmax 38vmax at 8% 88%, rgba(var(--brand-rgb, 0 229 208), .12), transparent 70%);
-  filter: blur(calc(var(--depth-blur, 16px) * .6));
+  filter: blur(16px);
   transform: translate3d(0, var(--depth-mid, 0px), 0);
 }
 
@@ -454,10 +453,8 @@ body::after {
   color: var(--text);
   border-radius: 50%;
   background-image: var(--glass-grain), var(--glass-face);
-  background-color: var(--glass-body);
+  background-color: color-mix(in srgb, var(--surface) 92%, transparent);
   background-size: 140px 140px, auto;
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
   box-shadow: var(--glass-edge), 0 12px 24px -14px rgba(var(--shadow-color), .6);
   font-style: normal;
   font-size: 21px;
@@ -477,7 +474,7 @@ body::after {
 /* Remembered facts, as a field of circles that drift and knock into one another (memory-orbs.js). */
 .orb-field {
   position: relative;
-  height: min(70vh, 460px);
+  height: min(50vh, 340px);
   margin-top: 6px;
   overflow: hidden;
   border-radius: 20px;
@@ -496,11 +493,11 @@ body::after {
   border: 0;
   border-radius: 50%;
   background-image: var(--glass-grain), var(--glass-face);
-  background-color: color-mix(in srgb, hsl(var(--orb-hue) 62% 58%) 26%, var(--glass-body));
+  background-color: color-mix(in srgb, hsl(var(--orb-hue) 62% 58%) 30%, var(--surface));
   background-size: 140px 140px, auto;
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  backdrop-filter: blur(16px) saturate(180%);
   box-shadow: var(--glass-edge), 0 14px 30px -16px hsl(var(--orb-hue) 62% 40% / .8);
+  contain: layout paint;
+  will-change: transform;
   font: inherit;
   font-size: 10.5px;
   font-weight: 700;
@@ -525,21 +522,69 @@ body::after {
   filter: brightness(1.12);
   box-shadow: var(--glass-edge), 0 22px 44px -18px hsl(var(--orb-hue) 62% 40% / .95);
 }
-.orb-detail {
-  position: relative;
-  margin-top: 12px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background-image: var(--glass-grain), var(--glass-face);
-  background-color: color-mix(in srgb, hsl(var(--orb-hue, 200) 62% 58%) 16%, var(--glass-body));
-  background-size: 140px 140px, auto;
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
-  box-shadow: var(--glass-edge), var(--glass-drop);
-  animation: orb-open .28s cubic-bezier(.34, 1.4, .64, 1);
+.orb.open {
+  z-index: 3;
+  padding: 16px;
+  cursor: default;
+  box-shadow: var(--glass-edge), 0 26px 50px -20px hsl(var(--orb-hue) 62% 40% / .95);
 }
-@keyframes orb-open { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
-.orb-detail-topic { margin: 0 0 6px; color: var(--brand-text); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-.orb-detail-text { margin: 0; font-size: 15px; line-height: 1.6; }
-.orb-detail-source { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
-.orb-detail-actions { display: flex; gap: 10px; margin-top: 14px; }
+.orb.open > span {
+  color: var(--brand-text);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  -webkit-line-clamp: 2;
+}
+.orb-body { display: none; }
+.orb.open .orb-body {
+  display: grid;
+  gap: 6px;
+  max-width: 82%;
+  margin-top: 6px;
+  animation: orb-open .25s ease-out;
+}
+@keyframes orb-open { from { opacity: 0; } to { opacity: 1; } }
+.orb-statement {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.orb-source { margin: 0; color: var(--muted); font-size: 10px; font-weight: 500; }
+.orb-forget {
+  justify-self: center;
+  margin-top: 2px;
+  padding: 6px 14px;
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+
+/* Anything with a backdrop blur costs a blur pass per frame while the page moves. The bars and the
+   open sheet are worth it; a phone that cannot keep up drops even those (motion.js measures). */
+html[data-motion="light"] .appbar,
+html[data-motion="light"] .tabbar,
+html[data-motion="light"] .sheet {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--canvas);
+}
+html[data-motion="light"] [data-cylinder] > * {
+  transform: none !important;
+  opacity: 1 !important;
+  transition: none;
+}
+html[data-motion="light"] .appbar::before,
+html[data-motion="light"] .tabbar::before,
+html[data-motion="light"] .appbar::after,
+html[data-motion="light"] .tabbar::after { display: none; }

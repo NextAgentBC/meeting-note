@@ -2,37 +2,37 @@
 :root, html[data-theme="pine"] {
   --font-display: "Iowan Old Style", "Palatino Linotype", "Songti SC", "STSong", Georgia, serif;
   --font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --theme-light-canvas: #e7f0e7; --theme-light-surface: #f9fdf8; --theme-light-surface-2: #d6e7d6; --theme-light-brand: #2f6b4f; --theme-light-brand-text: #245c43; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c98a2b; --theme-light-rgb: 47,107,79;
+  --theme-light-canvas: #e7f0e7; --theme-light-surface: #f3f9f2; --theme-light-surface-2: #e3efe2; --theme-light-brand: #2f6b4f; --theme-light-brand-text: #245c43; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c98a2b; --theme-light-rgb: 47,107,79;
   --theme-dark-canvas: #07160f; --theme-dark-surface: #0e2318; --theme-dark-surface-2: #16301f; --theme-dark-brand: #2f7a55; --theme-dark-brand-text: #7fe0ac; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #d9a441; --theme-dark-rgb: 127,224,172;
   --radius: 10px;
 }
 html[data-theme="celadon"] {
-  --theme-light-canvas: #e1f1ee; --theme-light-surface: #f6fffd; --theme-light-surface-2: #cde7e1; --theme-light-brand: #0f6f5e; --theme-light-brand-text: #0b5d4f; --theme-light-brand-fg: #ffffff; --theme-light-gold: #2f9c8a; --theme-light-rgb: 15,111,94;
+  --theme-light-canvas: #e1f1ee; --theme-light-surface: #f0fbf8; --theme-light-surface-2: #ddf0ea; --theme-light-brand: #0f6f5e; --theme-light-brand-text: #0b5d4f; --theme-light-brand-fg: #ffffff; --theme-light-gold: #2f9c8a; --theme-light-rgb: 15,111,94;
   --theme-dark-canvas: #04161a; --theme-dark-surface: #0a2228; --theme-dark-surface-2: #113038; --theme-dark-brand: #188271; --theme-dark-brand-text: #63e8cd; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8d9b5; --theme-dark-rgb: 99,232,205;
   --radius: 12px;
 }
 html[data-theme="dusk"] {
-  --theme-light-canvas: #e6eaf7; --theme-light-surface: #f7f9ff; --theme-light-surface-2: #d2dbf1; --theme-light-brand: #3d55a3; --theme-light-brand-text: #33488f; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d98f74; --theme-light-rgb: 61,85,163;
+  --theme-light-canvas: #e6eaf7; --theme-light-surface: #f1f4fd; --theme-light-surface-2: #dee6f8; --theme-light-brand: #3d55a3; --theme-light-brand-text: #33488f; --theme-light-brand-fg: #ffffff; --theme-light-gold: #d98f74; --theme-light-rgb: 61,85,163;
   --theme-dark-canvas: #070c1c; --theme-dark-surface: #0d1430; --theme-dark-surface-2: #151d42; --theme-dark-brand: #4a63bd; --theme-dark-brand-text: #9fb2ff; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #e8b4a2; --theme-dark-rgb: 159,178,255;
   --radius: 12px;
 }
 html[data-theme="pomegranate"] {
-  --theme-light-canvas: #fae5e5; --theme-light-surface: #fff8f7; --theme-light-surface-2: #f2d1d1; --theme-light-brand: #ab2f44; --theme-light-brand-text: #97263a; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c9704a; --theme-light-rgb: 171,47,68;
+  --theme-light-canvas: #fae5e5; --theme-light-surface: #fdf1f1; --theme-light-surface-2: #f7dddd; --theme-light-brand: #ab2f44; --theme-light-brand-text: #97263a; --theme-light-brand-fg: #ffffff; --theme-light-gold: #c9704a; --theme-light-rgb: 171,47,68;
   --theme-dark-canvas: #1b0709; --theme-dark-surface: #280d11; --theme-dark-surface-2: #35141a; --theme-dark-brand: #c33d55; --theme-dark-brand-text: #ff93a6; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f3e2d1; --theme-dark-rgb: 255,147,166;
   --radius: 12px;
 }
 html[data-theme="lilac"] {
-  --theme-light-canvas: #ebe5f8; --theme-light-surface: #fbf8ff; --theme-light-surface-2: #dcd2f1; --theme-light-brand: #5b45a8; --theme-light-brand-text: #4f3b96; --theme-light-brand-fg: #ffffff; --theme-light-gold: #7a63c9; --theme-light-rgb: 91,69,168;
+  --theme-light-canvas: #ebe5f8; --theme-light-surface: #f6f2fd; --theme-light-surface-2: #e6ddfa; --theme-light-brand: #5b45a8; --theme-light-brand-text: #4f3b96; --theme-light-brand-fg: #ffffff; --theme-light-gold: #7a63c9; --theme-light-rgb: 91,69,168;
   --theme-dark-canvas: #100826; --theme-dark-surface: #190f36; --theme-dark-surface-2: #221647; --theme-dark-brand: #6d55c9; --theme-dark-brand-text: #bda8ff; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #f0e7db; --theme-dark-rgb: 189,168,255;
   --radius: 14px;
 }
 html[data-theme="rosewood"] {
-  --theme-light-canvas: #f7e5ea; --theme-light-surface: #fff8fa; --theme-light-surface-2: #eecfd7; --theme-light-brand: #9c3350; --theme-light-brand-text: #8b2b45; --theme-light-brand-fg: #ffffff; --theme-light-gold: #bd6b82; --theme-light-rgb: 156,51,80;
+  --theme-light-canvas: #f7e5ea; --theme-light-surface: #fdf2f5; --theme-light-surface-2: #f6dee6; --theme-light-brand: #9c3350; --theme-light-brand-text: #8b2b45; --theme-light-brand-fg: #ffffff; --theme-light-gold: #bd6b82; --theme-light-rgb: 156,51,80;
   --theme-dark-canvas: #190a10; --theme-dark-surface: #24101a; --theme-dark-surface-2: #311624; --theme-dark-brand: #b44667; --theme-dark-brand-text: #ff9ab4; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #c88697; --theme-dark-rgb: 255,154,180;
   --radius: 14px;
 }
 html[data-theme="butter"] {
-  --theme-light-canvas: #f7eed6; --theme-light-surface: #fffdf3; --theme-light-surface-2: #ebdeb8; --theme-light-brand: #7a5c12; --theme-light-brand-text: #6a4f0d; --theme-light-brand-fg: #ffffff; --theme-light-gold: #4f736e; --theme-light-rgb: 122,92,18;
+  --theme-light-canvas: #f7eed6; --theme-light-surface: #fdf8ea; --theme-light-surface-2: #f2e7cc; --theme-light-brand: #7a5c12; --theme-light-brand-text: #6a4f0d; --theme-light-brand-fg: #ffffff; --theme-light-gold: #4f736e; --theme-light-rgb: 122,92,18;
   --theme-dark-canvas: #16120a; --theme-dark-surface: #201a0d; --theme-dark-surface-2: #2c2413; --theme-dark-brand: #8f6d1a; --theme-dark-brand-text: #f0cd6c; --theme-dark-brand-fg: #ffffff; --theme-dark-gold: #5d7e7a; --theme-dark-rgb: 240,205,108;
   --radius: 12px;
 }
@@ -43,8 +43,8 @@ html[data-theme="butter"] {
   --ink: #17201d; --ink-2: #43504b; --ink-3: #68746f; --hairline: rgba(23,32,29,.13); --hairline-strong: rgba(23,32,29,.24);
   --brand: var(--theme-light-brand); --brand-text: var(--theme-light-brand-text); --brand-fg: var(--theme-light-brand-fg); --gold: var(--theme-light-gold); --brand-rgb: var(--theme-light-rgb);
   --shadow-color: 27,35,32; --success: #24734e; --warning: #9a5b0a; --danger: #b43838; --info: #356c99;
-  --glass-face: linear-gradient(177deg, rgba(255,255,255,.86), rgba(255,255,255,.58) 58%, rgba(255,255,255,.66));
-  --glass-body: color-mix(in srgb, var(--surface) 46%, transparent);
+  --glass-face: linear-gradient(177deg, rgba(255,255,255,.5), rgba(255,255,255,.14) 58%, rgba(255,255,255,.26));
+  --glass-body: color-mix(in srgb, var(--surface) 82%, transparent);
   --glass-edge: inset 0 1px 0 rgba(255,255,255,.95), inset 1px 0 0 rgba(255,255,255,.55), inset -1px 0 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(23,32,29,.1);
   --glass-drop: 0 20px 48px -18px rgba(var(--brand-rgb),.34), 0 6px 16px -10px rgba(27,35,32,.24);
   --glass-bar-face: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,.42));
@@ -55,8 +55,8 @@ html[data-mode="dark"] {
   --ink: #f4f7f9; --ink-2: #c4ced5; --ink-3: #8f9ba8; --hairline: rgba(255,255,255,.1); --hairline-strong: rgba(255,255,255,.18);
   --brand: var(--theme-dark-brand); --brand-text: var(--theme-dark-brand-text); --brand-fg: var(--theme-dark-brand-fg); --gold: var(--theme-dark-gold); --brand-rgb: var(--theme-dark-rgb);
   --shadow-color: 0,0,0; --success: #62c995; --warning: #ffca68; --danger: #ff7773; --info: #7eb9eb;
-  --glass-face: linear-gradient(177deg, rgba(255,255,255,.14), rgba(255,255,255,.05) 58%, rgba(255,255,255,.09));
-  --glass-body: color-mix(in srgb, var(--surface-2) 54%, transparent);
+  --glass-face: linear-gradient(177deg, rgba(255,255,255,.12), rgba(255,255,255,.04) 58%, rgba(255,255,255,.08));
+  --glass-body: color-mix(in srgb, var(--surface-2) 84%, transparent);
   --glass-edge: inset 0 1px 0 rgba(255,255,255,.28), inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.4);
   --glass-drop: 0 22px 52px -20px rgba(0,0,0,.75), 0 0 32px -12px rgba(var(--brand-rgb),.28);
   --glass-bar-face: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
@@ -68,8 +68,8 @@ html[data-mode="dark"] {
     --ink: #f4f7f9; --ink-2: #c4ced5; --ink-3: #8f9ba8; --hairline: rgba(255,255,255,.1); --hairline-strong: rgba(255,255,255,.18);
     --brand: var(--theme-dark-brand); --brand-text: var(--theme-dark-brand-text); --brand-fg: var(--theme-dark-brand-fg); --gold: var(--theme-dark-gold); --brand-rgb: var(--theme-dark-rgb);
     --shadow-color: 0,0,0; --success: #62c995; --warning: #ffca68; --danger: #ff7773; --info: #7eb9eb;
-  --glass-face: linear-gradient(177deg, rgba(255,255,255,.14), rgba(255,255,255,.05) 58%, rgba(255,255,255,.09));
-  --glass-body: color-mix(in srgb, var(--surface-2) 54%, transparent);
+  --glass-face: linear-gradient(177deg, rgba(255,255,255,.12), rgba(255,255,255,.04) 58%, rgba(255,255,255,.08));
+  --glass-body: color-mix(in srgb, var(--surface-2) 84%, transparent);
   --glass-edge: inset 0 1px 0 rgba(255,255,255,.28), inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.4);
   --glass-drop: 0 22px 52px -20px rgba(0,0,0,.75), 0 0 32px -12px rgba(var(--brand-rgb),.28);
   --glass-bar-face: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
@@ -101,9 +101,6 @@ body { color: var(--ink); background: var(--canvas); font-family: var(--font-ui)
   background-image: var(--glass-grain), var(--glass-face);
   background-color: var(--glass-body);
   background-size: 140px 140px, auto;
-  /* The glass comes alive while the page moves and settles when it stops (--flow-strength). */
-  -webkit-backdrop-filter: blur(30px) saturate(calc(190% + var(--flow-strength, 0) * 70%)) brightness(calc(1.04 + var(--flow-strength, 0) * .05));
-  backdrop-filter: blur(30px) saturate(calc(190% + var(--flow-strength, 0) * 70%)) brightness(calc(1.04 + var(--flow-strength, 0) * .05));
   box-shadow: var(--glass-edge), var(--glass-drop);
 }
 input, select, textarea, .segmented, .recovery-code, .sheet textarea { color: var(--ink); border-color: var(--hairline); background: var(--surface-2); }

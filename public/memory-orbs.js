@@ -4,7 +4,9 @@
 // up in a corner. Everything is transform-only, and none of it runs when the device asks for less
 // motion or when the field is off screen.
 
+/** A phone has less room and less to spare; the rest stay in the list below. */
 const MAX_ORBS = 24;
+const MAX_ORBS_PHONE = 14;
 const MIN_RADIUS = 30;
 const MAX_RADIUS = 54;
 const DRAG = 0.994;
@@ -51,14 +53,36 @@ function orbElement(fact) {
 }
 
 
+let fieldWidth = 320;
+let fieldHeight = 380;
+
+function remeasureField() {
+  const box = field.getBoundingClientRect();
+  fieldWidth = box.width || fieldWidth;
+  fieldHeight = box.height || fieldHeight;
+}
+
 function step() {
   frame = 0;
-  const box = field.getBoundingClientRect();
-  const width = box.width || 320;
-  const height = box.height || 380;
+  // Measured on resize, not on every frame: reading a box mid-animation forces a layout.
+  const width = fieldWidth;
+  const height = fieldHeight;
   const edgeX = width * MARGIN;
   const edgeY = height * MARGIN;
   for (const orb of orbs) {
+    // Growing and shrinking is part of the physics, not a CSS transition, so the circles around an
+    // opened one are pushed aside by it as it grows.
+    if (Math.abs(orb.targetR - orb.r) > 0.3) {
+      orb.r += (orb.targetR - orb.r) * 0.18;
+      orb.element.style.width = `${(orb.r * 2).toFixed(1)}px`;
+      orb.element.style.height = `${(orb.r * 2).toFixed(1)}px`;
+    }
+    if (orb.open) {
+      // An opened circle stays put, and stays inside the field.
+      orb.x += (Math.min(Math.max(orb.r + 6, orb.x), Math.max(orb.r + 6, width - orb.r - 6)) - orb.x) * 0.2;
+      orb.y += (Math.min(Math.max(orb.r + 6, orb.y), Math.max(orb.r + 6, height - orb.r - 6)) - orb.y) * 0.2;
+      continue;
+    }
     if (orb === held) continue;
     // Each one wanders on its own slowly turning heading, so the field never settles into a pattern.
     orb.angle += orb.spin;
@@ -106,6 +130,7 @@ function step() {
 }
 
 function start() {
+  if (document.documentElement.dataset.motion === "light") return;
   if (!frame && visible && !still()) frame = requestAnimationFrame(step);
 }
 
@@ -114,19 +139,49 @@ function stop() {
   frame = 0;
 }
 
-/** Reading one: it comes to the front, grows, and shows everything it knows. */
-function open(fact) {
-  const card = field.parentElement.querySelector(".orb-detail");
-  card.querySelector(".orb-detail-topic").textContent = fact.topic || fact.title || "";
-  card.querySelector(".orb-detail-text").textContent = fact.statement || fact.snippet || "";
-  card.querySelector(".orb-detail-source").textContent = [fact.meetingTitle, fact.when].filter(Boolean).join(" · ");
-  card.querySelector("[data-forget]").dataset.forget = fact.id;
-  card.style.setProperty("--orb-hue", String(hueFor(fact.topic || fact.title || "")));
-  card.classList.remove("hidden");
+/** How big an opened circle gets: most of the field, but never past its edges. */
+function openRadius() {
+  return Math.max(90, Math.min(fieldWidth, fieldHeight) * 0.44);
 }
 
-function close() {
-  field.parentElement.querySelector(".orb-detail")?.classList.add("hidden");
+/** Reading one: it grows where it already is, and the others are pushed out of its way. */
+function open(orb) {
+  for (const other of orbs) if (other !== orb && other.open) close(other);
+  orb.open = true;
+  orb.targetR = openRadius();
+  orb.vx = 0;
+  orb.vy = 0;
+  orb.element.classList.add("open");
+  const fact = orb.fact;
+  let body = orb.element.querySelector(".orb-body");
+  if (!body) {
+    body = document.createElement("div");
+    body.className = "orb-body";
+    orb.element.append(body);
+  }
+  body.replaceChildren();
+  const statement = document.createElement("p");
+  statement.className = "orb-statement";
+  statement.textContent = fact.statement || fact.snippet || "";
+  const source = document.createElement("p");
+  source.className = "orb-source";
+  source.textContent = [fact.meetingTitle, fact.when].filter(Boolean).join(" · ");
+  const forget = document.createElement("button");
+  forget.type = "button";
+  forget.className = "orb-forget";
+  forget.dataset.forget = fact.id;
+  forget.textContent = "Forget";
+  body.append(statement, source, forget);
+}
+
+function close(orb) {
+  if (!orb?.open) return;
+  orb.open = false;
+  orb.targetR = orb.baseR;
+  orb.element.classList.remove("open");
+  // A small shove, so it rejoins the drift instead of sitting where it was read.
+  orb.vx += (Math.random() - 0.5) * 0.6;
+  orb.vy += (Math.random() - 0.5) * 0.6;
 }
 
 /**
@@ -143,22 +198,12 @@ export function memoryOrbs(host, facts) {
   field.className = "orb-field";
   host.append(field);
 
-  const detail = document.createElement("div");
-  detail.className = "orb-detail hidden";
-  detail.innerHTML = `
-    <p class="orb-detail-topic"></p>
-    <p class="orb-detail-text"></p>
-    <p class="orb-detail-source"></p>
-    <div class="orb-detail-actions">
-      <button type="button" class="quick-add-button ghost" data-close-orb>Close</button>
-      <button type="button" class="plan-remove" data-forget aria-label="Forget this fact">Forget</button>
-    </div>`;
-  host.append(detail);
-  detail.addEventListener("click", (event) => {
-    if (event.target.closest("[data-close-orb]")) close();
+  // Tapping the empty part of the field closes whatever is open.
+  field.addEventListener("pointerdown", (event) => {
+    if (event.target === field) for (const orb of orbs) close(orb);
   });
 
-  const shown = facts.slice(0, MAX_ORBS);
+  const shown = facts.slice(0, window.innerWidth <= 480 ? MAX_ORBS_PHONE : MAX_ORBS);
   const box = field.getBoundingClientRect();
   const width = box.width || host.clientWidth || 320;
   const height = box.height || 360;
@@ -172,6 +217,9 @@ export function memoryOrbs(host, facts) {
       element,
       fact,
       r,
+      baseR: r,
+      targetR: r,
+      open: false,
       x: r + Math.random() * Math.max(1, width - r * 2),
       y: r + Math.random() * Math.max(1, height - r * 2),
       vx: (Math.random() - 0.5) * 0.7,
@@ -205,8 +253,11 @@ export function memoryOrbs(host, facts) {
         element.removeEventListener("pointercancel", end);
         element.classList.remove("held");
         held = null;
-        // A tap reads it; a drag throws it back into the field with whatever speed it had.
-        if (moved < 6) open(orb.fact);
+        // A tap reads it where it is; a drag throws it back into the field.
+        if (moved < 6) {
+          if (orb.open) close(orb);
+          else open(orb);
+        }
         start();
       };
       element.addEventListener("pointermove", move);
@@ -216,7 +267,8 @@ export function memoryOrbs(host, facts) {
     });
   }
 
-  if (still()) {
+  remeasureField();
+  if (still() || document.documentElement.dataset.motion === "light") {
     field.classList.add("orb-field-static");
     return true;
   }
@@ -226,7 +278,7 @@ export function memoryOrbs(host, facts) {
     if (visible) start();
     else stop();
   }, { threshold: 0.05 }).observe(field);
-  window.addEventListener("resize", start);
+  window.addEventListener("resize", () => { remeasureField(); start(); });
   start();
   return true;
 }

@@ -102,6 +102,12 @@
       <p data-zh="最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。" data-en="One last tap: claim it with Face ID. No code to copy and no password to create.">最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。</p>
       <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID">继续，用 Face ID 认领</a>
       <div class="address-block">
+        <p class="address-label" data-zh="一次性认领码" data-en="One-time setup code">一次性认领码</p>
+        <input id="setupCodeValue" readonly aria-label="One-time setup code" />
+        <button class="ghost-button" id="copySetupCode" type="button" data-zh="复制认领码" data-en="Copy the code">复制认领码</button>
+        <p class="fine" data-zh="上面那个按钮已经带着它了。只有在链接打不开、或者以后要重新认领时才需要手动输入。" data-en="The button above already carries it. You only need to type it if that link will not open, or if you claim this app later.">上面那个按钮已经带着它了。只有在链接打不开、或者以后要重新认领时才需要手动输入。</p>
+      </div>
+      <div class="address-block">
         <p class="address-label" data-zh="你的 Meeting Note 网址" data-en="The address of your Meeting Note">你的 Meeting Note 网址</p>
         <input id="appAddress" readonly aria-label="Your Meeting Note address" />
         <button class="ghost-button" id="copyAddress" type="button" data-zh="复制网址" data-en="Copy address">复制网址</button>

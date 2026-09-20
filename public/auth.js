@@ -223,6 +223,9 @@ function renderChoice(me) {
       $("#setupCode").value = installerClaimCode;
       $("#ownerName").value = "Owner";
     }
+    // Typing a code by hand means the claim link did not work — say where another one comes from.
+    show($("#lostSetupCode"), me.setupCodeRequired && !hasInstallerClaim && Boolean(me.installer));
+    if (me.installer) $("#lostSetupCodeLink").href = me.installer;
     show($("#setupCodeField"), me.setupCodeRequired && !hasInstallerClaim);
     show($("#ownerNameField"), !hasInstallerClaim);
     show($("#noSetupCodeWarning"), !me.setupCodeRequired);

@@ -231,6 +231,28 @@ async function reclaim(request: Request, env: Env): Promise<Response> {
   }
 }
 
+/**
+ * A workers.dev address that was registered a minute ago is not live the moment the API returns:
+ * the certificate for the account's new subdomain is issued on demand, and until it exists the
+ * browser gets ERR_CONNECTION_CLOSED — a scary page for someone who just installed something. So
+ * the installer waits for its own handiwork to answer before it hands the address over.
+ */
+async function waitForApp(url: string, attempts = 20): Promise<boolean> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(`${url}/api/health`, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(4000)
+      });
+      if (response.ok) return true;
+    } catch {
+      // Not there yet: no DNS, no certificate, or the route is still being published.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  return false;
+}
+
 async function install(request: Request, env: Env): Promise<Response> {
   if (!sameOrigin(request, env)) return json({ error: "Invalid request origin" }, 403);
   const body = await request.json<{ accountId?: string }>().catch(() => ({}) as { accountId?: string });
@@ -251,7 +273,10 @@ async function install(request: Request, env: Env): Promise<Response> {
     });
     await revoke(session.value.accessToken, env).catch((error) => console.error("OAuth revoke failed", error));
     await env.INSTALL_SESSIONS.delete(`session:${session.id}`);
-    return json({ ok: true, ...result }, 200, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
+    const since = Date.now();
+    const ready = await waitForApp(result.appUrl);
+    console.log("Installed", result.workerName, ready ? `live after ${Date.now() - since}ms` : "not answering yet");
+    return json({ ok: true, ready, ...result }, 200, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
   } catch (error) {
     console.error("Personal installation failed", error);
     const code = error instanceof InstallError ? error.code : "unknown";

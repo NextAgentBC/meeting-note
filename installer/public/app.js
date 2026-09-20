@@ -317,7 +317,11 @@ async function install() {
   // The address without the one-time claim code: this is the one worth keeping.
   $("#appAddress").value = data.appUrl;
   $("#appAddress").scrollLeft = 0;
-  $("#successNote").classList.toggle("hidden", !data.addressIsNew);
+  // And the code in plain sight, because the link is not the only way this ends up being claimed.
+  $("#setupCodeValue").value = data.setupCode;
+  $("#setupCodeValue").scrollLeft = 0;
+  // `ready` is false when the address did not answer while the installer waited for it.
+  $("#successNote").classList.toggle("hidden", data.ready !== false && !data.addressIsNew);
   show("success");
 }
 
@@ -348,6 +352,16 @@ $("#language").addEventListener("click", () => { language = language === "zh" ? 
 $("#install").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));
 $("#installAnother").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));
 $("#retry").addEventListener("click", () => retryAction());
+$("#copySetupCode").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText($("#setupCodeValue").value);
+    button.textContent = language === "zh" ? "已复制" : "Copied";
+    window.setTimeout(() => { button.textContent = button.dataset[language]; }, 2000);
+  } catch {
+    $("#setupCodeValue").select();
+  }
+});
 $("#copyAddress").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   try {

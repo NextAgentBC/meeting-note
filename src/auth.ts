@@ -278,6 +278,8 @@ authRoutes.get("/me", async (c) => {
     name: owner?.name ?? null,
     hasOwner: Boolean(await currentOwner(c.env.DB)),
     setupCodeRequired: Boolean(c.env.SETUP_CODE?.trim()),
+    // Where a lost setup code can be replaced: the installer that provisioned this copy.
+    installer: (c.env.UPDATE_CHANNEL || "").trim(),
     // The Connected apps row stays out of the Me tab everywhere this is off.
     nextNote: nextNoteEnabled(c.env)
   });

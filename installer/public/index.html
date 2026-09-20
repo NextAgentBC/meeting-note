@@ -68,7 +68,13 @@
       <p class="eyebrow" data-zh="已安全授权" data-en="AUTHORIZED">已安全授权</p>
       <h2 data-zh="选择安装位置" data-en="Choose your account">选择安装位置</h2>
       <div id="accounts"></div>
+      <div class="existing hidden" id="existing">
+        <p class="existing-title" data-zh="这个账户里已经装过 Meeting Note" data-en="This account already has a Meeting Note">这个账户里已经装过 Meeting Note</p>
+        <div id="existingList"></div>
+        <p class="fine" data-zh="再装一个会得到一个全新的空应用，两边的会议和笔记不互通。" data-en="Installing again creates a second, empty app. The two do not share meetings or notes.">再装一个会得到一个全新的空应用，两边的会议和笔记不互通。</p>
+      </div>
       <button class="primary" id="install" type="button" data-zh="开始自动安装" data-en="Start installation">开始自动安装</button>
+      <button class="ghost-button wide hidden" id="installAnother" type="button" data-zh="还是再装一个新的" data-en="Install another copy anyway">还是再装一个新的</button>
     </section>
     <section class="card workflow-card hidden" id="progress">
       <div class="spinner"></div>

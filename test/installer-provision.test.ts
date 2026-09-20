@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InstallError, provisionMeetingNote } from "../installer/src/provision";
+import { InstallError, listInstalls, provisionMeetingNote } from "../installer/src/provision";
 
 function response(result: unknown, status = 200) {
   return new Response(JSON.stringify({ success: status < 400, result, errors: status < 400 ? [] : [{ message: "missing" }] }), {
@@ -167,6 +167,39 @@ describe("personal Cloudflare installer", () => {
     expect(failed).toBeInstanceOf(InstallError);
     expect((failed as InstallError).code).toBe("workers_subdomain");
     expect((failed as InstallError).apiCodes).toContain(10063);
+  });
+
+  it("lists what this account already has, so a second run is a choice and not a surprise", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/workers/subdomain")) return response({ subdomain: "quiet-harbour" });
+      if (url.endsWith("/workers/scripts")) {
+        return response([
+          { id: "meeting-note-abcd1234", created_on: "2026-09-19T10:00:00Z" },
+          { id: "meeting-note-installer", created_on: "2026-09-01T10:00:00Z" },
+          { id: "my-other-worker", created_on: "2026-09-18T10:00:00Z" },
+          { id: "meeting-note-zz11", created_on: "2026-09-20T10:00:00Z" }
+        ]);
+      }
+      throw new Error(`Unexpected request ${url}`);
+    }));
+
+    const apps = await listInstalls("secret-oauth-token", "account-1");
+
+    // Newest first, and neither the installer itself nor an unrelated Worker counts as an install.
+    expect(apps.map((app) => app.name)).toEqual(["meeting-note-zz11", "meeting-note-abcd1234"]);
+    expect(apps[0].url).toBe("https://meeting-note-zz11.quiet-harbour.workers.dev");
+  });
+
+  it("says an account has nothing rather than failing, when it cannot look", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      // An account that has never opened the Workers dashboard cannot hold an install yet.
+      if (url.endsWith("/workers/subdomain")) return failure(10007, "not found", 404);
+      throw new Error(`Unexpected request ${url}`);
+    }));
+
+    await expect(listInstalls("secret-oauth-token", "account-1")).resolves.toEqual([]);
   });
 
   it("removes half-created resources when installation fails", async () => {

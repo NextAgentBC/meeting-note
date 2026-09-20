@@ -129,10 +129,42 @@ async function loadSession() {
     input.name = "account";
     input.value = account.id;
     input.checked = index === 0;
+    input.addEventListener("change", () => void showExisting());
     label.append(input, document.createTextNode(account.name));
     return label;
   }));
   show("account");
+  void showExisting();
+}
+
+// What this account already has. A failed attempt leaves nothing behind, so an empty list here is
+// the normal answer after one — but a finished install whose address was lost shows up.
+async function showExisting() {
+  const accountId = selectedAccount();
+  const panel = $("#existing");
+  panel.classList.add("hidden");
+  $("#installAnother").classList.add("hidden");
+  $("#install").classList.remove("hidden");
+  if (!accountId) return;
+  let apps = [];
+  try {
+    const response = await fetch(`/api/installs?accountId=${encodeURIComponent(accountId)}`, { credentials: "same-origin" });
+    if (!response.ok) return;
+    apps = (await response.json()).apps || [];
+  } catch {
+    return;
+  }
+  if (!apps.length || selectedAccount() !== accountId) return;
+  $("#existingList").replaceChildren(...apps.map((app) => {
+    const link = document.createElement("a");
+    link.href = app.url;
+    link.textContent = app.url.replace("https://", "");
+    link.rel = "noopener noreferrer";
+    return link;
+  }));
+  panel.classList.remove("hidden");
+  $("#install").classList.add("hidden");
+  $("#installAnother").classList.remove("hidden");
 }
 
 async function install() {
@@ -163,6 +195,7 @@ async function install() {
 
 $("#language").addEventListener("click", () => { language = language === "zh" ? "en" : "zh"; translate(); });
 $("#install").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));
+$("#installAnother").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));
 $("#retry").addEventListener("click", () => retryAction());
 $("#copyAddress").addEventListener("click", async (event) => {
   const button = event.currentTarget;

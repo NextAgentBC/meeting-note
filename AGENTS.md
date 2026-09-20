@@ -116,6 +116,12 @@ npm run typecheck
   `archiveChunk` writes the same key to `RECORDINGS`; if that fails, an `{ type: "archive" }` job copies it
   from KV later. Audio recorded before the binding existed is copied once by `archiveBacklog` (the
   catch-up call in `ask.ts`). Transcription falls back to the permanent copy when KV has expired it.
+- **Installing twice is allowed, and a failed install leaves nothing behind.** The rollback removes
+  the Worker, queue, KV namespace and database it made, and the next attempt draws new names from a
+  new install id, so the same account can retry as often as it likes. What does survive is a
+  *finished* install, so `listInstalls` shows the account's existing `meeting-note-<id>` Workers on
+  the account screen before installing another — that is also how someone who lost their address
+  finds it again. It never throws: an account it cannot read simply has nothing to show.
 - **A brand-new Cloudflare account has no workers.dev subdomain**, and uploading a Worker to it fails
   with error **10063** ("You need a workers.dev subdomain in order to proceed"). `ensureWorkersSubdomain`
   registers one (`PUT /accounts/:id/workers/subdomain`, a random `meeting-note-xxxxxx`) **before** the

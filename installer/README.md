@@ -30,6 +30,15 @@ minutes, revokes the token after a successful installation, and deletes the inst
 provisioning fails, newly created resources are rolled back so the user can retry cleanly — the
 token is kept, so Try again re-runs the installation without a second Cloudflare sign-in.
 
+## Installing twice
+
+Nothing blocks a second run. A failed installation rolls its resources back and the next attempt
+uses new names, so the same person, the same Cloudflare account and the same email can simply try
+again. A finished installation does stay, so before installing the account screen lists the Worker
+names it already has (`GET /api/installs`, filtered to `meeting-note-<id>`) with their addresses:
+someone who lost the address gets it back, and someone who really wants a second, separate copy
+has to say so.
+
 ## The workers.dev subdomain
 
 An account that has never opened the Workers dashboard has no workers.dev subdomain, and Cloudflare

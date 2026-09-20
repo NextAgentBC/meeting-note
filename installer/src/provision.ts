@@ -146,6 +146,31 @@ export async function ensureWorkersSubdomain(token: string, account: string): Pr
   throw new InstallError("workers_subdomain", lastError || "Could not register a workers.dev subdomain", lastCodes);
 }
 
+export type ExistingInstall = { name: string; url: string; createdOn: string };
+
+// A failed attempt leaves nothing behind, but a finished one does, and its owner may have lost the
+// address. Before installing again, the page says what this account already has.
+export async function listInstalls(token: string, account: string): Promise<ExistingInstall[]> {
+  try {
+    const current = await cf<{ subdomain?: string | null }>(token, `/accounts/${account}/workers/subdomain`);
+    const subdomain = current?.subdomain;
+    if (!subdomain) return [];
+    const scripts = await cf<Array<{ id?: string; created_on?: string }>>(token, `/accounts/${account}/workers/scripts`);
+    return (scripts || [])
+      .filter((script) => typeof script.id === "string" && /^meeting-note-[a-z0-9]{1,8}$/.test(script.id))
+      .map((script) => ({
+        name: script.id as string,
+        url: `https://${script.id}.${subdomain}.workers.dev`,
+        createdOn: script.created_on || ""
+      }))
+      .sort((first, second) => second.createdOn.localeCompare(first.createdOn));
+  } catch (error) {
+    // Never a reason to stop someone installing: an unreadable account simply has nothing to show.
+    console.error("Could not list existing installations", error);
+    return [];
+  }
+}
+
 export async function provisionMeetingNote(input: ProvisionInput): Promise<ProvisionResult> {
   const id = suffix(input.installId);
   const workerName = `meeting-note-${id}`;

@@ -1,4 +1,4 @@
-import { InstallError, provisionMeetingNote } from "./provision";
+import { InstallError, listInstalls, provisionMeetingNote } from "./provision";
 
 type Env = {
   ASSETS: Fetcher;
@@ -208,6 +208,14 @@ export default {
     if (url.pathname === "/api/session" && request.method === "GET") {
       const session = await getSession(request, env);
       return session ? json({ authorized: true, accounts: session.value.accounts }) : json({ authorized: false, accounts: [] });
+    }
+    if (url.pathname === "/api/installs" && request.method === "GET") {
+      const session = await getSession(request, env);
+      const accountId = url.searchParams.get("accountId") || "";
+      if (!session || !session.value.accounts.some((account) => account.id === accountId)) {
+        return json({ error: "Installation session expired" }, 401);
+      }
+      return json({ ok: true, apps: await listInstalls(session.value.accessToken, encodeURIComponent(accountId)) });
     }
     if (url.pathname === "/api/install" && request.method === "POST") return install(request, env);
     return secureAsset(await env.ASSETS.fetch(request));

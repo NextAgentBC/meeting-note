@@ -6,5 +6,7 @@ coverage/
 output/
 .playwright-cli/
 installer/public/release/
+installer/deploy.json
+installer/wrangler.deploy.jsonc
 *.log
 .DS_Store

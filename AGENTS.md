@@ -164,6 +164,11 @@ npm run typecheck
   `archiveChunk` writes the same key to `RECORDINGS`; if that fails, an `{ type: "archive" }` job copies it
   from KV later. Audio recorded before the binding existed is copied once by `archiveBacklog` (the
   catch-up call in `ask.ts`). Transcription falls back to the permanent copy when KV has expired it.
+- **The installer's config names no account.** The hostname, the OAuth client id and the KV
+  namespace for installation sessions are placeholders in `installer/wrangler.jsonc`;
+  `scripts/deploy-installer.mjs` writes a filled-in copy, deploys with it and deletes it again,
+  reading the values from the untracked `installer/deploy.json` or from the environment. The repo is
+  public, so nothing in it should identify one person's Cloudflare account.
 - **An app's built-in browser cannot finish any of this.** A link shared in WeChat (or QQ, Weibo,
   DingTalk, Feishu, Alipay, Douyin, Xiaohongshu, Facebook, Instagram, LINE) opens in that app's
   webview, where `window.PublicKeyCredential` exists but the passkey prompt never appears, and

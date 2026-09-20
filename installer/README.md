@@ -16,14 +16,21 @@ From the repository root:
 
 ```sh
 npm run build:personal-release
-npx wrangler deploy --dry-run --config installer/wrangler.jsonc
+node scripts/deploy-installer.mjs --dry-run
 ```
 
-Before a real deployment, create a public Cloudflare OAuth client, replace the placeholder OAuth
-client ID/scopes and installer KV ID, then store both `OAUTH_CLIENT_SECRET` and a random
-`SESSION_ENCRYPTION_KEY` with `wrangler secret put`. Required OAuth permissions are D1 Write,
-Queues Write, Workers KV Storage Write, Workers Scripts Write, Workers AI Write, and User Details
-Read.
+`wrangler.jsonc` names no account: the hostname, the OAuth client and the KV namespace that holds
+installation sessions are placeholders, filled in for the length of one deploy by
+`scripts/deploy-installer.mjs` (which `npm run deploy:installer` calls). Put your own values in
+`installer/deploy.json` — copy `installer/deploy.example.json`; it is untracked — or pass them as
+`INSTALLER_HOSTNAME`, `INSTALLER_SESSIONS_KV_ID` and `INSTALLER_OAUTH_CLIENT_ID` in the
+environment. Anything after the script's own arguments goes to wrangler, so
+`node scripts/deploy-installer.mjs --dry-run` checks the build without deploying.
+
+Before a real deployment, create a KV namespace and a public Cloudflare OAuth client, then store
+both `OAUTH_CLIENT_SECRET` and a random `SESSION_ENCRYPTION_KEY` with `wrangler secret put`.
+Required OAuth permissions are D1 Write, Queues Write, Workers KV Storage Write, Workers Scripts
+Write, Workers AI Write, and User Details Read.
 
 The installer encrypts OAuth access tokens in its private KV, keeps them for no more than 30
 minutes, revokes the token after a successful installation, and deletes the installer session. If

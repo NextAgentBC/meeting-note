@@ -1,3 +1,6 @@
+// Deploying this needs three values that belong to one Cloudflare account: the KV namespace that
+// holds installation sessions, the OAuth client, and the hostname. They are filled in at deploy
+// time from installer/deploy.json (untracked) or the environment — see scripts/deploy-installer.mjs.
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "meeting-note-installer",
@@ -6,12 +9,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "install.meeting.nextagent.ca", "custom_domain": true }],
+  "routes": [{ "pattern": "INSTALLER_HOSTNAME", "custom_domain": true }],
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/oauth/*", "/api/*"] },
-  "kv_namespaces": [{ "binding": "INSTALL_SESSIONS", "id": "4304d97ed72443129e3dc8fc8c0e0644" }],
+  "kv_namespaces": [{ "binding": "INSTALL_SESSIONS", "id": "INSTALLER_SESSIONS_KV_ID" }],
   "vars": {
-    "INSTALLER_ORIGIN": "https://install.meeting.nextagent.ca",
-    "OAUTH_CLIENT_ID": "c1794fac478aca22cc05d82418ec6e81",
+    "INSTALLER_ORIGIN": "https://INSTALLER_HOSTNAME",
+    "OAUTH_CLIENT_ID": "INSTALLER_OAUTH_CLIENT_ID",
     "OAUTH_SCOPES": "d1.write queues.write workers-kv-storage.write workers-scripts.write ai.write user-details.read"
   }
 }

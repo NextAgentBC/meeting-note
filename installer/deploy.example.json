@@ -1,0 +1,5 @@
+{
+  "hostname": "install.example.com",
+  "sessionsKvId": "the id of a KV namespace in your account",
+  "oauthClientId": "the id of your Cloudflare OAuth client"
+}

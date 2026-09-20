@@ -27,4 +27,14 @@ Read.
 
 The installer encrypts OAuth access tokens in its private KV, keeps them for no more than 30
 minutes, revokes the token after a successful installation, and deletes the installer session. If
-provisioning fails, newly created resources are rolled back so the user can retry cleanly.
+provisioning fails, newly created resources are rolled back so the user can retry cleanly — the
+token is kept, so Try again re-runs the installation without a second Cloudflare sign-in.
+
+## The workers.dev subdomain
+
+An account that has never opened the Workers dashboard has no workers.dev subdomain, and Cloudflare
+refuses the script upload with error 10063. The installer therefore registers one before it creates
+anything (`PUT /accounts/:id/workers/subdomain`, name `meeting-note-<six random characters>`, another
+name on 10031). If that registration is refused as well, the page says so in Chinese or English and
+links to `https://dash.cloudflare.com/<account>/workers/onboarding`: opening that page once creates
+the subdomain, and Try again then finishes the installation.

@@ -48,6 +48,10 @@ migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 r
                  0008 device links; 0009 memory embedding tracking; 0010 integration tokens;
                  0011 permanent audio/tuned ASR; 0012 quick notes/photos
 e2e/             the sign-in flows in a real browser (own package.json)
+installer/       install.meeting.nextagent.ca: Cloudflare OAuth, then one account's private copy.
+                 src/provision.ts creates D1/KV/the queue and uploads the release bundle built by
+                 scripts/build-standalone-release.mjs into public/release/ (src/standalone.ts + the
+                 embedded public/ files). public/app.js is the page, in both languages.
 ```
 
 ## Memory API
@@ -112,6 +116,14 @@ npm run typecheck
   `archiveChunk` writes the same key to `RECORDINGS`; if that fails, an `{ type: "archive" }` job copies it
   from KV later. Audio recorded before the binding existed is copied once by `archiveBacklog` (the
   catch-up call in `ask.ts`). Transcription falls back to the permanent copy when KV has expired it.
+- **A brand-new Cloudflare account has no workers.dev subdomain**, and uploading a Worker to it fails
+  with error **10063** ("You need a workers.dev subdomain in order to proceed"). `ensureWorkersSubdomain`
+  registers one (`PUT /accounts/:id/workers/subdomain`, a random `meeting-note-xxxxxx`) **before** the
+  installer creates anything, so a refusal costs nothing to roll back; a name someone else holds answers
+  10031 and it tries another. The account subdomain cannot reuse the install id — it is one name per
+  account, not per install. Every provisioning failure reaches the browser as an `InstallError` code
+  (`workers_subdomain`, `database`, `storage`, `queue`, `worker`, `address`), because `app.js` says the
+  problem in the reader's language and keeps Cloudflare's English line as the detail underneath.
 - **Dates in plans are worked out by `resolveDatePhrase`** from the words the model copies out; the model's
   own date is the fallback. Weeks start on Monday: 下周二 / next Tuesday is Tuesday of next week.
 - **memory_fts is an FTS5 table kept in step by triggers.** Write memory_items with

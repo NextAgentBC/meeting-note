@@ -1,7 +1,37 @@
 const API = "https://api.cloudflare.com/client/v4";
 
-type ApiEnvelope<T> = { success: boolean; result: T; errors?: Array<{ message?: string; code?: number }> };
+type ApiError = { message?: string; code?: number };
+type ApiEnvelope<T> = { success: boolean; result: T; errors?: ApiError[] };
 type Release = { version: string; migrations: Array<{ name: string; sql: string }> };
+
+// Cloudflare refuses to accept a Worker script on an account that has never opened the Workers
+// dashboard (error 10063), so the subdomain is registered before anything else is created.
+const SUBDOMAIN_REQUIRED = 10063;
+const SUBDOMAIN_MISSING = 10007;
+const SUBDOMAIN_TAKEN = 10031;
+
+export type InstallErrorCode =
+  | "workers_subdomain"
+  | "database"
+  | "storage"
+  | "queue"
+  | "worker"
+  | "address"
+  | "unknown";
+
+export class InstallError extends Error {
+  constructor(readonly code: InstallErrorCode, message: string, readonly apiCodes: number[] = []) {
+    super(message);
+    this.name = "InstallError";
+  }
+}
+
+class CloudflareError extends Error {
+  constructor(message: string, readonly codes: number[]) {
+    super(message);
+    this.name = "CloudflareError";
+  }
+}
 
 export type ProvisionInput = {
   accountId: string;
@@ -16,6 +46,7 @@ export type ProvisionResult = {
   setupCode: string;
   workerName: string;
   version: string;
+  addressIsNew: boolean;
 };
 
 async function cf<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
@@ -30,9 +61,24 @@ async function cf<T>(token: string, path: string, init: RequestInit = {}): Promi
   const data: ApiEnvelope<T> = await response.json<ApiEnvelope<T>>().catch(() => ({ success: false, result: null as T, errors: [] }));
   if (!response.ok || !data.success) {
     const detail = data.errors?.map((error) => error.message || error.code).filter(Boolean).join("; ");
-    throw new Error(detail || `Cloudflare request failed (${response.status})`);
+    const codes = data.errors?.map((error) => error.code).filter((code): code is number => typeof code === "number") || [];
+    throw new CloudflareError(detail || `Cloudflare request failed (${response.status})`, codes);
   }
   return data.result;
+}
+
+// Every Cloudflare failure reaches the browser as a code the installer page can say in the reader's
+// own language, instead of one English sentence written for the dashboard.
+async function step<T>(code: InstallErrorCode, work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof InstallError) throw error;
+    if (error instanceof CloudflareError) {
+      throw new InstallError(error.codes.includes(SUBDOMAIN_REQUIRED) ? "workers_subdomain" : code, error.message, error.codes);
+    }
+    throw new InstallError(code, error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function remove(token: string, path: string): Promise<void> {
@@ -60,17 +106,44 @@ function setupCode(): string {
   return value.match(/.{1,4}/g)!.join("-");
 }
 
-async function ensureWorkersSubdomain(token: string, accountId: string, id: string): Promise<string> {
+// A workers.dev subdomain is one name for the whole account, so it cannot reuse the install id:
+// a second account installing from the same page would ask for a name that is already taken.
+function subdomainCandidate(): string {
+  const alphabet = "abcdefghijkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return `meeting-note-${[...bytes].map((byte) => alphabet[byte % alphabet.length]).join("")}`;
+}
+
+export async function ensureWorkersSubdomain(token: string, account: string): Promise<{ subdomain: string; created: boolean }> {
   try {
-    const current = await cf<{ subdomain: string }>(token, `/accounts/${accountId}/workers/subdomain`);
-    if (current.subdomain) return current.subdomain;
-  } catch { /* A new account does not have a workers.dev subdomain yet. */ }
-  const chosen = `meeting-note-${suffix(id)}`;
-  const created = await cf<{ subdomain: string }>(token, `/accounts/${accountId}/workers/subdomain`, {
-    method: "PUT",
-    body: JSON.stringify({ subdomain: chosen })
-  });
-  return created.subdomain;
+    const current = await cf<{ subdomain?: string | null }>(token, `/accounts/${account}/workers/subdomain`);
+    if (current?.subdomain) return { subdomain: current.subdomain, created: false };
+  } catch (error) {
+    // A fresh account answers 10007 here; anything else is still worth one registration attempt.
+    if (!(error instanceof CloudflareError)) throw new InstallError("workers_subdomain", error instanceof Error ? error.message : String(error));
+    if (error.codes.length && !error.codes.includes(SUBDOMAIN_MISSING) && !error.codes.includes(SUBDOMAIN_REQUIRED)) {
+      console.error("Unexpected workers.dev subdomain lookup failure", error.codes, error.message);
+    }
+  }
+  let lastError = "";
+  let lastCodes: number[] = [];
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const candidate = subdomainCandidate();
+    try {
+      const created = await cf<{ subdomain?: string }>(token, `/accounts/${account}/workers/subdomain`, {
+        method: "PUT",
+        body: JSON.stringify({ subdomain: candidate })
+      });
+      return { subdomain: created?.subdomain || candidate, created: true };
+    } catch (error) {
+      if (!(error instanceof CloudflareError)) throw new InstallError("workers_subdomain", error instanceof Error ? error.message : String(error));
+      lastError = error.message;
+      lastCodes = error.codes;
+      // Only a name someone else already holds is worth a second guess.
+      if (!error.codes.includes(SUBDOMAIN_TAKEN)) break;
+    }
+  }
+  throw new InstallError("workers_subdomain", lastError || "Could not register a workers.dev subdomain", lastCodes);
 }
 
 export async function provisionMeetingNote(input: ProvisionInput): Promise<ProvisionResult> {
@@ -82,33 +155,36 @@ export async function provisionMeetingNote(input: ProvisionInput): Promise<Provi
   const ownerCode = setupCode();
   const account = encodeURIComponent(input.accountId);
 
+  // Before any resource exists, so a missing subdomain costs the account nothing to roll back.
+  const address = await ensureWorkersSubdomain(input.accessToken, account);
+
   let databaseId = "";
   let namespaceId = "";
   let queueId = "";
   let workerCreated = false;
 
   try {
-    const database = await cf<{ uuid: string }>(input.accessToken, `/accounts/${account}/d1/database`, {
+    const database = await step("database", () => cf<{ uuid: string }>(input.accessToken, `/accounts/${account}/d1/database`, {
       method: "POST",
       body: JSON.stringify({ name: databaseName })
-    });
+    }));
     databaseId = database.uuid;
-    const namespace = await cf<{ id: string }>(input.accessToken, `/accounts/${account}/storage/kv/namespaces`, {
+    const namespace = await step("storage", () => cf<{ id: string }>(input.accessToken, `/accounts/${account}/storage/kv/namespaces`, {
       method: "POST",
       body: JSON.stringify({ title: namespaceName })
-    });
+    }));
     namespaceId = namespace.id;
-    const queue = await cf<{ queue_id: string }>(input.accessToken, `/accounts/${account}/queues`, {
+    const queue = await step("queue", () => cf<{ queue_id: string }>(input.accessToken, `/accounts/${account}/queues`, {
       method: "POST",
       body: JSON.stringify({ queue_name: queueName })
-    });
+    }));
     queueId = queue.queue_id;
 
     for (const migration of input.release.migrations) {
-      await cf(input.accessToken, `/accounts/${account}/d1/database/${databaseId}/query`, {
+      await step("database", () => cf(input.accessToken, `/accounts/${account}/d1/database/${databaseId}/query`, {
         method: "POST",
         body: JSON.stringify({ sql: migration.sql })
-      });
+      }));
     }
 
     const bindings = [
@@ -141,28 +217,29 @@ export async function provisionMeetingNote(input: ProvisionInput): Promise<Provi
     const form = new FormData();
     form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
     form.set("standalone.js", new Blob([input.releaseScript], { type: "application/javascript+module" }), "standalone.js");
-    await cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}`, { method: "PUT", body: form });
+    await step("worker", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}`, { method: "PUT", body: form }));
     workerCreated = true;
 
-    await cf(input.accessToken, `/accounts/${account}/queues/${queueId}/consumers`, {
+    await step("queue", () => cf(input.accessToken, `/accounts/${account}/queues/${queueId}/consumers`, {
       method: "POST",
       body: JSON.stringify({
         type: "worker",
         script_name: workerName,
         settings: { batch_size: 1, max_retries: 3, max_wait_time_ms: 5000 }
       })
-    });
-    const subdomain = await ensureWorkersSubdomain(input.accessToken, input.accountId, input.installId);
-    await cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}/subdomain`, {
+    }));
+    await step("address", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}/subdomain`, {
       method: "POST",
       body: JSON.stringify({ enabled: true, previews_enabled: false })
-    });
+    }));
 
     return {
-      appUrl: `https://${workerName}.${subdomain}.workers.dev`,
+      appUrl: `https://${workerName}.${address.subdomain}.workers.dev`,
       setupCode: ownerCode,
       workerName,
-      version: input.release.version
+      version: input.release.version,
+      // A name registered seconds ago can take a few minutes to resolve; the page says so.
+      addressIsNew: address.created
     };
   } catch (error) {
     // A retry should start cleanly instead of colliding with half-created resources.

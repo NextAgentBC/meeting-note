@@ -1,4 +1,4 @@
-import { provisionMeetingNote } from "./provision";
+import { InstallError, provisionMeetingNote } from "./provision";
 
 type Env = {
   ASSETS: Fetcher;
@@ -156,7 +156,7 @@ function sameOrigin(request: Request, env: Env): boolean {
 
 async function install(request: Request, env: Env): Promise<Response> {
   if (!sameOrigin(request, env)) return json({ error: "Invalid request origin" }, 403);
-  const body = await request.json<{ accountId?: string }>().catch(() => ({}));
+  const body = await request.json<{ accountId?: string }>().catch(() => ({}) as { accountId?: string });
   if (!body.accountId) return json({ error: "Missing Cloudflare account" }, 400);
   const session = await getSession(request, env);
   if (!session || !session.value.accounts.some((account) => account.id === body.accountId)) {
@@ -168,7 +168,7 @@ async function install(request: Request, env: Env): Promise<Response> {
       env.ASSETS.fetch(`${origin}/release/standalone.js`),
       env.ASSETS.fetch(`${origin}/release/migrations.json`)
     ]);
-    if (!scriptResponse.ok || !migrationsResponse.ok) throw new Error("Installation release is unavailable");
+    if (!scriptResponse.ok || !migrationsResponse.ok) throw new InstallError("unknown", "Installation release is unavailable");
     const result = await provisionMeetingNote({
       accountId: body.accountId,
       accessToken: session.value.accessToken,
@@ -181,7 +181,9 @@ async function install(request: Request, env: Env): Promise<Response> {
     return json({ ok: true, ...result }, 200, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
   } catch (error) {
     console.error("Personal installation failed", error);
-    return json({ error: error instanceof Error ? error.message : "Installation failed" }, 502);
+    const code = error instanceof InstallError ? error.code : "unknown";
+    // The page turns the code into the reader's own language; the message is the detail behind it.
+    return json({ error: error instanceof Error ? error.message : "Installation failed", code }, 502);
   }
 }
 

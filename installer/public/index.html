@@ -73,9 +73,11 @@
     <section class="card workflow-card hidden" id="progress">
       <div class="spinner"></div>
       <h2 id="progressTitle" data-zh="正在创建你的私人空间" data-en="Creating your private space">正在创建你的私人空间</h2>
-      <p id="progressDetail" data-zh="请保持此页面打开。其余事情由我们完成。" data-en="Keep this page open. We will handle the rest.">请保持此页面打开。其余事情由我们完成。</p>
+      <p id="progressDetail" data-zh="请保持此页面打开，通常需要 30 到 60 秒。" data-en="Keep this page open. This usually takes 30 to 60 seconds.">请保持此页面打开，通常需要 30 到 60 秒。</p>
       <div class="bar"><i></i></div>
-      <button class="primary hidden" id="retry" type="button" data-zh="重试安装" data-en="Try again">重试安装</button>
+      <a class="help-link hidden" id="problemHelp" href="#" target="_blank" rel="noopener noreferrer">打开 Cloudflare Workers 页面</a>
+      <p class="detail-line hidden" id="problemDetail"></p>
+      <button class="primary hidden" id="retry" type="button">重试安装</button>
     </section>
     <section class="card workflow-card success hidden" id="success">
       <div class="check">✓</div>
@@ -83,6 +85,7 @@
       <h2 data-zh="你的 Meeting Note 已准备好" data-en="Your Meeting Note is ready">你的 Meeting Note 已准备好</h2>
       <p data-zh="最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。" data-en="One last tap: claim it with Face ID. No code to copy and no password to create.">最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。</p>
       <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID">继续，用 Face ID 认领</a>
+      <p class="fine hidden" id="successNote" data-zh="这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。" data-en="This address was created just now and can take a minute or two to resolve. If it does not open yet, wait a moment and tap again.">这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。</p>
       <p class="fine" data-zh="认领完成后，请截图保存应用显示的恢复码。" data-en="After claiming it, save a screenshot of the recovery code shown by the app.">认领完成后，请截图保存应用显示的恢复码。</p>
     </section>
 

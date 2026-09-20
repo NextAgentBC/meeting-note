@@ -188,6 +188,8 @@ p { line-height: 1.65; }
 .success { text-align: center; }
 .check { display: grid; place-items: center; width: 58px; height: 58px; margin: auto; border-radius: 50%; background: var(--color-green-soft); color: var(--color-green); font-size: 30px; }
 .error { color: var(--color-danger); }
+.detail-line { margin-top: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; color: var(--color-faint); word-break: break-word; }
+.help-link { display: inline-block; margin-top: 18px; color: var(--color-brand); font-weight: 600; }
 
 footer { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 4px; color: var(--color-faint); font-size: 12px; }
 footer nav { display: flex; gap: 8px 24px; }

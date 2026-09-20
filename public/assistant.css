@@ -58,17 +58,18 @@ html[data-mode="dark"] .plan-edit input::-webkit-calendar-picker-indicator { fil
 .quick-add-button:disabled { opacity: .5; cursor: wait; }
 
 .plans-lists { display: grid; gap: 16px; }
-.plan-block { padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-.plan-block.suggested { border-color: rgba(255,202,104,.35); background: linear-gradient(120deg, rgba(255,202,104,.07), var(--panel)); }
+/* A wrapper, not a panel: each row below is its own card. */
+.plan-block { padding: 0; border: 0; background: none; box-shadow: none; }
+.plan-block.suggested .plan-row { border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
 .plan-block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .plan-block-head h3 { margin: 0; font-size: 16px; }
 .plan-block-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.plan-list { margin-top: 8px; }
+.plan-list { display: grid; gap: 10px; margin-top: 10px; }
 .plan-group { margin: 16px 0 4px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
 .plan-group.overdue { color: var(--red); }
 
-.plan-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
-.plan-row:last-child { border-bottom: 0; }
+.plan-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px 16px; border: 1px solid var(--hairline); border-radius: 16px; }
+
 .plan-row.done strong { color: var(--muted); text-decoration: line-through; }
 .plan-check { position: relative; display: grid; place-items: center; width: 28px; height: 28px; margin-top: 0; padding: 0; color: var(--brand-fg); border: 1.5px solid var(--line-strong); border-radius: 50%; background: none; font-size: 13px; font-weight: 900; cursor: pointer; }
 .plan-check::after, .plan-remove::after { content: ""; position: absolute; inset: -8px; } /* 44 px to tap */

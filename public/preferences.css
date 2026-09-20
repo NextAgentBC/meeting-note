@@ -95,7 +95,7 @@ body { color: var(--ink); background: var(--canvas); font-family: var(--font-ui)
 .tabbar[data-glass="dark"] a { color: color-mix(in srgb, var(--ink-3, #f4f7f9) 92%, transparent); }
 /* Glass everywhere, not only on the bars: a card lets the theme's own colour through, and the
    blur behind it is what keeps text readable over whatever is scrolling past. */
-.card, .new-card, .note-card, .transcript-card, .plan-block, .usage-card, .settings-group, .meeting-row, .memory-row, .capture-card, .ask-form, .dictate-result {
+.card, .new-card, .note-card, .transcript-card, .usage-card, .settings-group, .meeting-row, .memory-row, .plan-row, .capture-card, .ask-form, .dictate-result {
   border-color: var(--hairline);
   /* Grain, then the lit face, over a body colour that is lighter than the page behind it. */
   background-image: var(--glass-grain), var(--glass-face);

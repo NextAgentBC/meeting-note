@@ -7,8 +7,12 @@
 const MAX_ORBS = 24;
 const MIN_RADIUS = 30;
 const MAX_RADIUS = 54;
-const DRAG = 0.992;
-const PULL = 0.00018;
+const DRAG = 0.994;
+/** How far past the edge an orb may wander before it comes back in on the other side. */
+const MARGIN = 0.35;
+/** Soft collisions: a push proportional to how deep the overlap is, not an instant swap. */
+const PUSH = 0.028;
+const WANDER = 0.0055;
 
 let field = null;
 let orbs = [];
@@ -46,34 +50,32 @@ function orbElement(fact) {
   return orb;
 }
 
-function layout() {
-  const box = field.getBoundingClientRect();
-  for (const orb of orbs) {
-    orb.x = Math.min(Math.max(orb.r, orb.x), Math.max(orb.r, box.width - orb.r));
-    orb.y = Math.min(Math.max(orb.r, orb.y), Math.max(orb.r, box.height - orb.r));
-  }
-  return box;
-}
 
 function step() {
   frame = 0;
-  const box = layout();
-  const centre = { x: box.width / 2, y: box.height / 2 };
+  const box = field.getBoundingClientRect();
+  const width = box.width || 320;
+  const height = box.height || 380;
+  const edgeX = width * MARGIN;
+  const edgeY = height * MARGIN;
   for (const orb of orbs) {
     if (orb === held) continue;
-    // A slow pull inwards, so the field stays a field instead of drifting to the edges.
-    orb.vx += (centre.x - orb.x) * PULL;
-    orb.vy += (centre.y - orb.y) * PULL;
+    // Each one wanders on its own slowly turning heading, so the field never settles into a pattern.
+    orb.angle += orb.spin;
+    orb.vx += Math.cos(orb.angle) * WANDER;
+    orb.vy += Math.sin(orb.angle) * WANDER;
     orb.vx *= DRAG;
     orb.vy *= DRAG;
     orb.x += orb.vx;
     orb.y += orb.vy;
-    if (orb.x < orb.r) { orb.x = orb.r; orb.vx = Math.abs(orb.vx) * 0.86; }
-    if (orb.x > box.width - orb.r) { orb.x = box.width - orb.r; orb.vx = -Math.abs(orb.vx) * 0.86; }
-    if (orb.y < orb.r) { orb.y = orb.r; orb.vy = Math.abs(orb.vy) * 0.86; }
-    if (orb.y > box.height - orb.r) { orb.y = box.height - orb.r; orb.vy = -Math.abs(orb.vy) * 0.86; }
+    // No walls. An orb that leaves comes back from the opposite side, so the field is a window on
+    // something larger rather than a box with everything crammed inside it.
+    if (orb.x < -edgeX - orb.r) orb.x = width + edgeX + orb.r;
+    if (orb.x > width + edgeX + orb.r) orb.x = -edgeX - orb.r;
+    if (orb.y < -edgeY - orb.r) orb.y = height + edgeY + orb.r;
+    if (orb.y > height + edgeY + orb.r) orb.y = -edgeY - orb.r;
   }
-  // Equal masses, so a collision is a swap of the speed along the line between two centres.
+  // Soft contact: the closer two get, the harder they push apart, and they keep their own speed.
   for (let i = 0; i < orbs.length; i += 1) {
     for (let j = i + 1; j < orbs.length; j += 1) {
       const a = orbs[i];
@@ -85,17 +87,20 @@ function step() {
       if (overlap <= 0) continue;
       const nx = dx / distance;
       const ny = dy / distance;
-      const push = overlap / 2;
-      if (a !== held) { a.x -= nx * push; a.y -= ny * push; }
-      if (b !== held) { b.x += nx * push; b.y += ny * push; }
-      const along = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
-      if (along <= 0) continue;
-      if (a !== held) { a.vx -= along * nx; a.vy -= along * ny; }
-      if (b !== held) { b.vx += along * nx; b.vy += along * ny; }
+      const force = Math.min(1.6, overlap * PUSH);
+      if (a !== held) { a.vx -= nx * force; a.vy -= ny * force; }
+      if (b !== held) { b.vx += nx * force; b.vy += ny * force; }
+      // A touch of separation as well, or a deep overlap takes too long to ease apart.
+      const ease = overlap * 0.06;
+      if (a !== held) { a.x -= nx * ease; a.y -= ny * ease; }
+      if (b !== held) { b.x += nx * ease; b.y += ny * ease; }
     }
   }
   for (const orb of orbs) {
     orb.element.style.transform = `translate3d(${(orb.x - orb.r).toFixed(1)}px, ${(orb.y - orb.r).toFixed(1)}px, 0)`;
+    // Fading at the edge is what makes leaving and returning look deliberate.
+    const outside = Math.max(0, -orb.x, orb.x - width, -orb.y, orb.y - height);
+    orb.element.style.opacity = outside <= 0 ? "1" : Math.max(0, 1 - outside / (orb.r * 2.4)).toFixed(2);
   }
   if (visible) frame = requestAnimationFrame(step);
 }
@@ -170,7 +175,9 @@ export function memoryOrbs(host, facts) {
       x: r + Math.random() * Math.max(1, width - r * 2),
       y: r + Math.random() * Math.max(1, height - r * 2),
       vx: (Math.random() - 0.5) * 0.7,
-      vy: (Math.random() - 0.5) * 0.7
+      vy: (Math.random() - 0.5) * 0.7,
+      angle: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.02
     };
     element.style.transform = `translate3d(${orb.x - r}px, ${orb.y - r}px, 0)`;
     orbs.push(orb);
@@ -183,14 +190,13 @@ export function memoryOrbs(host, facts) {
       try { element.setPointerCapture(event.pointerId); } catch { /* nothing to capture */ }
       const start = { x: event.clientX, y: event.clientY, ox: orb.x, oy: orb.y };
       const move = (pointer) => {
-        const rect = field.getBoundingClientRect();
         moved = Math.hypot(pointer.clientX - start.x, pointer.clientY - start.y);
         const nextX = start.ox + (pointer.clientX - start.x);
         const nextY = start.oy + (pointer.clientY - start.y);
         orb.vx = nextX - orb.x;
         orb.vy = nextY - orb.y;
-        orb.x = Math.min(Math.max(orb.r, nextX), Math.max(orb.r, rect.width - orb.r));
-        orb.y = Math.min(Math.max(orb.r, nextY), Math.max(orb.r, rect.height - orb.r));
+        orb.x = nextX;
+        orb.y = nextY;
         if (moved > 6) pointer.preventDefault();
       };
       const end = () => {
@@ -220,7 +226,7 @@ export function memoryOrbs(host, facts) {
     if (visible) start();
     else stop();
   }, { threshold: 0.05 }).observe(field);
-  window.addEventListener("resize", () => { layout(); start(); });
+  window.addEventListener("resize", start);
   start();
   return true;
 }

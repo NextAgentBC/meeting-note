@@ -96,7 +96,7 @@ main {
 
 /* Plans */
 .dictate-card { display: grid; gap: 12px; }
-.plan-block { border-radius: 20px; }
+.plan-block-head { padding: 0 4px 2px; }
 .plan-block-head { align-items: center; }
 
 /* Memory */
@@ -135,9 +135,9 @@ main {
 .ask-examples { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
 .ask-examples .chip { flex: none; min-height: 34px; padding: 0 12px; color: var(--ink-2); background: rgba(255,255,255,.03); font: inherit; font-size: 12px; cursor: pointer; }
 .ask-answer { margin-top: 0; }
-.memory-list { display: grid; margin-top: 6px; }
-.memory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
-.memory-row:last-child { border-bottom: 0; }
+.memory-list { display: grid; gap: 10px; margin-top: 10px; }
+.memory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 14px 16px; border: 1px solid var(--hairline); border-radius: 16px; }
+
 .memory-row button.memory-open { padding: 0; color: var(--text); border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
 .memory-row strong { display: block; font-size: 13px; }
 .memory-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -477,7 +477,7 @@ body::after {
 /* Remembered facts, as a field of circles that drift and knock into one another (memory-orbs.js). */
 .orb-field {
   position: relative;
-  height: min(58vh, 380px);
+  height: min(70vh, 460px);
   margin-top: 6px;
   overflow: hidden;
   border-radius: 20px;

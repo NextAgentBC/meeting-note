@@ -58,27 +58,92 @@ installer/       install.meeting.nextagent.ca: Cloudflare OAuth, then one accoun
                  embedded public/ files). public/app.js is the page, in both languages.
 ```
 
-## The moving parts of the look
+## The look, and what it costs
 
-Four effects, all decoration, all skipped under `prefers-reduced-motion`, none of them touching data.
+Everything here is decoration: it never touches data, it is all skipped under
+`prefers-reduced-motion`, and it removes itself on a device that cannot keep up. Read this before
+adding any of it anywhere, because most of it is cheap only where it already is.
 
-- **`public/glass.js` — liquid glass.** The app bar and the tab bar blur and saturate what passes
-  under them; a highlight rides the edge the content meets, pushed by the scroll and drifting back
-  when it stops (`--glass-shift`, `--glass-lean`). Every 250 ms the module reads the colour just
-  outside each bar with `elementFromPoint`, walks up for the first element with a colour of its
-  own, and sets `data-glass="light" | "dark"` — over bright content the glass turns bright and its
-  labels go dark. The rules live in `shell.css`; `preferences.css` gives them the theme's colours.
-- **`public/motion.js` — glow, depth, curve.** `ambientGlow` averages a photo down to one colour,
-  weighted towards the colourful pixels, and hands it to the card as `--glow-color`, which is
-  registered with `@property` so a new photo is an interpolation and not a jump. `depthScroll`
-  drives three distances from one scroll (`--depth-far`, `--depth-mid`, `--depth-blur`,
-  `--depth-dim`; the two background washes are `body::before` and `body::after`). `cylinderScroll`
-  leans and fades the rows of a `[data-cylinder]` list by their distance from the middle of the
-  screen — phone widths only, where the list is one column.
-- **`public/metaball.js` — pulling a photo out of a note.** One SVG filter (blur, then a steep alpha
-  curve) over two circles and the bar between them: the neck thins with distance and breaks past
-  96px, and the caller decides what breaking means. The × button on each photo still does the same
-  thing for anyone who would rather tap.
+**Glass is four things, and all four are tokens.** A tint alone reads as grey haze — it disappears
+on a light theme and looks like a hole on a dark one. What makes it glass: `--glass-face` (a lit
+gradient down the surface), `--glass-body` (a colour *lighter* than whatever it sits on),
+`--glass-edge` (a bright hairline along the top and sides, a shaded one underneath — this is the
+only source of thickness) and `--glass-grain` (one tiled SVG noise, inline, which is what separates
+frosted glass from a blur), plus `--glass-drop`, a shadow **in the theme's colour, never black**.
+They are defined per mode in `preferences.css` and used by `shell.css`, so a theme swap carries the
+material with it. Never write `rgba(255,255,255,…)` into a component.
+
+**Surfaces carry the theme.** Every light theme's `--surface` used to be `#ffffff`, which made all
+seven themes look the same — the colour has to be in the page, not only in the buttons. Keep
+`--canvas` and `--surface` in the same hue, a few percent apart. `npm run test:themes` checks 84
+contrast pairs and has to pass: body/secondary/muted on canvas, body on card, brand text on canvas,
+button text on brand.
+
+**`backdrop-filter` is the one expensive line of CSS.** It is a full blur pass *per element per
+frame* while anything moves; a screen of blurred cards is what made this app stutter on a phone.
+The whole app is allowed four, and that is the budget:
+
+| Where | Blur | Why it is allowed |
+|---|---|---|
+| `.appbar`, `.tabbar` | 34px | two, always on screen, always over moving content |
+| `.sheet` | 44px | one open at a time |
+| `.calendar-dialog::backdrop` | 4px | only while that dialog is open |
+| `.recording-active .stop-button` | 18px | one bar, only while recording |
+
+Cards, rows, orbs and filter circles get the same look from face + grain + edge + drop, which costs
+nothing. **Never animate a blur** — binding `saturate()` to the scroll spring invalidated every
+blurred element every frame, which was the worst version of this bug. Keep the
+`@supports not (backdrop-filter…)` fallback: an old WebView must get an opaque bar, not a see-through
+one.
+
+**The motion, module by module.**
+
+- **`public/glass.js`** — the highlight that rides the edge of each bar, pushed by scroll velocity
+  and drifting back (`--glass-shift`, `--glass-lean`). Every 500ms it reads the colour just outside
+  each bar with `elementFromPoint`, walks up to the first element with a colour of its own, and sets
+  `data-glass="light" | "dark"`: over bright content the glass goes bright and its labels go dark.
+- **`public/motion.js`** — `depthScroll` moves two background washes (`body::before/::after`) at
+  different speeds; their blur and opacity are **static**, because animating either repaints the
+  whole screen. `cylinderScroll` runs one spring off scroll velocity: blocks inside `[data-cylinder]`
+  lag up to 14px, staggered, and scale 0.9→1 and fade 0.55→1 as they cross the middle of the screen,
+  on phone widths only. Boxes are measured once and re-measured on resize, mutation or route change
+  — never per frame. Damping is per millisecond (`0.86 ** (dt / 16.7)`), so it settles in the same
+  quarter second at 120Hz and at 10. `ambientGlow` averages a photo to one colour, weighted towards
+  the saturated pixels, into `--glow-color`, registered with `@property` so a new photo interpolates.
+- **`public/memory-orbs.js`** — remembered facts as circles: soft collisions (a push proportional to
+  overlap, not an exchange of speed), a slowly turning heading each, no walls (they drift out, fade,
+  and return from the other side), 24 of them, 14 on a phone. Tapping one grows it in place over
+  half a second into a round card.
+- **`public/metaball.js`** — one SVG goo filter over two circles and the bar between them; the neck
+  thins with distance and breaks at 96px. Used for pulling a photo out of a note and for the note
+  filters. The × button still does the same job for anyone who would rather tap.
+
+**It removes itself.** `motion.js` watches frame times: two consecutive windows of 60 frames with
+more than half of them over 32ms set `data-motion="light"` — no section movement, no bar blur, orbs
+line up — and fire `meetingnote:motion-light`. The verdict is **never persisted**: it is about this
+build, and the next one may be lighter. An older build stored it, and devices stayed frozen after
+the cause was fixed; `cylinderScroll` clears that key on load.
+
+**Seven things that cost a day each.**
+
+1. **No `rotateX` on stacked blocks.** A tilted block's corners reach past its own box and sit on
+   the one below. Use `scale` and `opacity`, and keep a gap the shrink cannot cross.
+2. **A transformed ancestor drags native pickers off screen.** `<input type="date">` opens its
+   popover in the transformed coordinate space and paints it wrong, so all shaping pauses on
+   `focusin` and resumes on `focusout`.
+3. **Never read layout per frame.** `getBoundingClientRect()` in a rAF loop forces a reflow every
+   frame for every element.
+4. **Never animate `filter`, blur radius or the opacity of a full-screen layer.** Only `transform`.
+5. **Never persist a degrade verdict.**
+6. **A hard-coded grey disappears on a light theme.** This app began dark-only; nine of them, plus a
+   `color-scheme: dark` pinned to the date inputs, made text white on white. Use `--ink`, `--ink-2`,
+   `--ink-3`, `--brand-fg`, `--danger` — never a hex outside a token block.
+7. **An empty iOS date input draws nothing at all.** Every date and time field carries a visible
+   label of its own.
+
+**On a phone**: `100svh` not `100vh`, `env(safe-area-inset-*)` on anything fixed, 16px minimum on
+inputs (smaller and iOS zooms the page on focus), tap targets ≥44px, and `touch-action: none` on
+anything dragged so the gesture is not fighting the scroller.
 
 ## Updating an installed copy
 

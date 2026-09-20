@@ -24,7 +24,6 @@ button { -webkit-user-select: none; user-select: none; }
 :focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 .hidden { display: none !important; }
 
-.topbar { height: 82px; display: flex; align-items: center; justify-content: space-between; max-width: 1240px; margin: auto; padding: 0 28px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 13px; padding: 0; color: var(--text); background: none; border: 0; text-align: left; cursor: pointer; }
 .brand strong, .brand small { display: block; }
 .brand strong { font-size: 15px; letter-spacing: .01em; }
@@ -88,7 +87,6 @@ fieldset { display: grid; gap: 9px; margin: 22px 0 0; padding: 0; border: 0; }
   main { padding-top: 44px; }.hero-grid { grid-template-columns: 1fr; gap: 48px; min-height: auto; }.hero-copy h1 { font-size: clamp(50px, 13vw, 76px); }.new-card { max-width: 620px; }.recent-section { margin-top: 70px; }.content-grid { grid-template-columns: 1fr; }.note-card { order: -1; }
 }
 @media (max-width: 560px) {
-  .topbar { position: sticky; top: 0; z-index: 12; height: 66px; padding: 0 16px; border-bottom-color: rgba(255,255,255,.07); background: rgba(11,14,18,.88); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
   .brand { min-height: 44px; }.brand-mark { width: 30px; height: 30px; }.brand small { display: none; }.cloud-pill { display: none; }.install-button { min-height: 40px; }
   main { padding: 20px 16px calc(70px + env(safe-area-inset-bottom)); }.hero-grid { gap: 46px; }.hero-copy { order: 2; }.hero-copy h1 { font-size: clamp(43px, 14vw, 58px); line-height: .98; }.lede { margin-top: 21px; font-size: 16px; line-height: 1.55; }
   .new-card { order: 1; padding: 18px; border-radius: 18px; }.card-head { padding-bottom: 18px; }.new-card > label, .form-row label { margin-top: 17px; }.form-row { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -112,7 +110,6 @@ fieldset { display: grid; gap: 9px; margin: 22px 0 0; padding: 0; border: 0; }
 }
 
 @media (display-mode: standalone) {
-  .topbar { padding-top: env(safe-area-inset-top); height: calc(66px + env(safe-area-inset-top)); }.install-button { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

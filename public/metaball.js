@@ -102,7 +102,16 @@ export function metaballDrag(container, selector, onBreak) {
       clear();
       if (broken) {
         handle.classList.add("breaking");
-        window.setTimeout(() => onBreak(handle), 160);
+        window.setTimeout(() => {
+          onBreak(handle);
+          // Still here? Then breaking meant something other than leaving: put it back.
+          if (handle.isConnected) {
+            handle.classList.remove("breaking");
+            handle.classList.add("returning");
+            handle.style.transform = "";
+            window.setTimeout(() => handle.classList.remove("returning"), 320);
+          }
+        }, 160);
         return;
       }
       // Not far enough: the neck pulls it back.

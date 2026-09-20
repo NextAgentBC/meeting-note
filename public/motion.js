@@ -106,38 +106,100 @@ export function depthScroll() {
   window.addEventListener("resize", schedule);
 }
 
-// ── Cylinder scroll: a long list curves away at both ends ───────────────────
+// ── Damping and flow: the content has weight, the glass reacts to it ────────
 
 let cylinderFrame = 0;
+let flow = 0;
+let lastScroll = 0;
+let lastFrame = 0;
+let restTimer = 0;
 
-function cylinderTick() {
-  cylinderFrame = 0;
+/** How far this row lags behind the scroll, so a list settles instead of stopping dead. */
+function lagFor(index) {
+  return 0.55 + (index % 3) * 0.22;
+}
+
+function shapeList(lag) {
   // A wide window shows whole rows side by side; the curve belongs to a phone's single column.
-  if (window.innerWidth > 760) return;
+  const curve = window.innerWidth <= 760;
   const middle = window.innerHeight / 2;
   for (const list of document.querySelectorAll("[data-cylinder]")) {
-    for (const item of list.children) {
+    [...list.children].forEach((item, index) => {
       const rect = item.getBoundingClientRect();
       if (rect.bottom < -80 || rect.top > window.innerHeight + 80) {
         item.style.removeProperty("transform");
         item.style.removeProperty("opacity");
-        continue;
+        return;
+      }
+      const drift = `translateY(${(lag * lagFor(index)).toFixed(2)}px)`;
+      if (!curve) {
+        item.style.transform = drift;
+        item.style.removeProperty("opacity");
+        return;
       }
       // How far this row sits from the middle of the screen, as -1 … 0 … 1.
       const offset = Math.max(-1, Math.min(1, (rect.top + rect.height / 2 - middle) / middle));
       const away = Math.abs(offset);
-      item.style.transform = `perspective(900px) rotateX(${(-offset * 7).toFixed(2)}deg) scale(${(1 - away * 0.035).toFixed(4)})`;
+      item.style.transform = `perspective(900px) ${drift} rotateX(${(-offset * 7).toFixed(2)}deg) scale(${(1 - away * 0.035).toFixed(4)})`;
       item.style.opacity = (1 - away * 0.28).toFixed(3);
-    }
+    });
   }
+}
+
+function rest() {
+  flow = 0;
+  lastFrame = 0;
+  const root = document.documentElement;
+  root.style.setProperty("--flow", "0px");
+  root.style.setProperty("--flow-strength", "0");
+  shapeList(0);
+}
+
+function flowTick(now) {
+  cylinderFrame = 0;
+  const elapsed = lastFrame ? Math.min(80, now - lastFrame) : 16.7;
+  lastFrame = now;
+  // Damping per frame would settle at whatever speed the device happens to draw; per millisecond
+  // it settles in the same quarter of a second on a 120Hz phone and on a throttled background tab.
+  const steps = elapsed / 16.7;
+  const scrolled = window.scrollY || document.documentElement.scrollTop || 0;
+  const velocity = scrolled - lastScroll;
+  lastScroll = scrolled;
+  // A spring with heavy damping: the scroll pulls the content, and it settles back on its own.
+  flow = (flow + velocity * 0.45) * 0.86 ** steps;
+  if (Math.abs(flow) < 0.05) flow = 0;
+  const lag = Math.max(-9, Math.min(9, flow));
+  const root = document.documentElement;
+  root.style.setProperty("--flow", `${lag.toFixed(2)}px`);
+  // 0 when still, 1 when moving fast: the glass saturates and brightens with the movement.
+  root.style.setProperty("--flow-strength", Math.min(1, Math.abs(lag) / 9).toFixed(3));
+  shapeList(lag);
+  // Frames can stop coming — a background tab, a phone saving power — and content must not be
+  // left leaning. If no frame arrives for a while, everything goes back to rest on a timer.
+  window.clearTimeout(restTimer);
+  if (flow !== 0) restTimer = window.setTimeout(rest, 400);
+  if (document.visibilityState === "hidden") {
+    flow = 0;
+    lastFrame = 0;
+    return;
+  }
+  if (flow !== 0 || velocity !== 0) cylinderFrame = requestAnimationFrame(flowTick);
+  else lastFrame = 0;
 }
 
 export function cylinderScroll() {
   if (still()) return;
+  lastScroll = window.scrollY || 0;
   const schedule = () => {
-    if (!cylinderFrame) cylinderFrame = requestAnimationFrame(cylinderTick);
+    if (!cylinderFrame) cylinderFrame = requestAnimationFrame(flowTick);
   };
-  cylinderTick();
+  shapeList(0);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      lastScroll = window.scrollY || 0;
+      schedule();
+    }
+  });
   window.addEventListener("scroll", schedule, { passive: true });
   window.addEventListener("resize", schedule);
   window.addEventListener("hashchange", () => window.setTimeout(schedule, 60));

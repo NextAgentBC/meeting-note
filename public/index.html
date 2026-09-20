@@ -107,7 +107,7 @@
       </section>
 
       <!-- Meetings: start a recording, and every meeting so far -->
-      <section id="meetingsView" class="view app-view hidden" data-view="meetings" data-title="Meetings">
+      <section id="meetingsView" class="view app-view hidden" data-view="meetings" data-title="Meetings" data-cylinder>
         <a class="home-notes-entry" href="#/memory">
           <span class="home-notes-icon" aria-hidden="true">
             <svg class="icon" viewBox="0 0 24 24"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16V4.5Z" /><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19M9 8h6" /></svg>
@@ -156,11 +156,11 @@
           <h2>Your meetings</h2>
           <button id="refreshButton" class="text-button" type="button">Refresh</button>
         </div>
-        <div id="meetingList" class="meeting-list" data-cylinder><p class="empty-state">Loading meetings…</p></div>
+        <div id="meetingList" class="meeting-list"><p class="empty-state">Loading meetings…</p></div>
       </section>
 
       <!-- One meeting: live recording, progress, the note and the transcript -->
-      <section id="meetingView" class="view app-view hidden" data-view="meeting" data-title="Meeting">
+      <section id="meetingView" class="view app-view hidden" data-view="meeting" data-title="Meeting" data-cylinder>
         <div class="meeting-head">
           <p id="meetingKicker" class="eyebrow">Meeting</p>
           <h2 id="activeMeetingTitle">Meeting</h2>
@@ -216,7 +216,7 @@
       </section>
 
       <!-- Plans: say or type them, check suggestions, see what's coming -->
-      <section id="plansSection" class="view app-view hidden" data-view="plans" data-title="Plans">
+      <section id="plansSection" class="view app-view hidden" data-view="plans" data-title="Plans" data-cylinder>
         <div class="card dictate-card">
           <button id="dictateButton" class="dictate-button" type="button" aria-describedby="dictateHint" aria-pressed="false">
             <span class="dictate-orb" aria-hidden="true"><i></i></span>
@@ -255,7 +255,7 @@
       </section>
 
       <!-- Notes: save anything, ask anything, and see what's remembered -->
-      <section id="askSection" class="view app-view hidden" data-view="memory" data-title="Notes">
+      <section id="askSection" class="view app-view hidden" data-view="memory" data-title="Notes" data-cylinder>
         <form id="quickNoteForm" class="card quick-note-form">
           <div class="quick-note-head">
             <div><p class="eyebrow">Quick note</p><h2>Save whatever is on your mind</h2></div>
@@ -286,7 +286,16 @@
 
         <div id="capturesBlock" class="plan-block hidden">
           <div class="plan-block-head"><div><h3>Quick notes</h3><p>Your text and photos, newest first.</p></div></div>
-          <div id="capturesList" class="capture-list" data-cylinder></div>
+          <div id="noteFilters" class="filter-orbits" role="group" aria-label="Filter notes by kind">
+            <button type="button" class="filter-orbit" data-category="all" aria-pressed="true"><i aria-hidden="true">◍</i><span>All</span></button>
+            <button type="button" class="filter-orbit" data-category="idea" aria-pressed="false"><i aria-hidden="true">✦</i><span>Idea</span></button>
+            <button type="button" class="filter-orbit" data-category="journal" aria-pressed="false"><i aria-hidden="true">◷</i><span>Journal</span></button>
+            <button type="button" class="filter-orbit" data-category="plan" aria-pressed="false"><i aria-hidden="true">◎</i><span>Plan</span></button>
+            <button type="button" class="filter-orbit" data-category="life" aria-pressed="false"><i aria-hidden="true">❖</i><span>Life</span></button>
+            <button type="button" class="filter-orbit" data-category="reference" aria-pressed="false"><i aria-hidden="true">▤</i><span>Reference</span></button>
+          </div>
+          <div id="capturesList" class="capture-list"></div>
+          <p id="noteFilterEmpty" class="hint hidden">Nothing in this kind yet.</p>
         </div>
 
         <form id="askForm" class="card ask-form">
@@ -330,7 +339,7 @@
       </section>
 
       <!-- Me: allowance, devices, calendar, the app itself -->
-      <section id="meView" class="view app-view hidden" data-view="me" data-title="Me">
+      <section id="meView" class="view app-view hidden" data-view="me" data-title="Me" data-cylinder>
         <section id="usageCard" class="usage-card hidden">
           <div class="usage-head">
             <div>

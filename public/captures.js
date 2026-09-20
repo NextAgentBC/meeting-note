@@ -17,6 +17,8 @@ const THUMB_TARGET = 110 * 1024;
 
 let pendingPhotos = [];
 let initialized = false;
+let allCaptures = [];
+let noteFilter = "all";
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>'"]/g, (character) => ({
@@ -247,13 +249,30 @@ function captureHtml(capture) {
 export async function loadCaptures() {
   try {
     const data = await api("/api/captures");
-    const captures = data.captures || [];
-    $("#capturesBlock").classList.toggle("hidden", captures.length === 0);
-    $("#capturesList").innerHTML = captures.map(captureHtml).join("");
-    ambientGlow($("#capturesList"));
+    allCaptures = data.captures || [];
+    renderCaptures();
   } catch {
     $("#capturesBlock").classList.add("hidden");
   }
+}
+
+/** One kind at a time, chosen by the circles above the list. */
+function renderCaptures() {
+  $("#capturesBlock").classList.toggle("hidden", allCaptures.length === 0);
+  const shown = noteFilter === "all"
+    ? allCaptures
+    : allCaptures.filter((capture) => capture.category === noteFilter);
+  $("#capturesList").innerHTML = shown.map(captureHtml).join("");
+  $("#noteFilterEmpty").classList.toggle("hidden", shown.length > 0 || allCaptures.length === 0);
+  ambientGlow($("#capturesList"));
+}
+
+function setNoteFilter(category) {
+  noteFilter = category;
+  for (const orbit of document.querySelectorAll(".filter-orbit")) {
+    orbit.setAttribute("aria-pressed", String(orbit.dataset.category === category));
+  }
+  renderCaptures();
 }
 
 export async function loadImageAiSetting() {
@@ -358,6 +377,14 @@ async function stopVoiceNote() {
 export function initCaptures() {
   if (initialized) return;
   initialized = true;
+  // The circles above the list are the filter. Tapping one picks it; dragging one out of the row
+  // pulls it loose with the same liquid neck the photos use, and picks it when the neck breaks.
+  $("#noteFilters").addEventListener("click", (event) => {
+    const orbit = event.target.closest(".filter-orbit");
+    if (orbit) setNoteFilter(orbit.dataset.category);
+  });
+  metaballDrag($("#noteFilters"), ".filter-orbit", (orbit) => setNoteFilter(orbit.dataset.category));
+
   // A photo can be pulled out of the note: the neck between it and its place thins, then breaks.
   metaballDrag($("#quickNotePreviews"), ".photo-preview", (figure) => {
     const [photo] = pendingPhotos.splice(Number(figure.dataset.photoIndex), 1);

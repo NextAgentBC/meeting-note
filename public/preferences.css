@@ -43,6 +43,11 @@ html[data-theme="butter"] {
   --ink: #17201d; --ink-2: #43504b; --ink-3: #68746f; --hairline: rgba(23,32,29,.13); --hairline-strong: rgba(23,32,29,.24);
   --brand: var(--theme-light-brand); --brand-text: var(--theme-light-brand-text); --brand-fg: var(--theme-light-brand-fg); --gold: var(--theme-light-gold); --brand-rgb: var(--theme-light-rgb);
   --shadow-color: 27,35,32; --success: #24734e; --warning: #9a5b0a; --danger: #b43838; --info: #356c99;
+  --glass-face: linear-gradient(177deg, rgba(255,255,255,.86), rgba(255,255,255,.58) 58%, rgba(255,255,255,.66));
+  --glass-body: color-mix(in srgb, var(--surface) 46%, transparent);
+  --glass-edge: inset 0 1px 0 rgba(255,255,255,.95), inset 1px 0 0 rgba(255,255,255,.55), inset -1px 0 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(23,32,29,.1);
+  --glass-drop: 0 20px 48px -18px rgba(var(--brand-rgb),.34), 0 6px 16px -10px rgba(27,35,32,.24);
+  --glass-bar-face: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,.42));
 }
 html[data-mode="dark"] {
   color-scheme: dark;
@@ -50,6 +55,11 @@ html[data-mode="dark"] {
   --ink: #f4f7f9; --ink-2: #c4ced5; --ink-3: #8f9ba8; --hairline: rgba(255,255,255,.1); --hairline-strong: rgba(255,255,255,.18);
   --brand: var(--theme-dark-brand); --brand-text: var(--theme-dark-brand-text); --brand-fg: var(--theme-dark-brand-fg); --gold: var(--theme-dark-gold); --brand-rgb: var(--theme-dark-rgb);
   --shadow-color: 0,0,0; --success: #62c995; --warning: #ffca68; --danger: #ff7773; --info: #7eb9eb;
+  --glass-face: linear-gradient(177deg, rgba(255,255,255,.14), rgba(255,255,255,.05) 58%, rgba(255,255,255,.09));
+  --glass-body: color-mix(in srgb, var(--surface-2) 54%, transparent);
+  --glass-edge: inset 0 1px 0 rgba(255,255,255,.28), inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.4);
+  --glass-drop: 0 22px 52px -20px rgba(0,0,0,.75), 0 0 32px -12px rgba(var(--brand-rgb),.28);
+  --glass-bar-face: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
 }
 @media (prefers-color-scheme: dark) {
   html[data-mode="system"] {
@@ -58,6 +68,11 @@ html[data-mode="dark"] {
     --ink: #f4f7f9; --ink-2: #c4ced5; --ink-3: #8f9ba8; --hairline: rgba(255,255,255,.1); --hairline-strong: rgba(255,255,255,.18);
     --brand: var(--theme-dark-brand); --brand-text: var(--theme-dark-brand-text); --brand-fg: var(--theme-dark-brand-fg); --gold: var(--theme-dark-gold); --brand-rgb: var(--theme-dark-rgb);
     --shadow-color: 0,0,0; --success: #62c995; --warning: #ffca68; --danger: #ff7773; --info: #7eb9eb;
+  --glass-face: linear-gradient(177deg, rgba(255,255,255,.14), rgba(255,255,255,.05) 58%, rgba(255,255,255,.09));
+  --glass-body: color-mix(in srgb, var(--surface-2) 54%, transparent);
+  --glass-edge: inset 0 1px 0 rgba(255,255,255,.28), inset 1px 0 0 rgba(255,255,255,.12), inset -1px 0 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.4);
+  --glass-drop: 0 22px 52px -20px rgba(0,0,0,.75), 0 0 32px -12px rgba(var(--brand-rgb),.28);
+  --glass-bar-face: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
   }
 }
 
@@ -68,7 +83,12 @@ html[data-mode="dark"] {
 body { color: var(--ink); background: var(--canvas); font-family: var(--font-ui); }
 .meeting-head h2, .quick-note-head h2, .usage-head h2, .auth-card h1 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
 /* Glass, in this theme's colour: see the liquid-glass block in shell.css. */
-.appbar, .tabbar { border-color: var(--hairline); background: color-mix(in srgb, var(--canvas) 42%, transparent); }
+.appbar, .tabbar {
+  border-color: var(--hairline);
+  background-image: var(--glass-grain), var(--glass-bar-face);
+  background-color: color-mix(in srgb, var(--canvas) 34%, transparent);
+  background-size: 140px 140px, auto;
+}
 /* Over bright content the glass itself goes bright, whatever the theme's own mode is. */
 .appbar[data-glass="light"], .tabbar[data-glass="light"] { background: color-mix(in srgb, var(--theme-light-surface, #fbf9f4) 52%, transparent); }
 .tabbar[data-glass="light"] a { color: color-mix(in srgb, var(--theme-light-ink, #17201d) 70%, transparent); }
@@ -77,10 +97,14 @@ body { color: var(--ink); background: var(--canvas); font-family: var(--font-ui)
    blur behind it is what keeps text readable over whatever is scrolling past. */
 .card, .new-card, .note-card, .transcript-card, .plan-block, .usage-card, .settings-group, .meeting-row, .memory-row, .capture-card, .ask-form, .dictate-result {
   border-color: var(--hairline);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 30%, transparent), 0 16px 44px rgba(var(--shadow-color),.16);
+  /* Grain, then the lit face, over a body colour that is lighter than the page behind it. */
+  background-image: var(--glass-grain), var(--glass-face);
+  background-color: var(--glass-body);
+  background-size: 140px 140px, auto;
+  /* The glass comes alive while the page moves and settles when it stops (--flow-strength). */
+  -webkit-backdrop-filter: blur(30px) saturate(calc(190% + var(--flow-strength, 0) * 70%)) brightness(calc(1.04 + var(--flow-strength, 0) * .05));
+  backdrop-filter: blur(30px) saturate(calc(190% + var(--flow-strength, 0) * 70%)) brightness(calc(1.04 + var(--flow-strength, 0) * .05));
+  box-shadow: var(--glass-edge), var(--glass-drop);
 }
 input, select, textarea, .segmented, .recovery-code, .sheet textarea { color: var(--ink); border-color: var(--hairline); background: var(--surface-2); }
 .field > span, .record-options summary, .segmented label, .segmented button, .home-notes-entry small, .plan-notes, .auth-hint { color: var(--ink-2); }

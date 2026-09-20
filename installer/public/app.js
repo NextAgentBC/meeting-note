@@ -154,6 +154,9 @@ async function install() {
     return;
   }
   $("#openApp").href = `${data.appUrl}#claim=${encodeURIComponent(data.setupCode)}`;
+  // The address without the one-time claim code: this is the one worth keeping.
+  $("#appAddress").value = data.appUrl;
+  $("#appAddress").scrollLeft = 0;
   $("#successNote").classList.toggle("hidden", !data.addressIsNew);
   show("success");
 }
@@ -161,6 +164,16 @@ async function install() {
 $("#language").addEventListener("click", () => { language = language === "zh" ? "en" : "zh"; translate(); });
 $("#install").addEventListener("click", () => install().catch((error) => fail("unknown", error.message)));
 $("#retry").addEventListener("click", () => retryAction());
+$("#copyAddress").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    await navigator.clipboard.writeText($("#appAddress").value);
+    button.textContent = language === "zh" ? "已复制" : "Copied";
+    window.setTimeout(() => { button.textContent = button.dataset[language]; }, 2000);
+  } catch {
+    $("#appAddress").select();
+  }
+});
 translate();
 if (params.get("error")) {
   retryAction = () => location.assign("/oauth/start");

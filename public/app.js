@@ -15,6 +15,7 @@ const SILENCE_WARN_MS = 20 * 1000;
 const CHUNK_BITRATE = 48_000;
 const BACKUP_BITRATE = 64_000;
 const FINALIZE_PREFIX = "meetingnote-pending-finalize:";
+const HOMESCREEN_KEY = "meetingnote:homescreen-offered";
 
 initPreferences();
 
@@ -97,19 +98,71 @@ async function releaseWakeLock() {
   wakeLock = null;
 }
 
+// Safari never fires beforeinstallprompt, so on an iPhone — where most of this app is used — the
+// only way onto the home screen is the Share menu, and someone has to say so.
+function homeScreenSteps() {
+  const agent = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(agent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+    return [
+      "Tap the Share button: the square with an arrow, at the bottom of Safari.",
+      "Scroll down that list and choose “Add to Home Screen”.",
+      "Tap Add. Meeting Note now sits with your other apps."
+    ];
+  }
+  if (/Android/.test(agent)) {
+    return [
+      "Open the browser menu: the three dots at the top right.",
+      "Choose “Install app”, or “Add to Home screen”.",
+      "Confirm. Meeting Note now sits with your other apps."
+    ];
+  }
+  return [
+    "In Chrome or Edge, click the install icon at the right of the address bar.",
+    "In Safari, open the File menu and choose “Add to Dock”.",
+    "Meeting Note then opens in its own window, with no address bar."
+  ];
+}
+
+function openHomeScreenSheet() {
+  const dialog = $("#homeScreenDialog");
+  $("#homeScreenSteps").replaceChildren(...homeScreenSteps().map((step) => {
+    const item = document.createElement("li");
+    item.textContent = step;
+    return item;
+  }));
+  $("#appAddress").value = location.origin;
+  $("#homeScreenInstall").classList.toggle("hidden", !deferredInstallPrompt);
+  dismissHomeScreenBanner();
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  // A long address scrolls to its end on its own; the part worth reading is the start.
+  $("#appAddress").scrollLeft = 0;
+}
+
 async function installApp() {
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-    $("#installButton").classList.add("hidden");
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  $("#homeScreenInstall").classList.add("hidden");
+}
+
+// Offered once. Someone who says "not now" is not asked again on this device.
+function dismissHomeScreenBanner() {
+  $("#homeScreenBanner").classList.add("hidden");
+  try { localStorage.setItem(HOMESCREEN_KEY, "1"); } catch { /* private browsing can deny storage */ }
+}
+
+function offerHomeScreen() {
+  if (isStandalone() || !isMobileDevice()) return;
+  try {
+    if (localStorage.getItem(HOMESCREEN_KEY)) return;
+  } catch {
     return;
   }
-  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-    showToast("In Safari, tap Share, then choose “Add to Home Screen”.", 8000);
-  } else {
-    showToast("Use your browser menu and choose “Install app” or “Add to Home screen”.", 8000);
-  }
+  window.setTimeout(() => {
+    if (!isStandalone() && $("#reauthBanner").classList.contains("hidden")) $("#homeScreenBanner").classList.remove("hidden");
+  }, 2500);
 }
 
 async function api(path, options = {}) {
@@ -1024,11 +1077,16 @@ window.addEventListener("offline", updateConnection);
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
-  if (!isStandalone()) $("#installButton").classList.remove("hidden");
+  if (!isStandalone()) {
+    $("#installButton").classList.remove("hidden");
+    $("#homeScreenInstall").classList.remove("hidden");
+  }
 });
 window.addEventListener("appinstalled", () => {
   deferredInstallPrompt = null;
   $("#installButton").classList.add("hidden");
+  $("#homeScreenDialog").close();
+  dismissHomeScreenBanner();
   showToast("Meeting Note is installed and ready from your home screen.");
 });
 document.addEventListener("visibilitychange", () => {
@@ -1043,10 +1101,21 @@ window.addEventListener("beforeunload", (event) => {
 
 updateConnection();
 configureMobileCapture();
-$("#installButton").addEventListener("click", installApp);
-if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !isStandalone()) {
-  $("#installButton").classList.remove("hidden");
-}
+$("#installButton").addEventListener("click", openHomeScreenSheet);
+$("#homeScreenInstall").addEventListener("click", () => void installApp());
+$("#homeScreenShow").addEventListener("click", openHomeScreenSheet);
+$("#homeScreenLater").addEventListener("click", dismissHomeScreenBanner);
+$("#closeHomeScreenDialog").addEventListener("click", () => $("#homeScreenDialog").close());
+$("#copyAppAddress").addEventListener("click", async (event) => {
+  try {
+    await navigator.clipboard.writeText($("#appAddress").value);
+    event.currentTarget.textContent = "Copied";
+  } catch {
+    $("#appAddress").select();
+  }
+});
+// Every browser that cannot install by itself still needs the row that explains how.
+if (!isStandalone()) $("#installButton").classList.remove("hidden");
 if ("serviceWorker" in navigator) {
   // Reload only to swap in an updated app: never on a first visit (nothing stale to replace, and the
   // reload would cut into creating the passkey), and never mid-sign-in or mid-recording.
@@ -1079,6 +1148,7 @@ void ensureSignedIn().then(() => {
   void loadUsage();
   void loadImageAiSetting();
   renderRoute();
+  offerHomeScreen();
   if (shortcut === "record") window.setTimeout(() => $("#meetingTitle").focus(), 300);
   if (shortcut === "note") window.setTimeout(() => $("#quickNoteBody").focus(), 300);
 });
@@ -1090,6 +1160,8 @@ window.addEventListener("meetingnote:open-meeting", (event) => {
   }
   if (event.detail?.id) openMeeting(event.detail.id);
 });
+// One banner at a time: a sign-in warning outranks an invitation to the home screen.
+window.addEventListener("meetingnote:signin-required", () => $("#homeScreenBanner").classList.add("hidden"));
 // After signing in again mid-session, send whatever audio was waiting.
 window.addEventListener("meetingnote:signed-in", () => {
   if (!signedIn) return;

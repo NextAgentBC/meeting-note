@@ -85,6 +85,16 @@
       <h2 data-zh="你的 Meeting Note 已准备好" data-en="Your Meeting Note is ready">你的 Meeting Note 已准备好</h2>
       <p data-zh="最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。" data-en="One last tap: claim it with Face ID. No code to copy and no password to create.">最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。</p>
       <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID">继续，用 Face ID 认领</a>
+      <div class="address-block">
+        <p class="address-label" data-zh="你的 Meeting Note 网址" data-en="The address of your Meeting Note">你的 Meeting Note 网址</p>
+        <input id="appAddress" readonly aria-label="Your Meeting Note address" />
+        <button class="ghost-button" id="copyAddress" type="button" data-zh="复制网址" data-en="Copy address">复制网址</button>
+      </div>
+      <ul class="remember-list">
+        <li data-zh="认领之后，应用会教你把它加到手机主屏幕——以后点一下就能打开，不用记网址。" data-en="Once you claim it, the app shows you how to put it on your home screen: one tap from then on, nothing to remember.">认领之后，应用会教你把它加到手机主屏幕——以后点一下就能打开，不用记网址。</li>
+        <li data-zh="也可以现在复制网址，发给自己或存进备忘录。" data-en="You can also copy the address now and send it to yourself, or keep it in your notes.">也可以现在复制网址，发给自己或存进备忘录。</li>
+        <li data-zh="忘了也不怕：登录 Cloudflare 打开 Workers，名字以 meeting-note 开头的那个就是。" data-en="Lost it later? Sign in to Cloudflare and open Workers: it is the one whose name starts with meeting-note.">忘了也不怕：登录 Cloudflare 打开 Workers，名字以 meeting-note 开头的那个就是。</li>
+      </ul>
       <p class="fine hidden" id="successNote" data-zh="这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。" data-en="This address was created just now and can take a minute or two to resolve. If it does not open yet, wait a moment and tap again.">这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。</p>
       <p class="fine" data-zh="认领完成后，请截图保存应用显示的恢复码。" data-en="After claiming it, save a screenshot of the recovery code shown by the app.">认领完成后，请截图保存应用显示的恢复码。</p>
     </section>

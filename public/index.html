@@ -524,6 +524,24 @@
       </div>
     </dialog>
 
+    <dialog id="homeScreenDialog" class="sheet" aria-labelledby="homeScreenDialogTitle">
+      <div class="sheet-body">
+        <p class="eyebrow">This device</p>
+        <h2 id="homeScreenDialogTitle">Keep Meeting Note one tap away</h2>
+        <p>On your home screen it opens like any other app: one tap, no address to remember and no browser bar.</p>
+        <button id="homeScreenInstall" class="primary-button hidden" type="button"><span>Add to home screen</span><b>&#8594;</b></button>
+        <ol id="homeScreenSteps"></ol>
+        <h3>Or keep the address</h3>
+        <p>This is where your Meeting Note lives. Save it in your notes, or send it to yourself.</p>
+        <input id="appAddress" readonly aria-label="The address of your Meeting Note" />
+        <div class="device-actions">
+          <button id="copyAppAddress" class="quick-add-button" type="button">Copy address</button>
+        </div>
+        <p class="footnote">Lost it? Sign in to Cloudflare and open Workers: it is the one whose name starts with meeting-note.</p>
+        <button id="closeHomeScreenDialog" class="sheet-close" type="button">Close</button>
+      </div>
+    </dialog>
+
     <dialog id="captureLightbox" class="capture-lightbox" aria-label="Photo preview">
       <button id="closeCaptureLightbox" type="button" aria-label="Close photo preview">×</button>
       <img id="captureLightboxImage" alt="" />
@@ -532,6 +550,11 @@
     <div id="reauthBanner" class="reauth-banner hidden" role="alert">
       <span id="reauthMessage">Your sign-in has expired. Recording continues, and new audio waits on this device.</span>
       <button id="reauthButton" type="button">Sign in again</button>
+    </div>
+    <div id="homeScreenBanner" class="reauth-banner homescreen-banner hidden" role="status">
+      <span>Add Meeting Note to your home screen and it opens in one tap.</span>
+      <button id="homeScreenShow" type="button">Show me how</button>
+      <button id="homeScreenLater" class="ghost" type="button">Not now</button>
     </div>
     <div id="toast" class="toast hidden" role="status"></div>
     <script type="module" src="/app.js"></script>

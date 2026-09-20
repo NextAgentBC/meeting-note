@@ -96,6 +96,24 @@ body.auth-pending main {
   cursor: wait;
 }
 
+/* Same banner, offering the home screen instead of a sign-in: an invitation, not a warning. */
+.homescreen-banner {
+  border-color: var(--line);
+  background: var(--panel-2);
+}
+.homescreen-banner button.ghost {
+  color: var(--text);
+  border: 1px solid var(--line);
+  background: transparent;
+  font-weight: 600;
+}
+/* On a phone the sentence needs the whole width, with the two answers under it. */
+@media (max-width: 520px) {
+  .homescreen-banner { flex-wrap: wrap; gap: 10px; }
+  .homescreen-banner span { flex: 1 1 100%; }
+  .homescreen-banner button { flex: 1 1 0; }
+}
+
 .recovery-code {
   margin: 22px 0 6px;
   padding: 18px 12px;

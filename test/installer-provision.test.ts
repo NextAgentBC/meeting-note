@@ -144,6 +144,7 @@ describe("personal Cloudflare installer", () => {
   });
 
   it("says which step failed, and names a missing address by its own code", async () => {
+    let uploads = 0;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method || "GET";
@@ -154,6 +155,7 @@ describe("personal Cloudflare installer", () => {
       if (url.endsWith("/queues")) return response({ queue_id: "queue-1" });
       if (url.includes("/d1/database/db-1/query")) return response([{}]);
       if (url.includes("/workers/scripts/meeting-note-install1") && method === "PUT") {
+        uploads += 1;
         return failure(10063, "You need a workers.dev subdomain in order to proceed.");
       }
       throw new Error(`Unexpected request ${method} ${url}`);
@@ -171,7 +173,9 @@ describe("personal Cloudflare installer", () => {
     expect(failed).toBeInstanceOf(InstallError);
     expect((failed as InstallError).code).toBe("workers_subdomain");
     expect((failed as InstallError).apiCodes).toContain(10063);
-  });
+    // Three attempts before giving up: a settling error that never settles is a real one.
+    expect(uploads).toBe(3);
+  }, 15000);
 
   it("lists what this account already has, so a second run is a choice and not a surprise", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
@@ -312,6 +316,39 @@ describe("personal Cloudflare installer", () => {
       url: "https://claimed.example.test"
     })).rejects.toThrow(/already has an owner/);
   });
+
+  it("tries again when Cloudflare says a thing it just created is not there yet", async () => {
+    let uploads = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method || "GET";
+      if (url.endsWith("/workers/subdomain") && method === "GET") return response({ subdomain: "quiet-harbour" });
+      if (url.endsWith("/d1/database") && method === "POST") return response({ uuid: "db-1" });
+      if (url.endsWith("/storage/kv/namespaces")) return response({ id: "kv-1" });
+      if (url.endsWith("/queues")) return response({ queue_id: "queue-1" });
+      if (url.includes("/d1/database/db-1/query")) return response([{}]);
+      if (url.endsWith("/workers/scripts/meeting-note-install1") && method === "PUT") {
+        uploads += 1;
+        // What a brand-new account answers in the seconds after its subdomain is registered.
+        return uploads === 1 ? failure(10063, "You need a workers.dev subdomain in order to proceed.") : response({ id: "ok" });
+      }
+      if (url.endsWith("/queues/queue-1/consumers")) return response({ consumer_id: "consumer-1" });
+      if (url.endsWith("/workers/scripts/meeting-note-install1/subdomain")) return response({ enabled: true });
+      throw new Error(`Unexpected request ${method} ${url}`);
+    }));
+
+    const result = await provisionMeetingNote({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      releaseScript: "export default {}",
+      release,
+      installId: "install-1234",
+      updateChannel: "https://install.example.test"
+    });
+
+    expect(uploads).toBe(2);
+    expect(result.appUrl).toBe("https://meeting-note-install1.quiet-harbour.workers.dev");
+  }, 15000);
 
   it("removes half-created resources when installation fails", async () => {
     const requests: Array<{ url: string; method: string }> = [];

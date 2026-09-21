@@ -83,6 +83,38 @@ async function step<T>(code: InstallErrorCode, work: () => Promise<T>): Promise<
   }
 }
 
+const SETTLING_CODES = new Set([
+  10063, // "You need a workers.dev subdomain in order to proceed" — registered, not yet usable
+  10031, // subdomain unavailable, which a moment after registering can mean "not yours yet"
+  10007, // subdomain lookup finds nothing, right after it was created
+  10000 // Cloudflare's catch-all authentication/availability wobble
+]);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Cloudflare answers "not there" for a few seconds after it creates something. Every step here is
+ * idempotent enough to repeat — a create that already happened answers with the same object, and
+ * a script upload is a PUT — so a step that fails on a settling error is simply tried again.
+ */
+async function settle<T>(label: string, work: () => Promise<T>, attempts = 3): Promise<T> {
+  let last: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await work();
+    } catch (error) {
+      last = error;
+      const settling = error instanceof CloudflareError
+        && (error.codes.some((code) => SETTLING_CODES.has(code)) || error.codes.length === 0);
+      if (!settling || attempt === attempts) break;
+      const wait = 1500 * attempt;
+      console.log(`Installer ${label}: ${error instanceof Error ? error.message : error} — retrying in ${wait}ms (${attempt}/${attempts - 1})`);
+      await sleep(wait);
+    }
+  }
+  throw last;
+}
+
 async function remove(token: string, path: string): Promise<void> {
   try {
     const response = await fetch(`${API}${path}`, {
@@ -136,6 +168,9 @@ export async function ensureWorkersSubdomain(token: string, account: string): Pr
         method: "PUT",
         body: JSON.stringify({ subdomain: candidate })
       });
+      // A name registered this second is not usable this second. The pause covers the common case;
+      // the script upload retries on 10063 for the rest.
+      await sleep(1500);
       return { subdomain: created?.subdomain || candidate, created: true };
     } catch (error) {
       if (!(error instanceof CloudflareError)) throw new InstallError("workers_subdomain", error instanceof Error ? error.message : String(error));
@@ -279,21 +314,21 @@ export async function provisionMeetingNote(input: ProvisionInput): Promise<Provi
       bindings,
       annotations: { "workers/message": `Meeting Note personal installer ${input.release.version}` }
     }, input.releaseScript);
-    await step("worker", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}`, { method: "PUT", body: form }));
+    await step("worker", () => settle("script upload", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}`, { method: "PUT", body: form })));
     workerCreated = true;
 
-    await step("queue", () => cf(input.accessToken, `/accounts/${account}/queues/${queueId}/consumers`, {
+    await step("queue", () => settle("queue consumer", () => cf(input.accessToken, `/accounts/${account}/queues/${queueId}/consumers`, {
       method: "POST",
       body: JSON.stringify({
         type: "worker",
         script_name: workerName,
         settings: { batch_size: 1, max_retries: 3, max_wait_time_ms: 5000 }
       })
-    }));
-    await step("address", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}/subdomain`, {
+    })));
+    await step("address", () => settle("publish address", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${workerName}/subdomain`, {
       method: "POST",
       body: JSON.stringify({ enabled: true, previews_enabled: false })
-    }));
+    })));
 
     return {
       appUrl: `https://${workerName}.${address.subdomain}.workers.dev`,

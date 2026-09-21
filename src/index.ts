@@ -16,6 +16,7 @@ import { archiveChunk, audioRetentionDays, audioRoutes, chunkAudio, runArchive }
 import { collapseLoops, correctTranscript, loadVocabulary, transcriptRoutes, whisperInput } from "./transcript";
 import { RELEASE_VERSION } from "./migrations.generated";
 import { ensureSchema } from "./schema";
+import { hdRoutes, runHd } from "./hd";
 import {
   SEGMENT_TARGET_MS,
   SegmentNoteSchema,
@@ -143,6 +144,7 @@ app.route("/api", memoryRoutes);
 app.route("/api", captureRoutes);
 app.route("/api", audioRoutes);
 app.route("/api", transcriptRoutes);
+app.route("/api", hdRoutes);
 
 // Public: the version is how an installed copy learns that a newer one has been released.
 app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare", version: RELEASE_VERSION, updateChannel: c.env.UPDATE_CHANNEL || "" }));
@@ -888,6 +890,7 @@ export default {
         if (body.type === "transcribe") await transcribeChunk(env, body);
         else if (body.type === "segment") await runSegment(env, body);
         else if (body.type === "remember") await rememberMeeting(env, body.meetingId);
+        else if (body.type === "hd") await runHd(env, body.meetingId);
         else if (body.type === "embed") await runEmbed(env, body.ids);
         else if (body.type === "facts") await runFacts(env, body.meetingId);
         else if (body.type === "vision") await runVision(env, body);

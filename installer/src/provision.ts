@@ -195,7 +195,10 @@ export const APP_VARS: Record<string, string> = {
   FREE_DAILY_NEURONS: "10000",
   WORKERS_PLAN: "free",
   AUDIO_RETENTION_DAYS: "7",
-  SEGMENT_TARGET_MINUTES: "5"
+  SEGMENT_TARGET_MINUTES: "5",
+  // The paid second pass that tells speakers apart. Present but dormant: nothing calls it until
+  // the owner asks for it on one finished meeting, and it is billed to their own account.
+  HD_MODEL: "@cf/deepgram/nova-3"
 };
 
 const SCRIPT_METADATA = {

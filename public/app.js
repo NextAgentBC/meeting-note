@@ -4,6 +4,7 @@ import { initPreferences } from "./preferences.js";
 import { inAppBrowser, openOutsideSteps } from "./in-app-browser.js";
 import { initGlass } from "./glass.js";
 import { cylinderScroll, depthScroll } from "./motion.js";
+import { hdAvailable, initHd } from "./hd.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
 import "./ask.js";
 import "./transcription.js";
@@ -749,6 +750,8 @@ async function showMeeting(id) {
     activeMeeting = { id };
     $("#audioButton").classList.add("hidden");
     $("#rebuildNoteButton").classList.add("hidden");
+    $("#hdButton").classList.add("hidden");
+    $("#hdPanel").classList.add("hidden");
     $("#exportLink").classList.add("hidden");
     progressPanel.classList.add("hidden");
     $("#activeMeetingTitle").textContent = "Loading…";
@@ -871,6 +874,7 @@ async function refreshActiveMeeting() {
       $("#forceSummaryButton").classList.toggle("hidden", writtenSegments === 0 || activeMeeting.forceSummary === true);
     } else if (activeMeeting.status === "ready") {
       $("#rebuildNoteButton").classList.remove("hidden");
+      void hdAvailable(activeMeeting.id);
       progressPanel.classList.add("hidden");
       $("#retryFinalizeButton").classList.add("hidden");
       $("#forceSummaryButton").classList.add("hidden");
@@ -1035,9 +1039,9 @@ async function retryActiveFinalization() {
 }
 
 /** Writes the note again from the saved transcript; the recording and transcript are kept. */
-async function rebuildNote() {
+async function rebuildNote(confirmFirst = true) {
   if (!activeMeeting?.id) return;
-  if (!window.confirm("Write this note again from the saved transcript? The current note is replaced.")) return;
+  if (confirmFirst && !window.confirm("Write this note again from the saved transcript? The current note is replaced.")) return;
   const button = $("#rebuildNoteButton");
   button.disabled = true;
   try {
@@ -1096,7 +1100,9 @@ function updateConnection() {
 form.addEventListener("submit", beginMeeting);
 stopButton.addEventListener("click", stopRecording);
 $("#forceSummaryButton").addEventListener("click", forceSummary);
-$("#rebuildNoteButton").addEventListener("click", rebuildNote);
+$("#rebuildNoteButton").addEventListener("click", () => void rebuildNote());
+// The HD pass rewrites the note through the same path, having already asked its own question.
+initHd({ onRebuild: () => rebuildNote(false) });
 $("#backButton").addEventListener("click", goHome);
 $("#recordingPill").addEventListener("click", () => {
   if (activeMeeting?.id) navigate(`#/meetings/${encodeURIComponent(activeMeeting.id)}`);

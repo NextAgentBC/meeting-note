@@ -200,8 +200,24 @@
           </div>
           <div class="note-actions">
             <button id="audioButton" class="text-button hidden" type="button">Recording</button>
+            <button id="hdButton" class="text-button hidden" type="button">Who said what</button>
             <button id="rebuildNoteButton" class="text-button hidden" type="button">Rewrite note</button>
             <a id="exportLink" class="text-button hidden" href="#">Export .md</a>
+          </div>
+        </div>
+
+        <div id="hdPanel" class="card hd-panel hidden">
+          <p class="eyebrow">Who said what</p>
+          <h3 id="hdTitle">Listen again, and tell the voices apart</h3>
+          <p id="hdBlurb">A second pass over this meeting with a model that marks each speaker. It runs on Workers AI inside your own Cloudflare account — the audio does not go anywhere else — and it is billed by the audio minute.</p>
+          <p id="hdCost" class="hint"></p>
+          <p id="hdStatus" class="hint"></p>
+          <div id="hdSpeakers" class="hd-speakers hidden"></div>
+          <div class="hd-actions">
+            <button id="hdStart" class="quick-add-button" type="button">Start</button>
+            <button id="hdSaveNames" class="quick-add-button ghost hidden" type="button">Save the names</button>
+            <button id="hdApply" class="quick-add-button hidden" type="button">Rewrite the note with names</button>
+            <button id="hdClose" class="text-button" type="button">Close</button>
           </div>
         </div>
 

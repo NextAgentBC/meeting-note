@@ -22,6 +22,12 @@ export interface Env {
   /** Where this copy asks whether a newer release exists; empty means it never asks. */
   UPDATE_CHANNEL?: string;
   /**
+   * The model behind "high-definition re-transcription": one pass over a finished meeting that
+   * tells speakers apart. Deepgram on Workers AI by default; empty turns the whole feature off.
+   * It is billed per audio minute, so nothing calls it without the owner asking for that meeting.
+   */
+  HD_MODEL?: string;
+  /**
    * NextNote, the owner's own desktop vault, talks to this app with a bearer token. It is one
    * person's setup, not part of what the installer hands out, so the whole feature — the settings
    * row, the token routes and bearer authentication itself — is off unless a deployment says "on".
@@ -56,6 +62,8 @@ export type JobMessage =
   | { type: "summarize"; meetingId: string }
   // Copies a meeting recorded before memory existed into it.
   | { type: "remember"; meetingId: string }
+  // One high-definition pass over a finished meeting: better words, and who said them.
+  | { type: "hd"; meetingId: string }
   // Embeds memory rows that are new or whose text changed, into MEMORY_VECTORS.
   | { type: "embed"; ids: string[] }
   // Extracts durable facts (hours, prices, policies, ...) from a meeting's finished note.

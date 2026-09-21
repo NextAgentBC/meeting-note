@@ -629,3 +629,14 @@ html[data-motion="light"] .tabbar::after { display: none; }
   background: color-mix(in srgb, var(--surface-2) 70%, transparent);
 }
 .memory-piece p { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.5; }
+
+
+/* "Who said what": the paid second pass, and the names its speakers get (hd.js). */
+.hd-panel { margin: 12px 0 0; }
+.hd-panel h3 { margin: 6px 0 8px; font-size: 17px; }
+.hd-panel p { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; line-height: 1.6; }
+.hd-speakers { display: grid; gap: 8px; margin: 12px 0; }
+.hd-speaker { display: grid; grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); gap: 10px; align-items: center; }
+.hd-speaker span { color: var(--muted); font-size: 12px; }
+.hd-speaker input { min-height: 42px; }
+.hd-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }

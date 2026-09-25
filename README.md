@@ -1,7 +1,7 @@
 # Meeting Note
 
 Record a meeting or a workshop in your browser. Your own free Cloudflare account transcribes it, in
-English and Chinese, and writes a structured note every five minutes while you are still talking.
+English, Chinese and French, and writes a structured note every five minutes while you are still talking.
 
 **New to Cloudflare?** Start with the [plain-language Chinese setup guide](QUICKSTART.zh-CN.md).
 You do not need to learn Cloudflare or write code. It is simply the free account that runs your

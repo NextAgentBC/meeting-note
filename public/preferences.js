@@ -5,7 +5,7 @@ const $ = (selector) => document.querySelector(selector);
 
 export const THEMES = ["pine", "celadon", "dusk", "pomegranate", "lilac", "rosewood", "butter"];
 export const MODES = ["light", "dark", "system"];
-export const LANGUAGES = ["en", "zh"];
+export const LANGUAGES = ["en", "zh", "fr"];
 
 const KEYS = {
   theme: "meetingnote:theme",
@@ -13,7 +13,7 @@ const KEYS = {
   language: "meetingnote:language"
 };
 
-const ZH = {
+export const ZH = {
   "Meetings": "会议",
   "Plans": "计划",
   "Notes": "笔记",
@@ -179,7 +179,7 @@ const ZH = {
   "Butter": "酪黄",
   "Coming up": "接下来",
   "Tap and say your plans": "点一下，说出你的计划",
-  "Up to two minutes · English or 中文": "最长两分钟 · 中文或英文",
+  "Up to two minutes · English, 中文 or Français": "最长两分钟 · 中文、英文或法文",
   "Cancel": "取消",
   "Add": "添加",
   "Check these": "请确认",
@@ -292,6 +292,284 @@ const ZH = {
   "Delete this quick note and all of its photos?": "删除这条随心笔记及其中的全部照片？"
 };
 
+export const FR = {
+  "Meetings": "Réunions",
+  "Plans": "Plans",
+  "Notes": "Notes",
+  "Me": "Moi",
+  "New": "Nouveau",
+  "Write a note or add photos": "Écrivez une note ou ajoutez des photos",
+  "Ideas, memories, shopping lists—save anything in seconds.": "Idées, souvenirs, listes de courses — enregistrez tout en quelques secondes.",
+  "Record a meeting": "Enregistrer une réunion",
+  "AI transcript and organized notes": "Transcription IA et notes organisées",
+  "What's this meeting?": "De quelle réunion s'agit-il ?",
+  "Team meeting · Monday": "Réunion d'équipe · lundi",
+  "What to record": "Que faut-il enregistrer",
+  "Microphone": "Microphone",
+  "Zoom + microphone": "Zoom + microphone",
+  "Note type and language": "Type de note et langue",
+  "Note type": "Type de note",
+  "Business meeting": "Réunion professionnelle",
+  "Workshop": "Atelier",
+  "Interview": "Entretien",
+  "Language": "Langue",
+  "English": "Anglais",
+  "Start recording": "Démarrer l'enregistrement",
+  "Your meetings": "Vos réunions",
+  "Refresh": "Actualiser",
+  "Quick note": "Note rapide",
+  "Save whatever is on your mind": "Enregistrez ce qui vous passe par la tête",
+  "Note category": "Catégorie de note",
+  "Let AI organize": "Laisser l'IA organiser",
+  "Idea": "Idée",
+  "Journal": "Journal",
+  "Plan": "Plan",
+  "Life": "Vie",
+  "Reference": "Référence",
+  "Write an idea, a moment, a shopping note…": "Écrivez une idée, un moment, une liste de courses…",
+  "Say it instead": "Dites-le plutôt",
+  "Listening": "En écoute",
+  "tap to stop": "touchez pour arrêter",
+  "Writing it down…": "Transcription en cours…",
+  "Nothing was recorded.": "Rien n'a été enregistré.",
+  "Nothing was heard. Try again, a little closer to the microphone.": "Rien n'a été entendu. Réessayez, un peu plus près du microphone.",
+  "Meeting Note could not use the microphone. Check the permission for this site.": "Meeting Note n'a pas pu utiliser le microphone. Vérifiez l'autorisation accordée à ce site.",
+  "This browser cannot record audio.": "Ce navigateur ne peut pas enregistrer l'audio.",
+  "Couldn't transcribe that recording. Please try again.": "Impossible de transcrire cet enregistrement. Veuillez réessayer.",
+  "Take photo": "Prendre une photo",
+  "Choose photos": "Choisir des photos",
+  "Save note": "Enregistrer la note",
+  "Up to 6 photos. They are resized and converted to WebP on this device before upload.": "Jusqu'à 6 photos. Elles sont redimensionnées et converties en WebP sur cet appareil avant l'envoi.",
+  "Lost the code?": "Code perdu ?",
+  "Open the installer": "Ouvrez l'installateur",
+  ", pick the same Cloudflare account, and choose \"Make a new claim link\".": ", choisissez le même compte Cloudflare, puis « Générer un nouveau lien de récupération ».",
+  "Who said what": "Qui a dit quoi",
+  "Listen again, and tell the voices apart": "Réécoutez, et distinguez les voix",
+  "A second pass over this meeting with a model that marks each speaker. It runs on Workers AI inside your own Cloudflare account — the audio does not go anywhere else — and it is billed by the audio minute.": "Un second passage sur cette réunion avec un modèle qui identifie chaque intervenant. Il s'exécute sur Workers AI, dans votre propre compte Cloudflare — l'audio ne va nulle part ailleurs — et il est facturé à la minute audio.",
+  "Start": "Démarrer",
+  "Start?": "Démarrer ?",
+  "Save the names": "Enregistrer les noms",
+  "Rewrite the note with names": "Réécrire la note avec les noms",
+  "Close": "Fermer",
+  "Their name": "Son nom",
+  "minutes of audio": "minutes d'audio",
+  "about": "environ",
+  "Listening again": "Nouvelle écoute en cours",
+  "Done. Name the voices you recognise.": "Terminé. Nommez les voix que vous reconnaissez.",
+  "Names saved.": "Noms enregistrés.",
+  "Rewriting…": "Réécriture en cours…",
+  "This runs a paid model in your own Cloudflare account.": "Ceci exécute un modèle payant dans votre propre compte Cloudflare.",
+  "Rewrite this meeting's note from the new transcript, with the names?": "Réécrire la note de cette réunion à partir de la nouvelle transcription, avec les noms ?",
+  "Show less": "Afficher moins",
+  "Date": "Date",
+  "Time": "Heure",
+  "Forget": "Oublier",
+  "All": "Tout",
+  "Filter notes by kind": "Filtrer les notes par type",
+  "Nothing in this kind yet.": "Rien dans cette catégorie pour l'instant.",
+  "Quick notes": "Notes rapides",
+  "Your text and photos, newest first.": "Vos textes et photos, du plus récent au plus ancien.",
+  "Ask your meetings, notes and plans": "Interrogez vos réunions, notes et plans",
+  "What did we decide about the venue?": "Qu'avons-nous décidé pour le lieu ?",
+  "Ask": "Demander",
+  "Examples": "Exemples",
+  "What's on this week?": "Qu'y a-t-il au programme cette semaine ?",
+  "Who promised to do what?": "Qui a promis de faire quoi ?",
+  "Everything you record, write, photograph and plan is remembered on its own. Ask in English or Chinese, and every answer shows where it came from.": "Tout ce que vous enregistrez, écrivez, photographiez et planifiez est mémorisé automatiquement. Posez vos questions en français, en anglais ou en chinois : chaque réponse indique sa source.",
+  "Remembered facts": "Faits mémorisés",
+  "Things that stay true, taken from your meetings. The newest version of each wins.": "Ce qui reste vrai, tiré de vos réunions. La version la plus récente de chaque fait prévaut.",
+  "Recently remembered": "Récemment mémorisé",
+  "Show": "Afficher",
+  "Everything": "Tout",
+  "Meeting notes": "Notes de réunion",
+  "Said aloud": "Dit à voix haute",
+  "Transcripts": "Transcriptions",
+  "Free AI today": "Quota IA gratuit du jour",
+  "Checking…": "Vérification…",
+  "AI options": "Options IA",
+  "Understand new photos": "Comprendre les nouvelles photos",
+  "Understand new photos with AI": "Comprendre les nouvelles photos avec l'IA",
+  "Optional · reads visible text and suggests a category. Existing photos are not sent when you turn it on.": "Facultatif · lit le texte visible et suggère une catégorie. Les photos déjà présentes ne sont pas envoyées lorsque vous l'activez.",
+  "Transcription": "Transcription",
+  "Vocabulary": "Vocabulaire",
+  "Names and terms the transcript should spell right": "Noms et termes que la transcription doit orthographier correctement",
+  "Sign-in": "Connexion",
+  "Add a phone or computer": "Ajouter un téléphone ou un ordinateur",
+  "Show a code the new device scans": "Afficher un code que le nouvel appareil peut scanner",
+  "Recovery code": "Code de récupération",
+  "Make a new one if you lost yours": "Générez-en un nouveau si vous avez perdu le vôtre",
+  "Connected apps": "Applications connectées",
+  "Process recordings and return notes to your local vault": "Traiter les enregistrements et renvoyer les notes vers votre coffre local",
+  "Calendar": "Calendrier",
+  "Calendar sync": "Synchronisation du calendrier",
+  "Google, iPhone, Mac or Outlook": "Google, iPhone, Mac ou Outlook",
+  "This device": "Cet appareil",
+  "Install on this device": "Installer sur cet appareil",
+  "Opens like an app, from the home screen": "S'ouvre comme une application, depuis l'écran d'accueil",
+  "Keep Meeting Note one tap away": "Gardez Meeting Note à portée d'un geste",
+  "On your home screen it opens like any other app: one tap, no address to remember and no browser bar.": "Sur votre écran d'accueil, il s'ouvre comme n'importe quelle application : un geste, aucune adresse à retenir, aucune barre de navigateur.",
+  "Add to home screen": "Ajouter à l'écran d'accueil",
+  "Tap the Share button: the square with an arrow, at the bottom of Safari.": "Touchez le bouton Partager : le carré avec une flèche, en bas de Safari.",
+  "Scroll down that list and choose “Add to Home Screen”.": "Faites défiler cette liste et choisissez « Sur l'écran d'accueil ».",
+  "Tap Add. Meeting Note now sits with your other apps.": "Touchez Ajouter. Meeting Note se trouve maintenant avec vos autres applications.",
+  "Open the browser menu: the three dots at the top right.": "Ouvrez le menu du navigateur : les trois points en haut à droite.",
+  "Choose “Install app”, or “Add to Home screen”.": "Choisissez « Installer l'application » ou « Ajouter à l'écran d'accueil ».",
+  "Confirm. Meeting Note now sits with your other apps.": "Confirmez. Meeting Note se trouve maintenant avec vos autres applications.",
+  "In Chrome or Edge, click the install icon at the right of the address bar.": "Dans Chrome ou Edge, cliquez sur l'icône d'installation à droite de la barre d'adresse.",
+  "In Safari, open the File menu and choose “Add to Dock”.": "Dans Safari, ouvrez le menu Fichier et choisissez « Ajouter au Dock ».",
+  "Meeting Note then opens in its own window, with no address bar.": "Meeting Note s'ouvre alors dans sa propre fenêtre, sans barre d'adresse.",
+  "Or keep the address": "Ou conservez l'adresse",
+  "This is where your Meeting Note lives. Save it in your notes, or send it to yourself.": "C'est ici que vit votre Meeting Note. Enregistrez-la dans vos notes, ou envoyez-la-vous.",
+  "The address of your Meeting Note": "L'adresse de votre Meeting Note",
+  "Lost it? Sign in to Cloudflare and open Workers: it is the one whose name starts with meeting-note.": "Vous l'avez perdue ? Connectez-vous à Cloudflare et ouvrez Workers : c'est celui dont le nom commence par meeting-note.",
+  "Add Meeting Note to your home screen and it opens in one tap.": "Ajoutez Meeting Note à votre écran d'accueil : il s'ouvre alors en un geste.",
+  "Show me how": "Montrez-moi comment",
+  "Not now": "Pas maintenant",
+  "Meeting Note is installed and ready from your home screen.": "Meeting Note est installé et prêt depuis votre écran d'accueil.",
+  "An app's own browser cannot ask for Face ID, a fingerprint or your screen lock, and cannot put this on your home screen. Your Meeting Note is fine — it needs a real browser.": "Le navigateur intégré d'une application ne peut pas demander Face ID, une empreinte digitale ou le verrouillage de l'écran, et ne peut pas l'ajouter à votre écran d'accueil. Votre Meeting Note fonctionne bien — il lui faut simplement un vrai navigateur.",
+  "Tap the ••• button at the top right of this screen.": "Touchez le bouton ••• en haut à droite de cet écran.",
+  "Choose “Open in Safari”.": "Choisissez « Ouvrir dans Safari ».",
+  "Choose “Open in browser”.": "Choisissez « Ouvrir dans le navigateur ».",
+  "Carry on there: Face ID only works in Safari.": "Continuez là-bas : Face ID ne fonctionne que dans Safari.",
+  "Carry on there: your fingerprint or screen lock only works in a real browser.": "Continuez là-bas : votre empreinte digitale ou le verrouillage de l'écran ne fonctionne que dans un vrai navigateur.",
+  "Copy this address": "Copier cette adresse",
+  "Paste it into Safari or Chrome if the menu has no such choice.": "Collez-la dans Safari ou Chrome si le menu ne propose pas cette option.",
+  "Try it here anyway": "Essayer quand même ici",
+  "The address of this page": "L'adresse de cette page",
+  "A newer Meeting Note is out. Updating takes a minute and keeps your meetings and notes.": "Une nouvelle version de Meeting Note est disponible. La mise à jour prend une minute et conserve vos réunions et vos notes.",
+  "Update": "Mettre à jour",
+  "Time zone": "Fuseau horaire",
+  "Sign out": "Se déconnecter",
+  "Only you can sign in · audio deletes itself after 7 days": "Vous seul pouvez vous connecter · l'audio est supprimé automatiquement après 7 jours",
+  "Only you can sign in · recordings are kept until you delete them": "Vous seul pouvez vous connecter · les enregistrements sont conservés jusqu'à ce que vous les supprimiez",
+  "Appearance & language": "Apparence et langue",
+  "Colour theme": "Thème de couleur",
+  "Appearance": "Apparence",
+  "Light": "Clair",
+  "Dark": "Sombre",
+  "Follow system": "Suivre le système",
+  "Interface language": "Langue de l'interface",
+  "Pine": "Pin",
+  "Celadon": "Céladon",
+  "Dusk": "Crépuscule",
+  "Pomegranate": "Grenade",
+  "Lilac": "Lilas",
+  "Rosewood": "Bois de rose",
+  "Butter": "Beurre",
+  "Coming up": "À venir",
+  "Tap and say your plans": "Touchez et dites vos plans",
+  "Up to two minutes · English, 中文 or Français": "Jusqu'à deux minutes · anglais, 中文 ou français",
+  "Cancel": "Annuler",
+  "Add": "Ajouter",
+  "Check these": "Vérifiez ceci",
+  "Add all": "Tout ajouter",
+  "Nothing planned yet.": "Rien de prévu pour l'instant.",
+  "Recording": "Enregistrement",
+  "Note": "Note",
+  "Transcript": "Transcription",
+  "Rewrite note": "Réécrire la note",
+  "Export .md": "Exporter en .md",
+  "Delete": "Supprimer",
+  "Loading…": "Chargement…",
+  "Saving…": "Enregistrement…",
+  "Converting to WebP…": "Conversion en WebP…",
+  "Could not prepare this photo. Please try again. For HEIC, choose “Most Compatible” in iPhone Camera settings.": "Impossible de préparer cette photo. Veuillez réessayer. Pour le format HEIC, choisissez « Le plus compatible » dans les réglages Appareil photo de l'iPhone.",
+  "No recordings yet. Your first meeting will appear here.": "Pas encore d'enregistrement. Votre première réunion apparaîtra ici.",
+  "Note ready": "Note prête",
+  "Needs attention": "Nécessite une action",
+  "Transcribing": "Transcription en cours",
+  "transcription": "transcription",
+  "section notes": "notes de section",
+  "meeting notes": "notes de réunion",
+  "memory search": "recherche dans la mémoire",
+  "facts": "faits mémorisés",
+  "photo understanding": "compréhension des photos",
+  "Offline": "Hors ligne",
+  "Meeting Note · private sign-in": "Meeting Note · connexion privée",
+  "Sign in": "Se connecter",
+  "Your phone or computer confirms it's you with Face ID, a fingerprint or your screen lock. No password.": "Votre téléphone ou ordinateur confirme votre identité avec Face ID, une empreinte digitale ou le verrouillage de l'écran. Aucun mot de passe.",
+  "This browser can't use passkeys": "Ce navigateur ne prend pas en charge les clés d'accès",
+  "Open this page in a recent Safari, Chrome or Edge.": "Ouvrez cette page dans une version récente de Safari, Chrome ou Edge.",
+  "One-time setup code": "Code d'installation à usage unique",
+  "Use the code you chose during the one-time installation.": "Utilisez le code que vous avez choisi lors de l'installation initiale.",
+  "Do this straight after installing: whoever finishes this step first becomes the owner.": "Faites-le juste après l'installation : la première personne à terminer cette étape devient propriétaire.",
+  "Your name": "Votre nom",
+  "Create my passkey": "Créer ma clé d'accès",
+  "Set up your Meeting Note": "Configurez votre Meeting Note",
+  "This copy is brand new. Create your passkey now, and it's yours alone.": "Cette copie est toute neuve. Créez votre clé d'accès maintenant : elle n'appartiendra qu'à vous.",
+  "Sign in with your passkey": "Connectez-vous avec votre clé d'accès",
+  "Add this device": "Ajouter cet appareil",
+  "You opened a link from a device where you're signed in. Create a passkey here, and this phone or computer can sign in with Face ID, a fingerprint or its screen lock.": "Vous avez ouvert un lien depuis un appareil où vous êtes connecté. Créez une clé d'accès ici, et ce téléphone ou cet ordinateur pourra se connecter avec Face ID, une empreinte digitale ou son verrouillage d'écran.",
+  "New phone or computer? On a device where you're already signed in, open": "Nouveau téléphone ou ordinateur ? Sur un appareil où vous êtes déjà connecté, ouvrez",
+  "and scan the code with this one.": "puis scannez le code avec celui-ci.",
+  "Lost every device? Use your recovery code": "Tous vos appareils sont perdus ? Utilisez votre code de récupération",
+  "The code you saved when you set up Meeting Note. It puts a new passkey on this device, signs you out everywhere else, and gives you a new code.": "Le code que vous avez enregistré lors de la configuration de Meeting Note. Il crée une nouvelle clé d'accès sur cet appareil, vous déconnecte partout ailleurs, et vous donne un nouveau code.",
+  "Replace my passkey": "Remplacer ma clé d'accès",
+  "← Back to sign in": "← Retour à la connexion",
+  "Your other devices keep working. The link works once.": "Vos autres appareils continuent de fonctionner. Le lien ne fonctionne qu'une seule fois.",
+  "Save your recovery code": "Enregistrez votre code de récupération",
+  "Copy the code": "Copier le code",
+  "Copied": "Copié",
+  "That code has expired. Make a new one.": "Ce code a expiré. Générez-en un nouveau.",
+  "Loading connections…": "Chargement des connexions…",
+  "Revoke": "Révoquer",
+  "I've saved it — open Meeting Note": "Je l'ai enregistré — ouvrir Meeting Note",
+  "Records this device's microphone. Keep Meeting Note open while it records.": "Enregistre le microphone de cet appareil. Gardez Meeting Note ouvert pendant l'enregistrement.",
+  "Loading meetings…": "Chargement des réunions…",
+  "Meeting": "Réunion",
+  "Preparing": "Préparation",
+  "saved": "enregistré",
+  "transcribed": "transcrit",
+  "sections": "sections",
+  "level": "niveau",
+  "Online": "En ligne",
+  "Stop & create note": "Arrêter et créer la note",
+  "Finishing transcript": "Finalisation de la transcription",
+  "Waiting for the final audio chunks…": "En attente des derniers segments audio…",
+  "Retry finishing this meeting": "Retenter de finaliser cette réunion",
+  "Create the note from what we have": "Créer la note à partir de ce qui est disponible",
+  "Download the full local recording": "Télécharger l'enregistrement local complet",
+  "Notes appear here about five minutes after you start, and are merged into one note when you stop.": "Les notes apparaissent ici environ cinq minutes après le début, puis sont fusionnées en une seule note à l'arrêt.",
+  "0 chunks": "0 segment",
+  "Transcript will appear here after the first chunk.": "La transcription apparaîtra ici après le premier segment audio.",
+  "Like “Next Tuesday at 3, call Cindy about the venue” or “月底前把房租交了”. You check each plan before it's added.": "Comme « mardi prochain à 15 h, appeler Cindy pour le lieu » ou « payer le loyer avant la fin du mois ». Vous vérifiez chaque plan avant qu'il ne soit ajouté.",
+  "Try sending it again": "Réessayer de l'envoyer",
+  "Found in what you said and in your meetings. Nothing is added until you say so.": "Trouvé dans ce que vous avez dit et dans vos réunions. Rien n'est ajouté sans votre accord.",
+  "＋ Take photo": "＋ Prendre une photo",
+  "Show more": "Afficher plus",
+  "This meeting's audio": "L'audio de cette réunion",
+  "Keep this recording permanently": "Conserver cet enregistrement en permanence",
+  "Turn off for a session where people were told the audio would be deleted.": "Désactivez cette option pour une session où l'on a annoncé que l'audio serait supprimé.",
+  "Download all (.zip)": "Tout télécharger (.zip)",
+  "Delete the audio": "Supprimer l'audio",
+  "Product names, brands, people and jargon you say often, one per line. The transcription expects them, and a check afterwards fixes near-misses, such as 荔猪蓝 → 丽珠兰. They apply to every meeting, so keep it to words you really use.": "Noms de produits, marques, personnes et jargon que vous employez souvent, un par ligne. La transcription s'y attend, et une vérification corrige ensuite les quasi-erreurs, par exemple 荔猪蓝 → 丽珠兰. Ils s'appliquent à toutes les réunions : ne gardez que les mots que vous utilisez vraiment.",
+  "Save vocabulary": "Enregistrer le vocabulaire",
+  "Put your plans on your calendar": "Ajoutez vos plans à votre calendrier",
+  "Or subscribe once": "Ou abonnez-vous une seule fois",
+  "Your calendar then shows everything you add here and keeps up with changes by itself: Apple Calendar within an hour, Google Calendar within a day.": "Votre calendrier affiche alors tout ce que vous ajoutez ici et se met à jour tout seul : en moins d'une heure sur Calendrier Apple, en moins d'un jour sur Google Agenda.",
+  "Make my private calendar address": "Générer mon adresse de calendrier privée",
+  "Copy address": "Copier l'adresse",
+  "iPhone · Mac: subscribe": "iPhone · Mac : s'abonner",
+  "Google: paste it here": "Google : collez-la ici",
+  "Sign in on another device": "Se connecter sur un autre appareil",
+  "On the new device, point the camera at this code, or open the link below on it.": "Sur le nouvel appareil, visez ce code avec l'appareil photo, ou ouvrez le lien ci-dessous.",
+  "Copy link": "Copier le lien",
+  "Make a new code": "Générer un nouveau code",
+  "It works once, for ten minutes. Only open it on your own device.": "Il fonctionne une seule fois, pendant dix minutes. Ouvrez-le uniquement sur votre propre appareil.",
+  "Your way back in": "Votre porte de secours",
+  "If every device you sign in with is lost, the recovery code puts Meeting Note on a new one. Lost the code you saved? Make a new one here; the old one stops working at once.": "Si tous vos appareils connectés sont perdus, le code de récupération permet d'installer Meeting Note sur un nouveau. Ce code-là aussi perdu ? Générez-en un nouveau ici ; l'ancien cesse de fonctionner immédiatement.",
+  "Make a new recovery code": "Générer un nouveau code de récupération",
+  "Take a screenshot or write it down now: it won't be shown again.": "Faites-en une capture d'écran ou notez-le maintenant : il ne sera plus jamais affiché.",
+  "Connect NextNote": "Connecter NextNote",
+  "Make a private token, copy it into NextNote, then close this sheet. The token is shown once and can be revoked here at any time.": "Générez un jeton privé, copiez-le dans NextNote, puis fermez cette fenêtre. Le jeton n'est affiché qu'une fois et peut être révoqué ici à tout moment.",
+  "Make a NextNote token": "Générer un jeton NextNote",
+  "Copy token": "Copier le jeton",
+  "Save it in NextNote now. For security, it won't be shown again.": "Enregistrez-le maintenant dans NextNote. Pour votre sécurité, il ne sera plus jamais affiché.",
+  "Your sign-in has expired. Recording continues, and new audio waits on this device.": "Votre connexion a expiré. L'enregistrement continue, et le nouvel audio patiente sur cet appareil.",
+  "Sign in again": "Se reconnecter",
+  "Delete this quick note and all of its photos?": "Supprimer cette note rapide et toutes ses photos ?"
+};
+
 const textSource = new WeakMap();
 const attributeSource = new WeakMap();
 let currentLanguage = "en";
@@ -305,7 +583,7 @@ function write(key, value) {
   try { localStorage.setItem(key, value); } catch { /* private browsing can deny storage */ }
 }
 
-function translateDynamic(value) {
+function translateDynamicZh(value) {
   let match;
   const kinds = {
     transcription: "转写", "section notes": "阶段笔记", "meeting notes": "会议笔记",
@@ -350,27 +628,85 @@ function translateDynamic(value) {
   return value;
 }
 
-export function t(value) {
-  if (currentLanguage !== "zh") return value;
-  return ZH[value] || translateDynamic(value);
+/** The same dynamic, template-built strings as translateDynamicZh, in French. */
+function translateDynamicFr(value) {
+  let match;
+  const kinds = {
+    transcription: "transcription", "section notes": "notes de section", "meeting notes": "notes de réunion",
+    plans: "plans", answers: "réponses", search: "recherche", facts: "faits mémorisés",
+    "memory search": "recherche dans la mémoire", "photo understanding": "compréhension des photos"
+  };
+  const duration = (text) => {
+    let durationMatch;
+    if ((durationMatch = text.match(/^([\d.]+) hours?$/))) {
+      const hours = durationMatch[1];
+      return `${hours.replace(".", ",")} heure${Number(hours) === 1 ? "" : "s"}`;
+    }
+    if ((durationMatch = text.match(/^(\d+) minutes?$/))) return `${durationMatch[1]} minute${durationMatch[1] === "1" ? "" : "s"}`;
+    return text;
+  };
+  if ((match = value.match(/^Open this in Safari or Chrome, not (.+)$/))) {
+    return `Ouvrez ceci dans Safari ou Chrome, pas dans le navigateur intégré de ${match[1]}`;
+  }
+  if ((match = value.match(/^(\d+) more pieces$/))) return `${match[1]} éléments de plus`;
+  if ((match = value.match(/^(\d+)\/(\d+) ready$/))) return `${match[1]}/${match[2]} prêtes`;
+  if ((match = value.match(/^Uploading photo (\d+)\/(\d+)…$/))) return `Envoi de la photo ${match[1]}/${match[2]}…`;
+  if ((match = value.match(/^About (.+) of free recording left today$/))) return `Environ ${duration(match[1])} d'enregistrement gratuit restant aujourd'hui`;
+  if ((match = value.match(/^(.+) of recording left today$/))) return `${duration(match[1])} d'enregistrement restant aujourd'hui`;
+  if ((match = value.match(/^resets (.+)$/))) return `réinitialisation ${match[1]}`;
+  if ((match = value.match(/^(\d+) terms · spelled right in every transcript$/))) return `${match[1]} mots · orthographiés correctement dans chaque transcription`;
+  if ((match = value.match(/^([\d,]+) units · (\d+) calls?$/))) return `${match[1]} unités · ${match[2]} appels`;
+  if ((match = value.match(/^(\d+) calls?$/))) return `${match[1]} appels`;
+  if ((match = value.match(/^(.+?) ([\d,]+) units · (\d+) calls?$/))) return `${kinds[match[1]] || match[1]} ${match[2]} unités · ${match[3]} appels`;
+  if ((match = value.match(/^(.+?) (\d+) calls?$/))) return `${kinds[match[1]] || match[1]} ${match[2]} appels`;
+  if ((match = value.match(/^Note ready(\s*→)?$/i))) return `Note prête${match[1] || ""}`;
+  if ((match = value.match(/^(\d+) chunks?$/))) return `${match[1]} segment${match[1] === "1" ? "" : "s"} audio`;
+  if ((match = value.match(/^([\d,]+) of ([\d,]+) free AI units used \((.+)\)\. An hour of recording uses about ([\d,]+)\.(.*)$/))) {
+    const breakdown = match[3].split(" · ").map((part) => {
+      const item = part.match(/^(.+?) ([\d,]+)$/);
+      return item ? `${kinds[item[1]] || item[1]} ${item[2]}` : part;
+    }).join(" · ");
+    const limit = match[5] ? " À la limite, l'IA se met en pause jusqu'à la réinitialisation du quota, sans frais." : "";
+    return `${match[1]} / ${match[2]} unités IA gratuites utilisées (${breakdown}). Une heure d'enregistrement en utilise environ ${match[4]}.${limit}`;
+  }
+  return value;
 }
 
-function translated(value) {
+const DICTIONARIES = { zh: ZH, fr: FR };
+const DYNAMIC_TRANSLATORS = { zh: translateDynamicZh, fr: translateDynamicFr };
+
+export function t(value, language = currentLanguage) {
+  const dictionary = DICTIONARIES[language];
+  if (!dictionary) return value;
+  return dictionary[value] || DYNAMIC_TRANSLATORS[language](value);
+}
+
+function translated(value, language = currentLanguage) {
   const leading = value.match(/^\s*/)?.[0] || "";
   const trailing = value.match(/\s*$/)?.[0] || "";
   const core = value.trim();
   if (!core) return value;
-  return `${leading}${t(core)}${trailing}`;
+  return `${leading}${t(core, language)}${trailing}`;
+}
+
+/**
+ * Whether `current` is some language's rendering of `source` — the source itself, or any of
+ * ZH/FR's translations of it. With three languages a switch can jump straight from "zh" to "fr"
+ * (or back) without passing through "en", so recognising only the *current* language's translation
+ * would otherwise mistake the outgoing language's text for a brand-new, untranslated source.
+ */
+function isKnownRendering(current, source, render) {
+  return LANGUAGES.some((language) => current === render(source, language));
 }
 
 function syncText(node) {
   const current = node.nodeValue || "";
   let source = textSource.get(node);
-  if (source === undefined || (current !== source && current !== translated(source))) {
+  if (source === undefined || !isKnownRendering(current, source, translated)) {
     source = current;
     textSource.set(node, source);
   }
-  const next = currentLanguage === "zh" ? translated(source) : source;
+  const next = translated(source);
   if (current !== next) node.nodeValue = next;
 }
 
@@ -380,11 +716,11 @@ function syncAttribute(element, name) {
   let sources = attributeSource.get(element);
   if (!sources) { sources = new Map(); attributeSource.set(element, sources); }
   let source = sources.get(name);
-  if (source === undefined || (current !== source && current !== t(source))) {
+  if (source === undefined || !isKnownRendering(current, source, t)) {
     source = current;
     sources.set(name, source);
   }
-  const next = currentLanguage === "zh" ? t(source) : source;
+  const next = t(source);
   if (current !== next) element.setAttribute(name, next);
 }
 
@@ -407,7 +743,7 @@ function translateTree(root = document.body) {
 
 function setLanguage(language, persist = true) {
   currentLanguage = LANGUAGES.includes(language) ? language : "en";
-  document.documentElement.lang = currentLanguage === "zh" ? "zh-Hans" : "en";
+  document.documentElement.lang = currentLanguage === "zh" ? "zh-Hans" : currentLanguage === "fr" ? "fr" : "en";
   document.documentElement.dataset.language = currentLanguage;
   if (persist) write(KEYS.language, currentLanguage);
   translateTree(document.body);
@@ -446,7 +782,8 @@ function setMode(mode, persist = true) {
 }
 
 export function initPreferences() {
-  const browserLanguage = navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en";
+  const detectedLanguage = navigator.language?.toLowerCase() || "";
+  const browserLanguage = detectedLanguage.startsWith("zh") ? "zh" : detectedLanguage.startsWith("fr") ? "fr" : "en";
   const theme = read(KEYS.theme, document.documentElement.dataset.theme || "pine");
   const mode = read(KEYS.mode, document.documentElement.dataset.mode || "dark");
   const language = read(KEYS.language, document.documentElement.dataset.language || browserLanguage);

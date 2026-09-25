@@ -21,6 +21,18 @@ describe("simplified chinese", () => {
     expect(toSimplified("網路")).toBe("网路");
   });
 
+  it("leaves French accents and punctuation exactly as spoken, since opencc only maps Han characters", () => {
+    const french = "Le rendez-vous avec Cindy Wong est confirmé pour mardi à quinze heures — « au bureau de Montréal », a-t-elle précisé. C'est noté : on garde la même formule qu'avant, sans hésiter.";
+    expect(toSimplified(french)).toBe(french);
+  });
+
+  it("leaves a French sentence untouched even in a note that also carries Chinese", () => {
+    // A meeting can quote a French phrase inside an otherwise Chinese section note; only the Han
+    // characters change, so "café" and its accent must come back exactly as heard.
+    const mixed = "他说了一句法语「c'est parfait, on y va」，然后繼續開會。";
+    expect(toSimplified(mixed)).toBe("他说了一句法语「c'est parfait, on y va」，然后继续开会。");
+  });
+
   it("walks nested note structures", () => {
     const simplified = deepSimplify({
       headline: "測試",

@@ -7,6 +7,16 @@ const VANCOUVER = "America/Vancouver";
 // Saturday 2026-09-12, 20:00 in Vancouver (PDT, UTC-7).
 const SATURDAY_EVENING = Date.UTC(2026, 8, 13, 3, 0);
 
+describe("the dictation prompt, for spoken plans and voice quick notes", () => {
+  it("names all three languages, with no colon Whisper could mistranscribe", async () => {
+    const { DICTATION_TRANSCRIBE_PROMPT } = await import("../src/plans");
+    expect(DICTATION_TRANSCRIBE_PROMPT).not.toMatch(/[:：]/);
+    expect(DICTATION_TRANSCRIBE_PROMPT).toMatch(/fran[cç]ais/i);
+    expect(DICTATION_TRANSCRIBE_PROMPT).toContain("French");
+    expect(DICTATION_TRANSCRIBE_PROMPT).toContain("Chinese");
+  });
+});
+
 describe("the reference calendar the model reads dates from", () => {
   it("labels today, tomorrow and next week's Tuesday, with weeks starting on Monday", () => {
     const table = referenceCalendar(SATURDAY_EVENING, VANCOUVER);
@@ -179,5 +189,15 @@ describe("Ask answers in the language it was asked in", () => {
     expect(answerLanguage("Who is doing the poster?")).toContain("English");
     expect(answerLanguage("海报谁来做？")).toBe("用简体中文回答。");
     expect(answerLanguage("Sam 的海报什么时候发？")).toBe("用简体中文回答。");
+  });
+
+  it("recognises a French question by its accents or its own common words", async () => {
+    const { answerLanguage } = await import("../src/ask");
+    // Accented letters, with none of the listed words.
+    expect(answerLanguage("Le café est réservé pour vendredi ?")).toContain("français");
+    // One of the listed words, with no accented letter in the sentence at all.
+    expect(answerLanguage("Qui dit merci en premier")).toContain("français");
+    // No accent and none of the listed words: same honest fallback an unaccented pinyin question gets.
+    expect(answerLanguage("Qui a promis quoi")).toContain("English");
   });
 });

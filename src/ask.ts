@@ -61,18 +61,18 @@ async function runJson(env: Env, model: string, kind: string, messages: Array<{ 
   }
 }
 
-/** Words to search a bilingual transcript for: the question's names and topics, in both languages. */
+/** Words to search a trilingual transcript for: the question's names and topics, in every language. */
 async function searchTerms(env: Env, question: string): Promise<string[]> {
   const parsed = await runJson(env, env.SUMMARY_MODEL, "search", [
     { role: "system", content: "You choose keywords for searching meeting transcripts. Output JSON only." },
     {
       role: "user",
-      content: `A person asks about their own meetings, quick notes, photos and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nThe saved material mixes Chinese and English. Give 4 to 10 short search words: the names, places, things and topics in the question, each in English AND in Simplified Chinese. Use single words, not phrases: for Chinese, mostly two-character words (海报, 场地, 预算). Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
+      content: `A person asks about their own meetings, quick notes, photos and plans:\n"""\n${question.slice(0, 500)}\n"""\n\nThe saved material mixes Chinese, English and French. Give 6 to 12 short search words: the names, places, things and topics in the question, each in English, in Simplified Chinese AND in French. Use single words, not phrases: for Chinese, mostly two-character words (海报, 场地, 预算). Leave out dates, filler and question words.\nReturn {"terms": ["..."]}`
     }
   ], termsJsonSchema, 800);
   const found = parsed.parsed as { terms?: unknown } | null;
   const terms = Array.isArray(found?.terms) ? found.terms : [];
-  return terms.filter((term): term is string => typeof term === "string").map((term) => term.trim()).filter((term) => term && term.length <= 40).slice(0, 10);
+  return terms.filter((term): term is string => typeof term === "string").map((term) => term.trim()).filter((term) => term && term.length <= 40).slice(0, 12);
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -92,9 +92,20 @@ function passageLabel(hit: SearchResult, timeZone: string): string {
   return `${KIND_LABEL[hit.row.kind] ?? hit.row.kind}, ${date}`;
 }
 
-/** Passages are often in the other language, and models drift towards it; so say which one. */
+/**
+ * French and English share a script, so Chinese is still spotted by its characters; French is
+ * spotted by its accented letters and a short list of words too common to be a coincidence (an
+ * unaccented question such as "qui a promis quoi" still falls back to English, the same way an
+ * unaccented pinyin question would).
+ */
+const FRENCH_ACCENTS = /[éèêëàâäùûüîïôöœç]/i;
+const FRENCH_WORDS = /\b(qu'est-ce|est-ce que|pourquoi|combien|réunion|rendez-vous|aujourd'hui|demain|bonjour|merci)\b/i;
+
+/** Passages are often in another language, and models drift towards it; so say which one. */
 export function answerLanguage(question: string): string {
-  return /[\u3400-\u9fff]/.test(question) ? "用简体中文回答。" : "Answer in English, even where the passages are in Chinese.";
+  if (/[\u3400-\u9fff]/.test(question)) return "用简体中文回答。";
+  if (FRENCH_ACCENTS.test(question) || FRENCH_WORDS.test(question)) return "Répondez en français, même si les passages sont en anglais ou en chinois.";
+  return "Answer in English, even where the passages are in Chinese.";
 }
 
 /**

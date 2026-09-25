@@ -187,6 +187,23 @@ describe("the note's language, decided in code", () => {
     expect(noteLanguage("我们决定用蓝色的包装", "en")).toBe("en");
     expect(noteLanguage("")).toBe("en");
   });
+
+  it("takes a French meeting's language setting directly, never guessing it from the transcript", async () => {
+    const { noteLanguage } = await import("../src/summary");
+    // "auto" only ever weighs Chinese against English (see the doc comment): a French transcript with
+    // no language set falls back to that same heuristic, not to French.
+    expect(noteLanguage("On a choisi la boîte bleue. Sarah commande les échantillons avant vendredi.")).toBe("en");
+    expect(noteLanguage("On a choisi la boîte bleue.", "fr")).toBe("fr");
+    expect(noteLanguage("", "fr")).toBe("fr");
+  });
+
+  it("writes the French instruction in French, distinct from the English and Chinese ones", async () => {
+    const { languageInstruction } = await import("../src/summary");
+    expect(languageInstruction("fr")).toContain("French");
+    expect(languageInstruction("fr")).not.toContain("Chinese");
+    expect(languageInstruction("zh")).toContain("Simplified Chinese");
+    expect(languageInstruction("en")).toContain("English");
+  });
 });
 
 describe("restoring a to-do's owner and deadline from the section notes", () => {
@@ -206,5 +223,12 @@ describe("restoring a to-do's owner and deadline from the section notes", () => 
     expect(merged[1]).toMatchObject({ owner: "Sam", due: "下周二之前 (2026-09-15)" });
     expect(merged[2]).toMatchObject({ owner: "Sarah", due: "next Friday" });
     expect(merged[3]).toMatchObject({ owner: "", due: "" });
+  });
+
+  it("recognises a French model's own words for no owner, the same way it does 未指定", async () => {
+    const { restoreActionDetails } = await import("../src/summary");
+    const sections = [{ task: "Envoyer l'affiche", owner: "Sam", due: "mardi prochain" }];
+    const merged = restoreActionDetails([{ task: "Envoyer l'affiche", owner: "Non assigné", due: "" }], sections);
+    expect(merged[0]).toMatchObject({ owner: "Sam", due: "mardi prochain" });
   });
 });

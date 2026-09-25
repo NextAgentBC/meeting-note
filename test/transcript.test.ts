@@ -48,6 +48,18 @@ describe("whisperPrompt", () => {
     const prompt = whisperPrompt(Array.from({ length: 60 }, (_, index) => `Product name number ${index}`));
     expect(prompt.length).toBeLessThan(340);
   });
+
+  it("writes a French meeting its own French prompt, with no Chinese script to mirror", () => {
+    const prompt = whisperPrompt(["NCTF 135HA", "Cindy Wong"], "fr");
+    expect(prompt).not.toMatch(/[:：]/);
+    expect(prompt).toContain("Cindy Wong");
+    expect(prompt).toMatch(/fran[cç]ais/i);
+    expect(/[\u3400-\u9fff]/.test(prompt)).toBe(false);
+    // Untouched for every language this app knew before French.
+    expect(whisperPrompt([], "auto")).toContain("以下是一场商务会议的录音");
+    expect(whisperPrompt([], "zh")).toContain("以下是一场商务会议的录音");
+    expect(whisperPrompt([], "en")).toContain("以下是一场商务会议的录音");
+  });
 });
 
 describe("whisperInput", () => {
@@ -57,6 +69,13 @@ describe("whisperInput", () => {
     expect(auto).not.toHaveProperty("language");
     expect(whisperInput("AAAA", "zh", [])).toMatchObject({ language: "zh" });
     expect(WHISPER_OPTIONS.hallucination_silence_threshold).toBeGreaterThan(0);
+  });
+
+  it("sets French like any other explicit language, with its own French prompt", () => {
+    const french = whisperInput("AAAA", "fr", ["Cindy Wong"]);
+    expect(french).toMatchObject({ language: "fr" });
+    expect(french.initial_prompt).toMatch(/fran[cç]ais/i);
+    expect(french.initial_prompt).toContain("Cindy Wong");
   });
 });
 
@@ -72,6 +91,21 @@ describe("acceptCorrection", () => {
     expect(acceptCorrection(original, "他们讨论了丽珠兰和 Restylane 在菜单上的中英文写法。")).toBe(false);
     expect(acceptCorrection(original, "In Chinese you can write the Rejuran white porcelain skin booster, and put Restylane next to it.")).toBe(false);
     expect(acceptCorrection(original, "")).toBe(false);
+  });
+
+  // The owner's vocabulary is one global list (see AGENTS.md), so a French meeting can reach the
+  // correction pass carrying Chinese or English terms with nothing to fix. The safety net below —
+  // not a language check — is what keeps that pass from mangling French: a real name fix keeps it,
+  // anything that reads like a translation or a rewrite does not.
+  const french = "Le rendez-vous avec Cindy Wong est confirmé pour mardi à quinze heures, au bureau de Montréal. On garde le même produit que la dernière fois, la Restylane, et on ajoute le NCTF comme convenu.";
+
+  it("accepts a genuine accent or name fix on a French transcript", () => {
+    expect(acceptCorrection(french, french.replace("Cindy Wong", "Cindy Wong-Tremblay"))).toBe(true);
+  });
+
+  it("does not let a French transcript come back mangled into Chinese or rewritten", () => {
+    expect(acceptCorrection(french, "会议时间定在周二下午三点，在蒙特利尔办公室，产品不变。")).toBe(false);
+    expect(acceptCorrection(french, "The meeting with Cindy Wong is confirmed for Tuesday at three, same product as before.")).toBe(false);
   });
 });
 

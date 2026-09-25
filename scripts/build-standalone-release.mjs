@@ -66,12 +66,6 @@ export function serveEmbeddedAsset(request: Request): Response {
 }
 `);
 
-mkdirSync(releaseDir, { recursive: true });
-execFileSync("npx", ["wrangler", "deploy", "--dry-run", "--config", "wrangler.standalone.jsonc", "--outdir", releaseDir], {
-  cwd: root,
-  stdio: "inherit"
-});
-
 // Split on semicolons, but not the ones inside a trigger body: CREATE TRIGGER … BEGIN … END;
 // The D1 binding runs one statement per prepare(), so the split happens here, once, at build time.
 function statements(sql) {
@@ -132,6 +126,7 @@ const migrations = files(join(root, "migrations"))
     // PRAGMA is a connection setting, not schema, and D1 rejects it inside a transaction.
     return { name, sql, statements: statements(sql).filter((statement) => !/^PRAGMA\b/i.test(statement)), sentinel: sentinel(sql) };
   });
+mkdirSync(releaseDir, { recursive: true });
 writeFileSync(join(releaseDir, "migrations.json"), JSON.stringify({
   version: releaseVersion,
   migrations: migrations.map(({ name, sql }) => ({ name, sql }))
@@ -146,3 +141,16 @@ export type Migration = { name: string; statements: string[]; sentinel: Migratio
 
 export const MIGRATIONS: Migration[] = ${JSON.stringify(migrations.map(({ name, statements, sentinel }) => ({ name, statements, sentinel })), null, 2)};
 `);
+
+// Bundle last: the Worker imports RELEASE_VERSION from the file written just above, and an installed
+// copy reports it from /api/health. Bundled before that file was rewritten (as it was until
+// 2026-09-25), every release carried the previous release's version, so an up-to-date copy kept
+// offering an update. Refuse to publish a bundle that does not carry the version it is released as.
+execFileSync("npx", ["wrangler", "deploy", "--dry-run", "--config", "wrangler.standalone.jsonc", "--outdir", releaseDir], {
+  cwd: root,
+  stdio: "inherit"
+});
+const bundled = readFileSync(join(releaseDir, "standalone.js"), "utf8");
+if (!bundled.includes(`RELEASE_VERSION = ${JSON.stringify(releaseVersion)}`)) {
+  throw new Error(`installer/public/release/standalone.js does not carry release ${releaseVersion}`);
+}

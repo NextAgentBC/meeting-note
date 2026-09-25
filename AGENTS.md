@@ -47,7 +47,8 @@ src/transcript.ts Whisper's decoding options and prompt, loop collapsing, the ow
 src/audio.ts     a meeting's audio: optional permanent copies in RECORDINGS (R2), play/download/keep/delete routes
 public/          the app, with no build step: app.js (recording, uploads), auth.js (sign-in), plans.js, ask.js,
                  captures.js (WebP quick notes), preferences.js/css (themes, appearance and bilingual UI),
-                 transcription.js (Vocabulary/Recording sheets), zip.js
+                 transcription.js (Vocabulary/Recording sheets), zip.js,
+                 version-watch.js (the "new version, refresh" check; see Updating an installed copy)
 migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory;
                  0008 device links; 0009 memory embedding tracking; 0010 integration tokens;
                  0011 permanent audio/tuned ASR; 0012 quick notes/photos
@@ -149,11 +150,14 @@ anything dragged so the gesture is not fighting the scroller.
 
 Every copy is one Worker in **its owner's** Cloudflare account. Nobody can push code into it: the
 OAuth token is revoked the moment the installation finishes, on purpose. So updates are pulled, and
-three pieces make that work.
+four pieces make that work.
 
 1. **The copy knows what it is running.** `RELEASE_VERSION` comes from `src/migrations.generated.ts`
    (written by `scripts/build-standalone-release.mjs` from the git sha) and `GET /api/health`
-   reports it, publicly, together with `UPDATE_CHANNEL` — the installer that made it.
+   reports it, publicly, together with `UPDATE_CHANNEL` — the installer that made it. The script
+   writes that file **before** it bundles the Worker and refuses to publish a bundle that does not
+   carry the version: until 2026-09-25 it bundled first, so every release reported the one before
+   it and an up-to-date copy kept offering an update.
 2. **The copy asks.** `checkForUpdate()` in `public/app.js` reads `/api/health`, then
    `<UPDATE_CHANNEL>/api/release` (CORS `*`, cached five minutes), at most once every six hours, and
    shows a banner when the versions differ. "Not now" remembers that version, not the question.
@@ -162,6 +166,12 @@ three pieces make that work.
    variables, adds the ones this release introduces, and uploads the new module with
    `keep_bindings: ["secret_text"]` so the setup code survives. It refuses any Worker without a d1,
    kv, queue and ai binding.
+4. **An open app notices that its Worker changed.** A home-screen app is resumed, not reloaded, so it
+   can run old code for days. `public/version-watch.js` asks `/api/health` when the app starts, when
+   it comes back to the foreground or online, and every half hour while it is on screen; once the
+   version differs from the one it started on, `offerRefresh()` shows the Refresh banner. It waits
+   while recording or dictating and never reloads by itself. The service worker's `controllerchange`
+   used to reload the page on the spot; it is now only a hint to check.
 
 **The schema comes with the code.** `src/schema.ts` runs at the start of every fetch and queue batch
 (once per isolate) and applies what `MIGRATIONS` has and `schema_migrations` does not. A copy from

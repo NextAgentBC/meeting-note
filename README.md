@@ -1,7 +1,7 @@
 # Meeting Note
 
 Record a meeting or a workshop in your browser. Your own free Cloudflare account transcribes it, in
-English and Chinese, and writes a structured note every five minutes while you are still talking.
+English, Chinese and French, and writes a structured note every five minutes while you are still talking.
 
 **New to Cloudflare?** Start with the [plain-language Chinese setup guide](QUICKSTART.zh-CN.md).
 You do not need to learn Cloudflare or write code. It is simply the free account that runs your
@@ -41,6 +41,12 @@ free plan: R2 (audio goes into KV instead) and Cloudflare Access (it has its own
 The app shows how much recording today's allowance still affords, before you start, plus today's AI
 usage broken down by transcription, notes, answers and optional photo understanding.
 
+**One optional extra is not free, so it is off:** high-definition re-transcription, a second pass over
+a finished meeting that also tells the speakers apart (Deepgram nova-3 on Workers AI). It is billed by
+the audio minute to your own Cloudflare account (about US$0.0052 a minute, shown before you start).
+To offer it, set the Worker variable `HD_MODEL` to `@cf/deepgram/nova-3`; even then it only runs on a
+meeting when you ask for it.
+
 ## Put it online
 
 1. Make two free accounts, if you don't have them: [Cloudflare](https://dash.cloudflare.com/sign-up) and [GitHub](https://github.com/signup).
@@ -60,9 +66,12 @@ warns you. Repeat audience questions before answering them: they are the quietes
 Keep the tab in front; the app keeps the screen awake while recording. At the end, press **Stop &
 create note**, then **Download the full local recording** as your backup.
 
-**A Zoom call:** choose **Zoom + microphone** and, in Chrome's share dialog, pick the Zoom window and
-tick **Share tab audio** or **Share system audio**. Without that tick only your own voice is recorded.
-Phones can't record another app's audio, so record calls from a computer.
+**A Zoom call:** a shared *window* carries no audio at all (the app warns you if it heard none), so
+choose **Zoom + microphone** and share something that does. Easiest: join the call in Chrome — "Join
+from your browser" on the Zoom invite page — then in the share dialog pick that Chrome tab and tick
+**Share tab audio**. With the Zoom desktop app instead, pick **Entire screen** and tick **Share system
+audio**; if Chrome doesn't offer that tick, use the browser route instead. Phones can't record another
+app's audio, so record calls from a computer.
 
 **Tell people you're recording**, and follow the consent rules where you are.
 
@@ -72,13 +81,13 @@ Phones can't record another app's audio, so record calls from a computer.
   section that did transcribe.
 - **Your sign-in ran out mid-meeting:** a banner says so. Recording carries on, the audio waits on your
   device, and it uploads once you press **Sign in again**.
-- **Signing in on a new phone or computer:** on a device where you're already signed in, press **Add device**
-  (top right) and scan the code with the new one, or open the link on it. Press **Add this device** and
-  confirm with Face ID, a fingerprint or the screen lock. Your other devices keep working, and the code
+- **Signing in on a new phone or computer:** on a device where you're already signed in, open **Me → Add a
+  phone or computer** and scan the code with the new one, or open the link on it. Press **Add this device**
+  and confirm with Face ID, a fingerprint or the screen lock. Your other devices keep working, and the code
   works once, for ten minutes. (If both devices use the same Apple or Google account, the passkey may
   already be there: just press **Sign in**.)
-- **You didn't save the recovery code, or lost it:** on a signed-in device, press **Add device**, then
-  **Make a new recovery code**. The old one stops working.
+- **You didn't save the recovery code, or lost it:** on a signed-in device, open **Me → Recovery code**, then
+  press **Make a new recovery code**. The old one stops working.
 - **You lost every device:** on the sign-in screen, choose **Lost every device? Use your recovery code**.
   It puts a new passkey on the device you're holding, signs you out everywhere else, and shows a new
   recovery code; the old one stops working.

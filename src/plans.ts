@@ -13,10 +13,11 @@ export const MAX_PLAN_ITEMS = 20;
 /**
  * Whisper mirrors its prompt's script, so this is written in Simplified Chinese on purpose.
  * No colons, full-width or not: with "：" in the prompt, whisper-large-v3-turbo wrote "Ｂ" wherever
- * a comma belonged.
+ * a comma belonged. Dictation has no language picker — a spoken plan or quick note can switch between
+ * any of the app's three languages — so the prompt names all three instead of biasing towards Chinese.
  */
 export const DICTATION_TRANSCRIBE_PROMPT =
-  "以下是一个人口述自己接下来的安排，比如约会、截止日期和待办事项。请用简体中文转写中文部分，准确保留日期、时间、人名和地点。音频可能在中文和英文之间切换。A person dictating their plans, such as appointments, deadlines and to-dos; they may switch between Chinese and English.";
+  "以下是一个人口述自己接下来的安排，比如约会、截止日期和待办事项。请用简体中文转写中文部分，准确保留日期、时间、人名和地点。音频可能在中文、英文和法文之间切换。A person dictating their plans, such as appointments, deadlines and to-dos; they may switch between Chinese, English and French. La personne peut aussi parler en français ; transcrivez-le tel quel, avec les accents.";
 
 export const planJsonSchema = {
   type: "object",

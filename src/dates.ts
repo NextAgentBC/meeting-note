@@ -13,6 +13,16 @@ const ZH_WEEKDAY: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五
 const EN_WEEKDAY: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
 const EN_MONTH: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 const ZH_DIGIT: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+const FR_WEEKDAY: Record<string, number> = { lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6, dimanche: 7 };
+const FR_MONTH: Record<string, number> = {
+  janvier: 1, fevrier: 2, mars: 3, avril: 4, mai: 5, juin: 6,
+  juillet: 7, aout: 8, septembre: 9, octobre: 10, novembre: 11, decembre: 12
+};
+
+/** Strips accents so "février" and "après-midi" match the same way as their plain-ASCII spelling. */
+function stripAccents(value: string): string {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
 
 /** "3", "十", "十五", "二十一", "两" → a number. */
 function zhNumber(value: string): number | null {
@@ -140,6 +150,42 @@ export function resolveDatePhrase(phrase: string, now: number, timeZone: string)
     return monthDay(today, month, day);
   }
 
+  // French
+  const fr = stripAccents(phrase.toLowerCase()).replace(/['’]/g, "'").replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  const bareFr = fr.replace(/^(?:(?:avant|au plus tard|d'ici|jusqu'au|jusqu'a|le|la)\s+)+/, "");
+  if (/^(aujourd'hui|ce soir|cet apres-midi|ce matin|cette nuit)\b/.test(bareFr)) return today;
+  if (/^apres-demain\b/.test(bareFr)) return addDays(today, 2);
+  if (/^demain\b/.test(bareFr)) return addDays(today, 1);
+
+  match = /^(ce )?(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)( prochain)?\b/.exec(bareFr);
+  if (match) {
+    const weekday = FR_WEEKDAY[match[2]];
+    if (match[3]) return weekdayInWeek(today, weekday, 1);
+    if (match[1]) {
+      const date = weekdayInWeek(today, weekday, 0);
+      return date >= today ? date : null;
+    }
+    return nextWeekday(today, weekday);
+  }
+
+  // The more specific "next month" phrasing must be checked first: it starts with the same words
+  // as "this month" ("fin du mois"), so the general pattern below would otherwise match its prefix.
+  if (/^fin du mois prochain\b/.test(bareFr)) return lastDayOfMonth(today, 1);
+  if (/^debut du mois prochain\b/.test(bareFr)) return firstDayOfMonth(today, 1);
+  if (/^fin (du|de ce) mois\b/.test(bareFr)) return lastDayOfMonth(today, 0);
+
+  match = /^dans (\d{1,3}|un|une|deux|trois|quatre|cinq|six|sept) (jour|semaine)s?\b/.exec(bareFr);
+  if (match) {
+    const words: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7 };
+    const count = words[match[1]] ?? Number(match[1]);
+    return addDays(today, count * (match[2] === "semaine" ? 7 : 1));
+  }
+
+  match = /^(\d{1,2})(?:er)? (janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)\b/.exec(bareFr);
+  if (match) {
+    return monthDay(today, FR_MONTH[match[2]], Number(match[1]));
+  }
+
   return null;
 }
 
@@ -171,6 +217,23 @@ export function clockTimeIn(text: string): string | null {
     if (period === "凌晨" && hour === 12) hour = 0;
     return valid(hour, minute) ? `${pad(hour)}:${pad(minute)}` : null;
   }
+
+  // Checked before the bare "midi"/"minuit" words below: "après-midi" contains "midi" as its own
+  // \b-delimited word (a hyphen is not a word character), so "3h de l'après-midi" would otherwise
+  // match "midi" alone and lose the "3h".
+  const normalized = stripAccents(text.toLowerCase());
+  const french = /(\d{1,2})\s*h\s*(\d{1,2})?\s*(du matin|de l'apres-midi|du soir)?/.exec(normalized);
+  if (french) {
+    let hour = Number(french[1]);
+    const minute = Number(french[2] ?? 0);
+    const period = french[3] ?? "";
+    if (/apres-midi|soir/.test(period) && hour < 12) hour += 12;
+    if (/matin/.test(period) && hour === 12) hour = 0;
+    return valid(hour, minute) ? `${pad(hour)}:${pad(minute)}` : null;
+  }
+
+  const named = /\b(minuit|midi)\b/.exec(normalized);
+  if (named) return named[1] === "midi" ? "12:00" : "00:00";
   return null;
 }
 

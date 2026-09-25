@@ -23,8 +23,9 @@ export interface Env {
   UPDATE_CHANNEL?: string;
   /**
    * The model behind "high-definition re-transcription": one pass over a finished meeting that
-   * tells speakers apart. Deepgram on Workers AI by default; empty turns the whole feature off.
-   * It is billed per audio minute, so nothing calls it without the owner asking for that meeting.
+   * tells speakers apart. Unset or empty (the default) turns the whole feature off; an owner who
+   * wants it sets "@cf/deepgram/nova-3". It is billed per audio minute, so even then nothing calls
+   * it without the owner asking for that meeting.
    */
   HD_MODEL?: string;
   /**

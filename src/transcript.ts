@@ -54,11 +54,32 @@ export async function loadVocabulary(env: Env): Promise<string[]> {
 }
 
 /**
+ * Whisper's initial prompt for a French meeting. Its own sentence, in French, with no Chinese in it
+ * anywhere — the Chinese/English prompt below is tuned for "auto" and must not leak into a language
+ * the owner explicitly picked, or Whisper's script-mirroring biases French speech towards Chinese.
+ */
+function whisperPromptFr(vocabulary: string[]): string {
+  const base = "Voici l'enregistrement d'une réunion professionnelle en français, parfois mêlée de mots ou de noms de produits en anglais, écrits tels quels. ";
+  let terms = "";
+  for (const term of vocabulary) {
+    const clean = term.replace(/[:：]/g, " ");
+    const next = terms ? `${terms}, ${clean}` : clean;
+    if (next.length > PROMPT_TERM_CHARS) break;
+    terms = next;
+  }
+  return terms ? `${base}Termes fréquents, notamment ${terms}.` : `${base}Réunion professionnelle en français.`;
+}
+
+/**
  * Whisper's initial prompt. In Simplified Chinese on purpose (Whisper mirrors the prompt's script), with
  * no colon anywhere (a "：" made whisper-large-v3-turbo write "Ｂ" for commas), and without asking for
- * Chinese output: that instruction made it translate or drop English product names.
+ * Chinese output: that instruction made it translate or drop English product names. Used for "auto",
+ * "zh" and "en" — every meeting language this app knew before French. A French meeting gets its own
+ * prompt instead (whisperPromptFr): mirroring this one's Chinese script into a French meeting is exactly
+ * the bias it exists to avoid.
  */
-export function whisperPrompt(vocabulary: string[]): string {
+export function whisperPrompt(vocabulary: string[], language = "auto"): string {
+  if (language === "fr") return whisperPromptFr(vocabulary);
   const base = "以下是一场商务会议的录音，普通话里夹杂英文单词和英文产品名，英文照原样写出。";
   let terms = "";
   for (const term of vocabulary) {
@@ -71,7 +92,7 @@ export function whisperPrompt(vocabulary: string[]): string {
 }
 
 export function whisperInput(audioBase64: string, language: string, vocabulary: string[]): Record<string, unknown> {
-  const input: Record<string, unknown> = { audio: audioBase64, ...WHISPER_OPTIONS, initial_prompt: whisperPrompt(vocabulary) };
+  const input: Record<string, unknown> = { audio: audioBase64, ...WHISPER_OPTIONS, initial_prompt: whisperPrompt(vocabulary, language) };
   if (language !== "auto") input.language = language;
   return input;
 }

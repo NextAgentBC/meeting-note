@@ -73,6 +73,40 @@ describe("English date words", () => {
   });
 });
 
+describe("French date words", () => {
+  it("counts days from today and reads weekdays by the week they fall in, like the Chinese and English ones", () => {
+    expect(on("aujourd'hui")).toBe("2026-09-12");
+    expect(on("ce soir")).toBe("2026-09-12");
+    expect(on("demain matin")).toBe("2026-09-13");
+    expect(on("après-demain")).toBe("2026-09-14");
+    expect(on("mardi prochain")).toBe("2026-09-15");
+    expect(on("mardi prochain", MONDAY)).toBe("2026-09-22");
+    expect(on("vendredi")).toBe("2026-09-18");
+    expect(on("ce mercredi", MONDAY)).toBe("2026-09-16");
+    expect(on("ce vendredi")).toBeNull(); // already past on Saturday: leave it to the model
+    expect(on("dans 3 jours")).toBe("2026-09-15");
+    expect(on("dans deux semaines")).toBe("2026-09-26");
+  });
+
+  it("knows month ends and written dates", () => {
+    expect(on("avant la fin du mois")).toBe("2026-09-30");
+    expect(on("fin du mois prochain")).toBe("2026-10-31");
+    expect(on("début du mois prochain")).toBe("2026-10-01");
+    expect(on("le 22 septembre")).toBe("2026-09-22");
+    expect(on("1er octobre")).toBe("2026-10-01");
+  });
+
+  it("strips a leading 'avant', 'd'ici' or 'le', the way 'by' and 'on' are stripped in English", () => {
+    expect(on("avant mardi prochain")).toBe("2026-09-15");
+    expect(on("d'ici vendredi")).toBe("2026-09-18");
+  });
+
+  it("returns nothing for words it doesn't know", () => {
+    expect(on("bientôt")).toBeNull();
+    expect(on("la semaine prochaine")).toBeNull();
+  });
+});
+
 describe("words that only look like dates", () => {
   it("doesn't read month words as Monday, and knows 'Tuesday next week'", () => {
     const MONDAY_14 = Date.UTC(2026, 8, 14, 16, 0);
@@ -107,5 +141,17 @@ describe("clock times in a to-do's due words", () => {
     expect(clockTimeIn("Q3 planning")).toBeNull();
     expect(isoDateIn("下周二之前 (2026-09-15)")).toBe("2026-09-15");
     expect(isoDateIn("2026-02-30")).toBeNull();
+  });
+
+  it("reads French times, the way it reads Chinese and English ones", async () => {
+    const { clockTimeIn } = await import("../src/dates");
+    expect(clockTimeIn("mardi prochain à 15 h")).toBe("15:00");
+    expect(clockTimeIn("15h30")).toBe("15:30");
+    expect(clockTimeIn("15 h 30")).toBe("15:30");
+    expect(clockTimeIn("3h de l'après-midi")).toBe("15:00");
+    expect(clockTimeIn("9h du matin")).toBe("09:00");
+    expect(clockTimeIn("minuit")).toBe("00:00");
+    expect(clockTimeIn("midi et demi")).toBe("12:00");
+    expect(clockTimeIn("avant la fin du mois")).toBeNull();
   });
 });

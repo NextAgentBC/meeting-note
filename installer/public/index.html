@@ -33,63 +33,63 @@
   <main>
     <header class="site-header">
       <a class="brand" href="/" aria-label="Meeting Note home"><span class="mark" aria-hidden="true">▥</span><span>Meeting Note</span></a>
-      <a class="header-link" href="#features" data-zh="功能" data-en="Features">功能</a>
+      <a class="header-link" href="#features" data-zh="功能" data-en="Features" data-fr="Fonctionnalités">功能</a>
       <button id="language" type="button" aria-label="Change language">EN</button>
     </header>
 
     <section class="card browser-card hidden" id="browserWarning" aria-live="polite">
-      <p class="eyebrow" data-zh="先换个浏览器" data-en="FIRST, SWITCH BROWSERS">先换个浏览器</p>
+      <p class="eyebrow" data-zh="先换个浏览器" data-en="FIRST, SWITCH BROWSERS" data-fr="D'ABORD, CHANGEZ DE NAVIGATEUR">先换个浏览器</p>
       <h2 id="browserWarningTitle"></h2>
-      <p data-zh="App 自带的浏览器不能调用 Face ID 或指纹，安装到认领那一步就会卡住。换成系统浏览器再来，两分钟就装好。" data-en="An app's built-in browser cannot ask for Face ID or a fingerprint, so the installation stops at the moment you claim the app. In Safari or Chrome it takes two minutes.">App 自带的浏览器不能调用 Face ID 或指纹，安装到认领那一步就会卡住。换成系统浏览器再来，两分钟就装好。</p>
+      <p data-zh="App 自带的浏览器不能调用 Face ID 或指纹，安装到认领那一步就会卡住。换成系统浏览器再来，两分钟就装好。" data-en="An app's built-in browser cannot ask for Face ID or a fingerprint, so the installation stops at the moment you claim the app. In Safari or Chrome it takes two minutes." data-fr="Le navigateur intégré d'une application ne peut pas demander Face ID ou une empreinte digitale, donc l'installation se bloque au moment de récupérer l'application. Avec Safari ou Chrome, cela prend deux minutes.">App 自带的浏览器不能调用 Face ID 或指纹，安装到认领那一步就会卡住。换成系统浏览器再来，两分钟就装好。</p>
       <ol id="browserSteps"></ol>
       <input id="browserUrl" readonly aria-label="Installer address" />
-      <button class="ghost-button wide" id="copyBrowserUrl" type="button" data-zh="复制安装网址" data-en="Copy the address">复制安装网址</button>
-      <button class="link-button" id="ignoreBrowser" type="button" data-zh="我知道，仍要在这里安装" data-en="I understand, install here anyway">我知道，仍要在这里安装</button>
+      <button class="ghost-button wide" id="copyBrowserUrl" type="button" data-zh="复制安装网址" data-en="Copy the address" data-fr="Copier l'adresse">复制安装网址</button>
+      <button class="link-button" id="ignoreBrowser" type="button" data-zh="我知道，仍要在这里安装" data-en="I understand, install here anyway" data-fr="Je comprends, installer ici quand même">我知道，仍要在这里安装</button>
     </section>
 
     <!-- module:hero start -->
     <div class="hero-install-grid">
       <section class="hero" id="hero">
-        <p class="eyebrow" data-zh="你的私人 AI 记忆" data-en="YOUR PRIVATE AI MEMORY">你的私人 AI 记忆</p>
-        <h1 data-zh="记住每次会议，也记住生活。" data-en="Remember every meeting—and the life around it.">记住每次会议，也记住生活。</h1>
-        <p class="lede" data-zh="录会议、写灵感、存照片、说计划，再直接问 AI。所有内容都自动整理，并留在你自己的 Cloudflare 账户。" data-en="Record meetings, capture ideas and photos, speak your plans, then ask AI about any of it. Everything is organized inside your own Cloudflare account.">录会议、写灵感、存照片、说计划，再直接问 AI。所有内容都自动整理，并留在你自己的 Cloudflare 账户。</p>
+        <p class="eyebrow" data-zh="你的私人 AI 记忆" data-en="YOUR PRIVATE AI MEMORY" data-fr="VOTRE MÉMOIRE IA PRIVÉE">你的私人 AI 记忆</p>
+        <h1 data-zh="记住每次会议，也记住生活。" data-en="Remember every meeting—and the life around it." data-fr="Gardez le souvenir de chaque réunion — et de la vie qui l'entoure.">记住每次会议，也记住生活。</h1>
+        <p class="lede" data-zh="录会议、写灵感、存照片、说计划，再直接问 AI。所有内容都自动整理，并留在你自己的 Cloudflare 账户。" data-en="Record meetings, capture ideas and photos, speak your plans, then ask AI about any of it. Everything is organized inside your own Cloudflare account." data-fr="Enregistrez vos réunions, capturez des idées et des photos, dictez vos projets, puis posez vos questions à l'IA. Tout est organisé dans votre propre compte Cloudflare.">录会议、写灵感、存照片、说计划，再直接问 AI。所有内容都自动整理，并留在你自己的 Cloudflare 账户。</p>
         <div class="hero-pills" aria-label="Product highlights">
-          <span data-zh="中英双语" data-en="English + 中文">中英双语</span>
-          <span data-zh="手机优先" data-en="Made for mobile">手机优先</span>
-          <span data-zh="数据归你" data-en="Your data">数据归你</span>
+          <span data-zh="中英双语" data-en="English + 中文" data-fr="Trilingue">中英双语</span>
+          <span data-zh="手机优先" data-en="Made for mobile" data-fr="Pensé pour mobile">手机优先</span>
+          <span data-zh="数据归你" data-en="Your data" data-fr="Vos données">数据归你</span>
         </div>
       </section>
       <!-- module:hero end -->
 
       <!-- module:steps start -->
       <section class="card install-card" id="start" aria-labelledby="install-title">
-        <p class="eyebrow" data-zh="约 2 分钟" data-en="ABOUT 2 MINUTES">约 2 分钟</p>
-        <h2 id="install-title" data-zh="装到自己的云里" data-en="Install into your own cloud">装到自己的云里</h2>
-        <div class="step"><b>1</b><span><strong data-zh="安装" data-en="Install">安装</strong><small data-zh="打开免费安装器" data-en="Open the free installer">打开免费安装器</small></span></div>
-        <div class="step"><b>2</b><span><strong data-zh="授权" data-en="Authorize">授权</strong><small data-zh="登录或注册 Cloudflare" data-en="Sign in or create Cloudflare">登录或注册 Cloudflare</small></span></div>
-        <div class="step"><b>3</b><span><strong data-zh="Face ID" data-en="Face ID">Face ID</strong><small data-zh="认领你的私人应用" data-en="Claim your private app">认领你的私人应用</small></span></div>
-        <a class="primary" href="/oauth/start" data-zh="免费安装我的 Meeting Note" data-en="Install my Meeting Note free">免费安装我的 Meeting Note</a>
-        <p class="fine" data-zh="无需 GitHub · 无需信用卡 · 无需写代码" data-en="No GitHub · No credit card · No coding">无需 GitHub · 无需信用卡 · 无需写代码</p>
+        <p class="eyebrow" data-zh="约 2 分钟" data-en="ABOUT 2 MINUTES" data-fr="ENVIRON 2 MINUTES">约 2 分钟</p>
+        <h2 id="install-title" data-zh="装到自己的云里" data-en="Install into your own cloud" data-fr="Installez-le dans votre propre cloud">装到自己的云里</h2>
+        <div class="step"><b>1</b><span><strong data-zh="安装" data-en="Install" data-fr="Installer">安装</strong><small data-zh="打开免费安装器" data-en="Open the free installer" data-fr="Ouvrez l'installateur gratuit">打开免费安装器</small></span></div>
+        <div class="step"><b>2</b><span><strong data-zh="授权" data-en="Authorize" data-fr="Autoriser">授权</strong><small data-zh="登录或注册 Cloudflare" data-en="Sign in or create Cloudflare" data-fr="Connectez-vous ou créez un compte Cloudflare">登录或注册 Cloudflare</small></span></div>
+        <div class="step"><b>3</b><span><strong data-zh="Face ID" data-en="Face ID" data-fr="Face ID">Face ID</strong><small data-zh="认领你的私人应用" data-en="Claim your private app" data-fr="Récupérez votre application privée">认领你的私人应用</small></span></div>
+        <a class="primary" href="/oauth/start" data-zh="免费安装我的 Meeting Note" data-en="Install my Meeting Note free" data-fr="Installer mon Meeting Note gratuitement">免费安装我的 Meeting Note</a>
+        <p class="fine" data-zh="无需 GitHub · 无需信用卡 · 无需写代码" data-en="No GitHub · No credit card · No coding" data-fr="Pas de GitHub · Pas de carte bancaire · Pas de code">无需 GitHub · 无需信用卡 · 无需写代码</p>
       </section>
       <!-- module:steps end -->
     </div>
 
     <section class="card workflow-card hidden" id="account">
-      <p class="eyebrow" data-zh="已安全授权" data-en="AUTHORIZED">已安全授权</p>
-      <h2 data-zh="选择安装位置" data-en="Choose your account">选择安装位置</h2>
+      <p class="eyebrow" data-zh="已安全授权" data-en="AUTHORIZED" data-fr="AUTORISÉ">已安全授权</p>
+      <h2 data-zh="选择安装位置" data-en="Choose your account" data-fr="Choisissez votre compte">选择安装位置</h2>
       <div id="accounts"></div>
       <div class="existing hidden" id="existing">
-        <p class="existing-title" data-zh="这个账户里已经装过 Meeting Note" data-en="This account already has a Meeting Note">这个账户里已经装过 Meeting Note</p>
+        <p class="existing-title" data-zh="这个账户里已经装过 Meeting Note" data-en="This account already has a Meeting Note" data-fr="Ce compte a déjà un Meeting Note">这个账户里已经装过 Meeting Note</p>
         <div id="existingList"></div>
-        <p class="fine" data-zh="再装一个会得到一个全新的空应用，两边的会议和笔记不互通。" data-en="Installing again creates a second, empty app. The two do not share meetings or notes.">再装一个会得到一个全新的空应用，两边的会议和笔记不互通。</p>
+        <p class="fine" data-zh="再装一个会得到一个全新的空应用，两边的会议和笔记不互通。" data-en="Installing again creates a second, empty app. The two do not share meetings or notes." data-fr="Une nouvelle installation crée une seconde application, vide. Les deux ne partagent ni réunions ni notes.">再装一个会得到一个全新的空应用，两边的会议和笔记不互通。</p>
       </div>
-      <button class="primary" id="install" type="button" data-zh="开始自动安装" data-en="Start installation">开始自动安装</button>
-      <button class="ghost-button wide hidden" id="installAnother" type="button" data-zh="还是再装一个新的" data-en="Install another copy anyway">还是再装一个新的</button>
+      <button class="primary" id="install" type="button" data-zh="开始自动安装" data-en="Start installation" data-fr="Démarrer l'installation">开始自动安装</button>
+      <button class="ghost-button wide hidden" id="installAnother" type="button" data-zh="还是再装一个新的" data-en="Install another copy anyway" data-fr="Installer quand même une autre copie">还是再装一个新的</button>
     </section>
     <section class="card workflow-card hidden" id="progress">
       <div class="spinner"></div>
-      <h2 id="progressTitle" data-zh="正在创建你的私人空间" data-en="Creating your private space">正在创建你的私人空间</h2>
-      <p id="progressDetail" data-zh="请保持此页面打开，通常需要 30 到 60 秒。" data-en="Keep this page open. This usually takes 30 to 60 seconds.">请保持此页面打开，通常需要 30 到 60 秒。</p>
+      <h2 id="progressTitle" data-zh="正在创建你的私人空间" data-en="Creating your private space" data-fr="Création de votre espace privé">正在创建你的私人空间</h2>
+      <p id="progressDetail" data-zh="请保持此页面打开，通常需要 30 到 60 秒。" data-en="Keep this page open. This usually takes 30 to 60 seconds." data-fr="Gardez cette page ouverte. Cela prend généralement 30 à 60 secondes.">请保持此页面打开，通常需要 30 到 60 秒。</p>
       <div class="bar"><i></i></div>
       <a class="help-link hidden" id="problemHelp" href="#" target="_blank" rel="noopener noreferrer">打开 Cloudflare Workers 页面</a>
       <p class="detail-line hidden" id="problemDetail"></p>
@@ -97,76 +97,76 @@
     </section>
     <section class="card workflow-card success hidden" id="success">
       <div class="check">✓</div>
-      <p class="eyebrow" data-zh="安装完成" data-en="READY">安装完成</p>
-      <h2 data-zh="你的 Meeting Note 已准备好" data-en="Your Meeting Note is ready">你的 Meeting Note 已准备好</h2>
-      <p data-zh="最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。" data-en="One last tap: claim it with Face ID. No code to copy and no password to create.">最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。</p>
-      <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID">继续，用 Face ID 认领</a>
+      <p class="eyebrow" data-zh="安装完成" data-en="READY" data-fr="PRÊT">安装完成</p>
+      <h2 data-zh="你的 Meeting Note 已准备好" data-en="Your Meeting Note is ready" data-fr="Votre Meeting Note est prêt">你的 Meeting Note 已准备好</h2>
+      <p data-zh="最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。" data-en="One last tap: claim it with Face ID. No code to copy and no password to create." data-fr="Encore un geste : récupérez-le avec Face ID. Aucun code à copier, aucun mot de passe à créer.">最后点一下，用 Face ID 认领。无需复制代码，也无需再设置密码。</p>
+      <a class="primary" id="openApp" href="#" data-zh="继续，用 Face ID 认领" data-en="Continue with Face ID" data-fr="Continuer avec Face ID">继续，用 Face ID 认领</a>
       <div class="address-block">
-        <p class="address-label" data-zh="一次性认领码" data-en="One-time setup code">一次性认领码</p>
+        <p class="address-label" data-zh="一次性认领码" data-en="One-time setup code" data-fr="Code d'installation à usage unique">一次性认领码</p>
         <input id="setupCodeValue" readonly aria-label="One-time setup code" />
-        <button class="ghost-button" id="copySetupCode" type="button" data-zh="复制认领码" data-en="Copy the code">复制认领码</button>
-        <p class="fine" data-zh="上面那个按钮已经带着它了。只有在链接打不开、或者以后要重新认领时才需要手动输入。" data-en="The button above already carries it. You only need to type it if that link will not open, or if you claim this app later.">上面那个按钮已经带着它了。只有在链接打不开、或者以后要重新认领时才需要手动输入。</p>
+        <button class="ghost-button" id="copySetupCode" type="button" data-zh="复制认领码" data-en="Copy the code" data-fr="Copier le code">复制认领码</button>
+        <p class="fine" data-zh="上面那个按钮已经带着它了。只有在链接打不开、或者以后要重新认领时才需要手动输入。" data-en="The button above already carries it. You only need to type it if that link will not open, or if you claim this app later." data-fr="Le bouton ci-dessus l'inclut déjà. Vous n'aurez besoin de le saisir que si ce lien ne s'ouvre pas, ou si vous récupérez cette application plus tard.">上面那个按钮已经带着它了。只有在链接打不开、或者以后要重新认领时才需要手动输入。</p>
       </div>
       <div class="address-block">
-        <p class="address-label" data-zh="你的 Meeting Note 网址" data-en="The address of your Meeting Note">你的 Meeting Note 网址</p>
+        <p class="address-label" data-zh="你的 Meeting Note 网址" data-en="The address of your Meeting Note" data-fr="L'adresse de votre Meeting Note">你的 Meeting Note 网址</p>
         <input id="appAddress" readonly aria-label="Your Meeting Note address" />
-        <button class="ghost-button" id="copyAddress" type="button" data-zh="复制网址" data-en="Copy address">复制网址</button>
+        <button class="ghost-button" id="copyAddress" type="button" data-zh="复制网址" data-en="Copy address" data-fr="Copier l'adresse">复制网址</button>
       </div>
       <ul class="remember-list">
-        <li data-zh="认领之后，应用会教你把它加到手机主屏幕——以后点一下就能打开，不用记网址。" data-en="Once you claim it, the app shows you how to put it on your home screen: one tap from then on, nothing to remember.">认领之后，应用会教你把它加到手机主屏幕——以后点一下就能打开，不用记网址。</li>
-        <li data-zh="也可以现在复制网址，发给自己或存进备忘录。" data-en="You can also copy the address now and send it to yourself, or keep it in your notes.">也可以现在复制网址，发给自己或存进备忘录。</li>
-        <li data-zh="忘了也不怕：登录 Cloudflare 打开 Workers，名字以 meeting-note 开头的那个就是。" data-en="Lost it later? Sign in to Cloudflare and open Workers: it is the one whose name starts with meeting-note.">忘了也不怕：登录 Cloudflare 打开 Workers，名字以 meeting-note 开头的那个就是。</li>
+        <li data-zh="认领之后，应用会教你把它加到手机主屏幕——以后点一下就能打开，不用记网址。" data-en="Once you claim it, the app shows you how to put it on your home screen: one tap from then on, nothing to remember." data-fr="Une fois récupérée, l'application vous montre comment l'ajouter à l'écran d'accueil : un seul geste ensuite, rien à retenir.">认领之后，应用会教你把它加到手机主屏幕——以后点一下就能打开，不用记网址。</li>
+        <li data-zh="也可以现在复制网址，发给自己或存进备忘录。" data-en="You can also copy the address now and send it to yourself, or keep it in your notes." data-fr="Vous pouvez aussi copier l'adresse maintenant et vous l'envoyer, ou la garder dans vos notes.">也可以现在复制网址，发给自己或存进备忘录。</li>
+        <li data-zh="忘了也不怕：登录 Cloudflare 打开 Workers，名字以 meeting-note 开头的那个就是。" data-en="Lost it later? Sign in to Cloudflare and open Workers: it is the one whose name starts with meeting-note." data-fr="Vous l'avez perdue ? Connectez-vous à Cloudflare et ouvrez Workers : c'est celui dont le nom commence par meeting-note.">忘了也不怕：登录 Cloudflare 打开 Workers，名字以 meeting-note 开头的那个就是。</li>
       </ul>
-      <p class="fine hidden" id="successNote" data-zh="这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。" data-en="This address was created just now and can take a minute or two to resolve. If it does not open yet, wait a moment and tap again.">这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。</p>
-      <p class="fine" data-zh="认领完成后，请截图保存应用显示的恢复码。" data-en="After claiming it, save a screenshot of the recovery code shown by the app.">认领完成后，请截图保存应用显示的恢复码。</p>
+      <p class="fine hidden" id="successNote" data-zh="这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。" data-en="This address was created just now and can take a minute or two to resolve. If it does not open yet, wait a moment and tap again." data-fr="Cette adresse vient d'être créée et peut prendre une ou deux minutes avant de répondre. Si elle ne s'ouvre pas encore, patientez un instant puis réessayez.">这个网址是刚刚创建的，解析可能需要一两分钟。如果暂时打不开，请稍等再点一次。</p>
+      <p class="fine" data-zh="认领完成后，请截图保存应用显示的恢复码。" data-en="After claiming it, save a screenshot of the recovery code shown by the app." data-fr="Une fois l'application récupérée, enregistrez une capture d'écran du code de récupération qu'elle affiche.">认领完成后，请截图保存应用显示的恢复码。</p>
     </section>
 
     <section class="trust-strip" aria-label="Trust points">
-      <span><i aria-hidden="true">✓</i><b data-zh="私人部署" data-en="Private deployment">私人部署</b></span>
-      <span><i aria-hidden="true">✓</i><b data-zh="每日额度可见" data-en="Visible daily usage">每日额度可见</b></span>
-      <span><i aria-hidden="true">✓</i><b data-zh="授权自动撤销" data-en="Access auto-revoked">授权自动撤销</b></span>
+      <span><i aria-hidden="true">✓</i><b data-zh="私人部署" data-en="Private deployment" data-fr="Déploiement privé">私人部署</b></span>
+      <span><i aria-hidden="true">✓</i><b data-zh="每日额度可见" data-en="Visible daily usage" data-fr="Utilisation quotidienne visible">每日额度可见</b></span>
+      <span><i aria-hidden="true">✓</i><b data-zh="授权自动撤销" data-en="Access auto-revoked" data-fr="Accès révoqué automatiquement">授权自动撤销</b></span>
     </section>
 
     <!-- module:features start -->
     <section class="module product-section" id="features">
       <div class="section-heading">
-        <p class="eyebrow" data-zh="不只是会议纪要" data-en="MORE THAN MEETING NOTES">不只是会议纪要</p>
-        <h2 data-zh="把散落的一天，整理成可用的记忆。" data-en="Turn a scattered day into useful memory.">把散落的一天，整理成可用的记忆。</h2>
-        <p data-zh="工作和生活不用再分散在录音、相册、备忘录和日历里。" data-en="Work and life no longer need to be scattered across recordings, photos, notes and calendars.">工作和生活不用再分散在录音、相册、备忘录和日历里。</p>
+        <p class="eyebrow" data-zh="不只是会议纪要" data-en="MORE THAN MEETING NOTES" data-fr="PLUS QUE DES NOTES DE RÉUNION">不只是会议纪要</p>
+        <h2 data-zh="把散落的一天，整理成可用的记忆。" data-en="Turn a scattered day into useful memory." data-fr="Transformez une journée éparpillée en mémoire utile.">把散落的一天，整理成可用的记忆。</h2>
+        <p data-zh="工作和生活不用再分散在录音、相册、备忘录和日历里。" data-en="Work and life no longer need to be scattered across recordings, photos, notes and calendars." data-fr="Le travail et la vie n'ont plus besoin d'être éparpillés entre enregistrements, photos, notes et calendriers.">工作和生活不用再分散在录音、相册、备忘录和日历里。</p>
       </div>
       <div class="feature-grid">
         <article class="feature feature-wide">
           <span class="feature-icon" aria-hidden="true">◉</span>
-          <div><p class="feature-label" data-zh="会议" data-en="MEETINGS">会议</p><h3 data-zh="录完就有重点，不用重听两小时" data-en="Finish with the decisions, not two hours to replay">录完就有重点，不用重听两小时</h3><p data-zh="边录边转写；停止后自动生成摘要、决定、问答和行动项。保留原文，也能导出 Markdown。" data-en="Transcribe while you record, then create a structured summary with decisions, questions and action items. Keep the transcript and export Markdown.">边录边转写；停止后自动生成摘要、决定、问答和行动项。保留原文，也能导出 Markdown。</p></div>
+          <div><p class="feature-label" data-zh="会议" data-en="MEETINGS" data-fr="RÉUNIONS">会议</p><h3 data-zh="录完就有重点，不用重听两小时" data-en="Finish with the decisions, not two hours to replay" data-fr="Terminez avec les décisions, pas deux heures à réécouter">录完就有重点，不用重听两小时</h3><p data-zh="边录边转写；停止后自动生成摘要、决定、问答和行动项。保留原文，也能导出 Markdown。" data-en="Transcribe while you record, then create a structured summary with decisions, questions and action items. Keep the transcript and export Markdown." data-fr="Transcription pendant l'enregistrement, puis un résumé structuré avec décisions, questions et actions à faire. La transcription reste disponible, exportable en Markdown.">边录边转写；停止后自动生成摘要、决定、问答和行动项。保留原文，也能导出 Markdown。</p></div>
           <div class="mini-note" aria-hidden="true"><span></span><span></span><span class="short"></span><em>✓ Action item</em></div>
         </article>
         <article class="feature">
           <span class="feature-icon" aria-hidden="true">✦</span>
-          <p class="feature-label" data-zh="随心笔记" data-en="QUICK NOTES">随心笔记</p>
-          <h3 data-zh="灵感、日记、清单，想到就记" data-en="Ideas, journals and lists in seconds">灵感、日记、清单，想到就记</h3>
-          <p data-zh="让 AI 自动分类，也可以自己选择灵感、日常、计划或资料。" data-en="Let AI organize it, or choose Idea, Journal, Plan, Life or Reference yourself.">让 AI 自动分类，也可以自己选择灵感、日常、计划或资料。</p>
+          <p class="feature-label" data-zh="随心笔记" data-en="QUICK NOTES" data-fr="NOTES RAPIDES">随心笔记</p>
+          <h3 data-zh="灵感、日记、清单，想到就记" data-en="Ideas, journals and lists in seconds" data-fr="Idées, journal et listes en quelques secondes">灵感、日记、清单，想到就记</h3>
+          <p data-zh="让 AI 自动分类，也可以自己选择灵感、日常、计划或资料。" data-en="Let AI organize it, or choose Idea, Journal, Plan, Life or Reference yourself." data-fr="Laissez l'IA les classer, ou choisissez vous-même Idée, Journal, Plan, Vie ou Référence.">让 AI 自动分类，也可以自己选择灵感、日常、计划或资料。</p>
         </article>
         <article class="feature">
           <span class="feature-icon" aria-hidden="true">▧</span>
-          <p class="feature-label" data-zh="照片" data-en="PHOTOS">照片</p>
-          <h3 data-zh="照片和文字放在同一段记忆里" data-en="Keep photos and words in one memory">照片和文字放在同一段记忆里</h3>
-          <p data-zh="拍照或从 iPhone 相册选择；上传前在手机上缩小并转成 WebP，节省空间。" data-en="Take a photo or choose from iPhone. Images are resized and converted to WebP on your device before upload.">拍照或从 iPhone 相册选择；上传前在手机上缩小并转成 WebP，节省空间。</p>
+          <p class="feature-label" data-zh="照片" data-en="PHOTOS" data-fr="PHOTOS">照片</p>
+          <h3 data-zh="照片和文字放在同一段记忆里" data-en="Keep photos and words in one memory" data-fr="Gardez photos et mots dans une seule mémoire">照片和文字放在同一段记忆里</h3>
+          <p data-zh="拍照或从 iPhone 相册选择；上传前在手机上缩小并转成 WebP，节省空间。" data-en="Take a photo or choose from iPhone. Images are resized and converted to WebP on your device before upload." data-fr="Prenez une photo ou choisissez-la depuis l'iPhone. Les images sont redimensionnées et converties en WebP sur l'appareil avant l'envoi.">拍照或从 iPhone 相册选择；上传前在手机上缩小并转成 WebP，节省空间。</p>
         </article>
         <article class="feature">
           <span class="feature-icon" aria-hidden="true">◷</span>
-          <p class="feature-label" data-zh="计划" data-en="PLANS">计划</p>
-          <h3 data-zh="说一句话，变成能执行的计划" data-en="Say it once. Get an actionable plan.">说一句话，变成能执行的计划</h3>
-          <p data-zh="AI 提取日期、时间和负责人；你确认后再加入，并可发送到 Apple、Google 或 Outlook 日历。" data-en="AI extracts dates, times and owners. You approve each item before adding it to Apple, Google or Outlook Calendar.">AI 提取日期、时间和负责人；你确认后再加入，并可发送到 Apple、Google 或 Outlook 日历。</p>
+          <p class="feature-label" data-zh="计划" data-en="PLANS" data-fr="PLANS">计划</p>
+          <h3 data-zh="说一句话，变成能执行的计划" data-en="Say it once. Get an actionable plan." data-fr="Dites-le une fois. Obtenez un plan concret.">说一句话，变成能执行的计划</h3>
+          <p data-zh="AI 提取日期、时间和负责人；你确认后再加入，并可发送到 Apple、Google 或 Outlook 日历。" data-en="AI extracts dates, times and owners. You approve each item before adding it to Apple, Google or Outlook Calendar." data-fr="L'IA extrait dates, heures et responsables. Vous validez chaque élément avant de l'ajouter à Apple, Google ou Outlook Calendar.">AI 提取日期、时间和负责人；你确认后再加入，并可发送到 Apple、Google 或 Outlook 日历。</p>
         </article>
         <article class="feature">
           <span class="feature-icon" aria-hidden="true">⌕</span>
-          <p class="feature-label" data-zh="提问" data-en="ASK">提问</p>
-          <h3 data-zh="直接问：上次到底决定了什么？" data-en="Just ask: what did we decide last time?">直接问：上次到底决定了什么？</h3>
-          <p data-zh="同时搜索会议、笔记、照片和计划；每个答案都会标出来源，方便回到原文核对。" data-en="Search meetings, notes, photos and plans together. Every answer shows its sources so you can verify the original.">同时搜索会议、笔记、照片和计划；每个答案都会标出来源，方便回到原文核对。</p>
+          <p class="feature-label" data-zh="提问" data-en="ASK" data-fr="DEMANDER">提问</p>
+          <h3 data-zh="直接问：上次到底决定了什么？" data-en="Just ask: what did we decide last time?" data-fr="Demandez simplement : qu'avons-nous décidé la dernière fois ?">直接问：上次到底决定了什么？</h3>
+          <p data-zh="同时搜索会议、笔记、照片和计划；每个答案都会标出来源，方便回到原文核对。" data-en="Search meetings, notes, photos and plans together. Every answer shows its sources so you can verify the original." data-fr="Recherchez à la fois dans les réunions, notes, photos et plans. Chaque réponse indique ses sources pour pouvoir vérifier l'original.">同时搜索会议、笔记、照片和计划；每个答案都会标出来源，方便回到原文核对。</p>
         </article>
         <article class="feature feature-wide language-feature">
           <span class="feature-icon" aria-hidden="true">中A</span>
-          <div><p class="feature-label" data-zh="随你怎么说" data-en="SPEAK NATURALLY">随你怎么说</p><h3 data-zh="中文、英文，或者一句话里来回切换" data-en="Chinese, English, or both in the same sentence">中文、英文，或者一句话里来回切换</h3><p data-zh="会议转写、语音计划和 AI 提问都支持中英文。手机和电脑都能用，也可以添加新的设备。" data-en="Meeting transcription, spoken plans and AI questions work in Chinese and English. Use it on phone or desktop and add new devices anytime.">会议转写、语音计划和 AI 提问都支持中英文。手机和电脑都能用，也可以添加新的设备。</p></div>
+          <div><p class="feature-label" data-zh="随你怎么说" data-en="SPEAK NATURALLY" data-fr="PARLEZ NATURELLEMENT">随你怎么说</p><h3 data-zh="中文、英文，或者一句话里来回切换" data-en="Chinese, English, or both in the same sentence" data-fr="Chinois, anglais, français, ou plusieurs dans la même phrase">中文、英文，或者一句话里来回切换</h3><p data-zh="会议转写、语音计划和 AI 提问都支持中英文。手机和电脑都能用，也可以添加新的设备。" data-en="Meeting transcription, spoken plans and AI questions work in Chinese and English. Use it on phone or desktop and add new devices anytime." data-fr="La transcription des réunions, les plans dictés et les questions à l'IA fonctionnent en français, en anglais et en chinois. Utilisable sur téléphone ou ordinateur, avec possibilité d'ajouter de nouveaux appareils.">会议转写、语音计划和 AI 提问都支持中英文。手机和电脑都能用，也可以添加新的设备。</p></div>
           <div class="language-sample" aria-hidden="true"><span>Let's confirm the venue</span><span>场地就定在这里</span><span>Action · Friday</span></div>
         </article>
       </div>
@@ -176,14 +176,14 @@
     <!-- module:problem start -->
     <section class="module ownership-section" id="privacy">
       <div class="ownership-copy">
-        <p class="eyebrow" data-zh="不是另一个共享云盘" data-en="NOT ANOTHER SHARED CLOUD">不是另一个共享云盘</p>
-        <h2 data-zh="应用是你的，账户是你的，数据也是你的。" data-en="Your app. Your account. Your data.">应用是你的，账户是你的，数据也是你的。</h2>
-        <p data-zh="安装器只负责搭建。完成后，Meeting Note 独立运行在你选择的 Cloudflare 账户中。" data-en="The installer only performs setup. Afterwards, Meeting Note runs independently inside the Cloudflare account you choose.">安装器只负责搭建。完成后，Meeting Note 独立运行在你选择的 Cloudflare 账户中。</p>
+        <p class="eyebrow" data-zh="不是另一个共享云盘" data-en="NOT ANOTHER SHARED CLOUD" data-fr="PAS UN AUTRE CLOUD PARTAGÉ">不是另一个共享云盘</p>
+        <h2 data-zh="应用是你的，账户是你的，数据也是你的。" data-en="Your app. Your account. Your data." data-fr="Votre application. Votre compte. Vos données.">应用是你的，账户是你的，数据也是你的。</h2>
+        <p data-zh="安装器只负责搭建。完成后，Meeting Note 独立运行在你选择的 Cloudflare 账户中。" data-en="The installer only performs setup. Afterwards, Meeting Note runs independently inside the Cloudflare account you choose." data-fr="L'installateur ne fait que la mise en place. Ensuite, Meeting Note fonctionne de façon indépendante dans le compte Cloudflare que vous choisissez.">安装器只负责搭建。完成后，Meeting Note 独立运行在你选择的 Cloudflare 账户中。</p>
       </div>
       <div class="ownership-list">
-        <article><b>01</b><div><h3 data-zh="独立私人部署" data-en="Independent private deployment">独立私人部署</h3><p data-zh="每位用户都有自己的 Worker、数据库和存储，不和其他用户混在一起。" data-en="Every user gets their own Worker, database and storage—never mixed with other users.">每位用户都有自己的 Worker、数据库和存储，不和其他用户混在一起。</p></div></article>
-        <article><b>02</b><div><h3 data-zh="免费额度看得见" data-en="Free allowance you can see">免费额度看得见</h3><p data-zh="应用显示每天用了多少 AI、还剩多少录音时间；到上限就暂停，不会自动收费。" data-en="See daily AI use and estimated recording time left. At the limit, AI pauses instead of billing you automatically.">应用显示每天用了多少 AI、还剩多少录音时间；到上限就暂停，不会自动收费。</p></div></article>
-        <article><b>03</b><div><h3 data-zh="一次授权，用完即撤销" data-en="One-time access, then revoked">一次授权，用完即撤销</h3><p data-zh="OAuth 令牌加密保存，最长 30 分钟；安装成功后立即撤销并删除安装会话。" data-en="The OAuth token is encrypted for no more than 30 minutes, then revoked and deleted after installation.">OAuth 令牌加密保存，最长 30 分钟；安装成功后立即撤销并删除安装会话。</p></div></article>
+        <article><b>01</b><div><h3 data-zh="独立私人部署" data-en="Independent private deployment" data-fr="Déploiement privé et indépendant">独立私人部署</h3><p data-zh="每位用户都有自己的 Worker、数据库和存储，不和其他用户混在一起。" data-en="Every user gets their own Worker, database and storage—never mixed with other users." data-fr="Chaque utilisateur dispose de son propre Worker, de sa propre base de données et de son propre stockage — jamais mélangés avec d'autres utilisateurs.">每位用户都有自己的 Worker、数据库和存储，不和其他用户混在一起。</p></div></article>
+        <article><b>02</b><div><h3 data-zh="免费额度看得见" data-en="Free allowance you can see" data-fr="Un forfait gratuit que vous pouvez suivre">免费额度看得见</h3><p data-zh="应用显示每天用了多少 AI、还剩多少录音时间；到上限就暂停，不会自动收费。" data-en="See daily AI use and estimated recording time left. At the limit, AI pauses instead of billing you automatically." data-fr="Suivez l'utilisation quotidienne de l'IA et le temps d'enregistrement restant estimé. À la limite, l'IA se met en pause au lieu de vous facturer automatiquement.">应用显示每天用了多少 AI、还剩多少录音时间；到上限就暂停，不会自动收费。</p></div></article>
+        <article><b>03</b><div><h3 data-zh="一次授权，用完即撤销" data-en="One-time access, then revoked" data-fr="Accès unique, puis révoqué">一次授权，用完即撤销</h3><p data-zh="OAuth 令牌加密保存，最长 30 分钟；安装成功后立即撤销并删除安装会话。" data-en="The OAuth token is encrypted for no more than 30 minutes, then revoked and deleted after installation." data-fr="Le jeton OAuth est chiffré pour 30 minutes maximum, puis révoqué et supprimé après l'installation.">OAuth 令牌加密保存，最长 30 分钟；安装成功后立即撤销并删除安装会话。</p></div></article>
       </div>
     </section>
     <!-- module:problem end -->
@@ -191,29 +191,29 @@
     <!-- module:faq start -->
     <section class="module faq-section" id="faq">
       <div class="section-heading compact">
-        <p class="eyebrow" data-zh="第一次听说 Cloudflare？没关系" data-en="NEW TO CLOUDFLARE? THAT'S OKAY">第一次听说 Cloudflare？没关系</p>
-        <h2 data-zh="你不需要懂服务器。" data-en="You do not need to understand servers.">你不需要懂服务器。</h2>
+        <p class="eyebrow" data-zh="第一次听说 Cloudflare？没关系" data-en="NEW TO CLOUDFLARE? THAT'S OKAY" data-fr="NOUVEAU SUR CLOUDFLARE ? PAS DE SOUCI">第一次听说 Cloudflare？没关系</p>
+        <h2 data-zh="你不需要懂服务器。" data-en="You do not need to understand servers." data-fr="Pas besoin de comprendre les serveurs.">你不需要懂服务器。</h2>
       </div>
       <div class="faq-list">
-        <details><summary data-zh="Cloudflare 是什么？" data-en="What is Cloudflare?">Cloudflare 是什么？</summary><p data-zh="它是 Meeting Note 运行的云平台。你只需免费注册并授权，安装器会自动完成技术设置。" data-en="It is the cloud platform where Meeting Note runs. Create a free account and authorize once; the installer handles the technical setup.">它是 Meeting Note 运行的云平台。你只需免费注册并授权，安装器会自动完成技术设置。</p></details>
-        <details><summary data-zh="只有手机也能安装吗？" data-en="Can I install with only a phone?">只有手机也能安装吗？</summary><p data-zh="可以。注册、授权、安装和 Face ID 认领都能在手机浏览器完成。完成后可把 PWA 添加到主屏幕，像 App 一样使用。" data-en="Yes. Registration, authorization, installation and Face ID claiming all work in a mobile browser. Add the PWA to your home screen and use it like an app.">可以。注册、授权、安装和 Face ID 认领都能在手机浏览器完成。完成后可把 PWA 添加到主屏幕，像 App 一样使用。</p></details>
-        <details><summary data-zh="安装器能看到我的会议和笔记吗？" data-en="Can the installer see my meetings and notes?">安装器能看到我的会议和笔记吗？</summary><p data-zh="不能。安装器只创建资源，不读取你的会议、录音或笔记；这些内容保存在你自己的 Cloudflare 账户。" data-en="No. The installer creates resources but does not read your meetings, recordings or notes. They stay in your own Cloudflare account.">不能。安装器只创建资源，不读取你的会议、录音或笔记；这些内容保存在你自己的 Cloudflare 账户。</p></details>
-        <details><summary data-zh="以后可以停止使用或删除吗？" data-en="Can I stop or delete it later?">以后可以停止使用或删除吗？</summary><p data-zh="可以。你可以随时在自己的 Cloudflare 账户中删除应用及数据，不需要联系我们。" data-en="Yes. You can delete the app and its data from your own Cloudflare account at any time, without contacting us.">可以。你可以随时在自己的 Cloudflare 账户中删除应用及数据，不需要联系我们。</p></details>
+        <details><summary data-zh="Cloudflare 是什么？" data-en="What is Cloudflare?" data-fr="Qu'est-ce que Cloudflare ?">Cloudflare 是什么？</summary><p data-zh="它是 Meeting Note 运行的云平台。你只需免费注册并授权，安装器会自动完成技术设置。" data-en="It is the cloud platform where Meeting Note runs. Create a free account and authorize once; the installer handles the technical setup." data-fr="C'est la plateforme cloud sur laquelle Meeting Note fonctionne. Créez un compte gratuit et autorisez-le une fois ; l'installateur s'occupe de la partie technique.">它是 Meeting Note 运行的云平台。你只需免费注册并授权，安装器会自动完成技术设置。</p></details>
+        <details><summary data-zh="只有手机也能安装吗？" data-en="Can I install with only a phone?" data-fr="Puis-je installer avec seulement un téléphone ?">只有手机也能安装吗？</summary><p data-zh="可以。注册、授权、安装和 Face ID 认领都能在手机浏览器完成。完成后可把 PWA 添加到主屏幕，像 App 一样使用。" data-en="Yes. Registration, authorization, installation and Face ID claiming all work in a mobile browser. Add the PWA to your home screen and use it like an app." data-fr="Oui. L'inscription, l'autorisation, l'installation et la récupération avec Face ID fonctionnent toutes dans un navigateur mobile. Ajoutez la PWA à l'écran d'accueil pour l'utiliser comme une application.">可以。注册、授权、安装和 Face ID 认领都能在手机浏览器完成。完成后可把 PWA 添加到主屏幕，像 App 一样使用。</p></details>
+        <details><summary data-zh="安装器能看到我的会议和笔记吗？" data-en="Can the installer see my meetings and notes?" data-fr="L'installateur peut-il voir mes réunions et mes notes ?">安装器能看到我的会议和笔记吗？</summary><p data-zh="不能。安装器只创建资源，不读取你的会议、录音或笔记；这些内容保存在你自己的 Cloudflare 账户。" data-en="No. The installer creates resources but does not read your meetings, recordings or notes. They stay in your own Cloudflare account." data-fr="Non. L'installateur crée les ressources mais ne lit ni vos réunions, ni vos enregistrements, ni vos notes. Tout reste dans votre propre compte Cloudflare.">不能。安装器只创建资源，不读取你的会议、录音或笔记；这些内容保存在你自己的 Cloudflare 账户。</p></details>
+        <details><summary data-zh="以后可以停止使用或删除吗？" data-en="Can I stop or delete it later?" data-fr="Puis-je l'arrêter ou le supprimer plus tard ?">以后可以停止使用或删除吗？</summary><p data-zh="可以。你可以随时在自己的 Cloudflare 账户中删除应用及数据，不需要联系我们。" data-en="Yes. You can delete the app and its data from your own Cloudflare account at any time, without contacting us." data-fr="Oui. Vous pouvez supprimer l'application et ses données depuis votre propre compte Cloudflare à tout moment, sans nous contacter.">可以。你可以随时在自己的 Cloudflare 账户中删除应用及数据，不需要联系我们。</p></details>
       </div>
     </section>
     <!-- module:faq end -->
 
     <!-- module:cta start -->
     <section class="module final-cta">
-      <p class="eyebrow" data-zh="从下一次会议开始" data-en="START WITH YOUR NEXT MEETING">从下一次会议开始</p>
-      <h2 data-zh="两分钟，拥有自己的私人 AI 记忆。" data-en="Two minutes to your own private AI memory.">两分钟，拥有自己的私人 AI 记忆。</h2>
-      <p data-zh="不用 GitHub，不用 API Token，不用复制任何代码。" data-en="No GitHub, no API token, and no code to copy.">不用 GitHub，不用 API Token，不用复制任何代码。</p>
-      <a class="primary final-button" href="/oauth/start" data-zh="现在免费安装" data-en="Install free now">现在免费安装</a>
+      <p class="eyebrow" data-zh="从下一次会议开始" data-en="START WITH YOUR NEXT MEETING" data-fr="COMMENCEZ DÈS VOTRE PROCHAINE RÉUNION">从下一次会议开始</p>
+      <h2 data-zh="两分钟，拥有自己的私人 AI 记忆。" data-en="Two minutes to your own private AI memory." data-fr="Deux minutes pour votre propre mémoire IA privée.">两分钟，拥有自己的私人 AI 记忆。</h2>
+      <p data-zh="不用 GitHub，不用 API Token，不用复制任何代码。" data-en="No GitHub, no API token, and no code to copy." data-fr="Pas de GitHub, pas de jeton API, pas de code à copier.">不用 GitHub，不用 API Token，不用复制任何代码。</p>
+      <a class="primary final-button" href="/oauth/start" data-zh="现在免费安装" data-en="Install free now" data-fr="Installer gratuitement maintenant">现在免费安装</a>
     </section>
     <!-- module:cta end -->
 
     <!-- module:footer start -->
-    <footer><span>Meeting Note · Personal Cloud</span><nav aria-label="Legal"><a href="/privacy.html" data-zh="隐私" data-en="Privacy">隐私</a><a href="/terms.html" data-zh="使用条款" data-en="Terms">使用条款</a></nav></footer>
+    <footer><span>Meeting Note · Personal Cloud</span><nav aria-label="Legal"><a href="/privacy.html" data-zh="隐私" data-en="Privacy" data-fr="Confidentialité">隐私</a><a href="/terms.html" data-zh="使用条款" data-en="Terms" data-fr="Conditions">使用条款</a></nav></footer>
     <!-- module:footer end -->
   </main>
   <script type="module" src="/app.js"></script>

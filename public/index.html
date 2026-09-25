@@ -16,8 +16,10 @@
         const root = document.documentElement;
         root.dataset.theme = read("meetingnote:theme", "pine");
         root.dataset.mode = read("meetingnote:mode", "dark");
-        root.dataset.language = read("meetingnote:language", navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en");
-        root.lang = root.dataset.language === "zh" ? "zh-Hans" : "en";
+        const browserLanguage = navigator.language?.toLowerCase() || "";
+        const detected = browserLanguage.startsWith("zh") ? "zh" : browserLanguage.startsWith("fr") ? "fr" : "en";
+        root.dataset.language = read("meetingnote:language", detected);
+        root.lang = root.dataset.language === "zh" ? "zh-Hans" : root.dataset.language === "fr" ? "fr" : "en";
       })();
     </script>
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -144,6 +146,7 @@
                   <option value="auto">English + 中文</option>
                   <option value="en">English</option>
                   <option value="zh">中文</option>
+                  <option value="fr">Français</option>
                 </select>
               </label>
             </div>
@@ -237,7 +240,7 @@
         <div class="card dictate-card">
           <button id="dictateButton" class="dictate-button" type="button" aria-describedby="dictateHint" aria-pressed="false">
             <span class="dictate-orb" aria-hidden="true"><i></i></span>
-            <span class="dictate-copy"><strong id="dictateLabel">Tap and say your plans</strong><small id="dictateSub">Up to two minutes · English or 中文</small></span>
+            <span class="dictate-copy"><strong id="dictateLabel">Tap and say your plans</strong><small id="dictateSub">Up to two minutes · English, 中文 or Français</small></span>
           </button>
           <button id="dictateCancel" class="text-button dictate-cancel hidden" type="button">Cancel</button>
           <p id="dictateHint" class="hint">Like “Next Tuesday at 3, call Cindy about the venue” or “月底前把房租交了”. You check each plan before it's added.</p>
@@ -391,7 +394,7 @@
           <label class="settings-row">
             <span><strong>Interface language</strong></span>
             <select id="interfaceLanguage" aria-label="Interface language">
-              <option value="en">English</option><option value="zh">简体中文</option>
+              <option value="en">English</option><option value="zh">简体中文</option><option value="fr">Français</option>
             </select>
           </label>
         </div>

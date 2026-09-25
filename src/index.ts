@@ -64,7 +64,7 @@ function segmentTargetMs(env: Env): number {
 const createMeetingSchema = z.object({
   title: z.string().trim().min(1).max(160),
   template: z.enum(["workshop", "meeting", "interview"]).default("workshop"),
-  language: z.enum(["auto", "en", "zh"]).default("auto")
+  language: z.enum(["auto", "en", "zh", "fr"]).default("auto")
 });
 
 const finalizeSchema = z.object({
@@ -708,7 +708,7 @@ async function runSegment(env: Env, message: Extract<JobMessage, { type: "segmen
     const minutesLabel = `section ${segment.seq + 1}, chunks ${segment.start_chunk}-${segment.end_chunk}`;
     const result = await runModel(env, env.SUMMARY_MODEL, {
       messages: [
-        { role: "system", content: "You are a precise bilingual meeting analyst. You only report what participants actually said in the transcript, never any context notes given alongside it. Write in the language the instructions name. Always give a headline, even for a short excerpt." },
+        { role: "system", content: "You are a precise multilingual meeting analyst. You only report what participants actually said in the transcript, never any context notes given alongside it. Write in the language the instructions name. Always give a headline, even for a short excerpt." },
         { role: "user", content: segmentPrompt(usable, minutesLabel, meeting.language) }
       ],
       response_format: { type: "json_schema", json_schema: { name: "segment_note", strict: true, schema: segmentJsonSchema } },
@@ -779,7 +779,7 @@ async function runFinal(env: Env, meetingId: string) {
     const transcriptSource = useFullTranscript ? fullTranscript : cueText;
     const result = await runModel(env, finalModel(env), {
       messages: [
-        { role: "system", content: "You are a precise bilingual meeting analyst. Produce strict JSON grounded only in the supplied notes and transcript excerpts. Output JSON only, with no commentary." },
+        { role: "system", content: "You are a precise multilingual meeting analyst. Produce strict JSON grounded only in the supplied notes and transcript excerpts. Output JSON only, with no commentary." },
         { role: "user", content: finalSynthesisPrompt(meeting, transcriptSource, useFullTranscript) }
       ],
       response_format: { type: "json_schema", json_schema: { name: "meeting_synthesis", strict: true, schema: finalSynthesisJsonSchema } },

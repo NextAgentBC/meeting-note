@@ -30,25 +30,31 @@ export const SummarySchema = z.object({
 
 export type MeetingSummary = z.infer<typeof SummarySchema>;
 
-export type NoteLanguage = "zh" | "en";
+export type NoteLanguage = "zh" | "en" | "fr";
 
 /**
  * Which language a note is written in, decided in code rather than left to the model: GLM once wrote
- * an all-English meeting's section note in Chinese. The language chosen when recording wins; for
- * "auto", Chinese characters are weighed against English words (a Chinese character carries about
- * two-thirds of a word).
+ * an all-English meeting's section note in Chinese. The language chosen when recording wins ("fr" is
+ * only ever that choice, never guessed); for "auto", Chinese characters are weighed against English
+ * words (a Chinese character carries about two-thirds of a word). "auto" stays a Chinese/English
+ * guess on purpose — it is the bilingual mode measured on a real meeting (see WHISPER_OPTIONS in
+ * transcript.ts) — and a French meeting always has its own language recorded instead.
  */
 export function noteLanguage(text: string, meetingLanguage = "auto"): NoteLanguage {
-  if (meetingLanguage === "zh" || meetingLanguage === "en") return meetingLanguage;
+  if (meetingLanguage === "zh" || meetingLanguage === "en" || meetingLanguage === "fr") return meetingLanguage;
   const han = (text.match(/[\u3400-\u9fff]/g) ?? []).length;
   const words = (text.match(/[A-Za-z]+/g) ?? []).length;
   return han >= words * 1.5 && han > 0 ? "zh" : "en";
 }
 
 export function languageInstruction(language: NoteLanguage): string {
-  return language === "zh"
-    ? "Write every field except verbatim quotes in fluent Simplified Chinese (简体中文), never English or Traditional Chinese. Keep product and company names in their canonical form."
-    : "Write every field except verbatim quotes in English, even where someone briefly speaks Chinese. Keep product and company names in their canonical form.";
+  if (language === "zh") {
+    return "Write every field except verbatim quotes in fluent Simplified Chinese (简体中文), never English or Traditional Chinese. Keep product and company names in their canonical form.";
+  }
+  if (language === "fr") {
+    return "Write every field except verbatim quotes in fluent French, even where someone briefly speaks another language. Keep product and company names in their canonical form.";
+  }
+  return "Write every field except verbatim quotes in English, even where someone briefly speaks Chinese. Keep product and company names in their canonical form.";
 }
 
 type ActionItem = MeetingSummary["action_items"][number];
@@ -73,7 +79,7 @@ function similarity(a: string, b: string): number {
  * had. Put them back from the closest-matching section to-do; nothing new is invented.
  */
 export function restoreActionDetails(items: ActionItem[], fromSections: ActionItem[]): ActionItem[] {
-  const missing = (value: string) => !value.trim() || /^(unassigned|未指定|无|none)$/i.test(value.trim());
+  const missing = (value: string) => !value.trim() || /^(unassigned|未指定|无|none|non assigné[e]?|aucun[e]?)$/i.test(value.trim());
   return items.map((item) => {
     if (!missing(item.owner) && item.due.trim()) return item;
     let best: ActionItem | null = null;

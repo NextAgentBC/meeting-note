@@ -196,9 +196,10 @@ export const APP_VARS: Record<string, string> = {
   WORKERS_PLAN: "free",
   AUDIO_RETENTION_DAYS: "7",
   SEGMENT_TARGET_MINUTES: "5",
-  // The paid second pass that tells speakers apart. Present but dormant: nothing calls it until
-  // the owner asks for it on one finished meeting, and it is billed to their own account.
-  HD_MODEL: "@cf/deepgram/nova-3"
+  // The paid second pass that tells speakers apart. Off in every installed copy: it is billed per
+  // audio minute, and the installer promises $0 with no card. An owner who wants it sets
+  // HD_MODEL to "@cf/deepgram/nova-3" in their own Worker. Updates keep whatever they chose.
+  HD_MODEL: ""
 };
 
 const SCRIPT_METADATA = {

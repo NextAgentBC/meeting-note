@@ -6,6 +6,7 @@ import { initGlass } from "./glass.js";
 import { cylinderScroll, depthScroll } from "./motion.js";
 import { hdAvailable, initHd } from "./hd.js";
 import { initPlans, isDictating, loadPlans } from "./plans.js";
+import { createVersionWatch, VERSION_CHECK_INTERVAL } from "./version-watch.js";
 import "./ask.js";
 import "./transcription.js";
 
@@ -57,6 +58,9 @@ let backupRecorder = null;
 let backupParts = [];
 let backupUrl = null;
 let signedIn = false;
+// Set once the server runs a newer version than this page (see version-watch.js).
+let newerVersion = "";
+let refreshDeclined = "";
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>'"]/g, (character) => ({
@@ -182,11 +186,36 @@ async function checkForUpdate() {
     $("#updateLink").href = health.updateChannel;
     $("#updateBanner").dataset.version = latest.version;
     // One banner at a time: getting onto the home screen comes first.
-    if ($("#homeScreenBanner").classList.contains("hidden")) $("#updateBanner").classList.remove("hidden");
+    if ($("#homeScreenBanner").classList.contains("hidden") && $("#refreshBanner").classList.contains("hidden")) {
+      $("#updateBanner").classList.remove("hidden");
+    }
   } catch {
     // Offline, or the installer is gone. The app carries on as it is.
   }
 }
+
+// The Worker was updated while this page stayed open. A refresh swaps the new version in, but never
+// by surprise: it waits for a recording or a spoken plan to finish, and the owner is the one who taps.
+function offerRefresh() {
+  if (!newerVersion || newerVersion === refreshDeclined || isRecording || isDictating()) return;
+  if (!$("#reauthBanner").classList.contains("hidden")) return;
+  // It outranks the other invitations: the installer's is stale now, and both come back later.
+  $("#updateBanner").classList.add("hidden");
+  $("#homeScreenBanner").classList.add("hidden");
+  $("#refreshBanner").classList.remove("hidden");
+}
+
+const versionWatch = createVersionWatch({
+  fetchVersion: async () => {
+    const response = await fetch("/api/health", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Health check failed: ${response.status}`);
+    return (await response.json()).version;
+  },
+  onNewer: (version) => {
+    newerVersion = version;
+    offerRefresh();
+  }
+});
 
 function offerHomeScreen() {
   if (isStandalone() || !isMobileDevice()) return;
@@ -196,7 +225,9 @@ function offerHomeScreen() {
     return;
   }
   window.setTimeout(() => {
-    if (!isStandalone() && $("#reauthBanner").classList.contains("hidden")) $("#homeScreenBanner").classList.remove("hidden");
+    if (!isStandalone() && $("#reauthBanner").classList.contains("hidden") && $("#refreshBanner").classList.contains("hidden")) {
+      $("#homeScreenBanner").classList.remove("hidden");
+    }
   }, 2500);
 }
 
@@ -727,6 +758,8 @@ async function stopRecording() {
   } finally {
     stopButton.disabled = false;
     stopButton.lastChild.textContent = " Stop & create note";
+    // The last chunk is stored (or waiting in IndexedDB), so a refresh held back until now is safe.
+    offerRefresh();
   }
 }
 
@@ -1113,6 +1146,7 @@ window.addEventListener("hashchange", renderRoute);
 $("#refreshButton").addEventListener("click", loadMeetings);
 $("#retryFinalizeButton").addEventListener("click", retryActiveFinalization);
 window.addEventListener("online", updateConnection);
+window.addEventListener("online", () => void versionWatch.check());
 window.addEventListener("offline", updateConnection);
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
@@ -1130,7 +1164,11 @@ window.addEventListener("appinstalled", () => {
   showToast("Meeting Note is installed and ready from your home screen.");
 });
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && isRecording) void requestWakeLock();
+  if (document.visibilityState !== "visible") return;
+  if (isRecording) void requestWakeLock();
+  // A home-screen app comes back here rather than reloading, so this is when it asks what changed.
+  void versionWatch.check();
+  if (signedIn) void checkForUpdate();
 });
 window.addEventListener("beforeunload", (event) => {
   if (isRecording) {
@@ -1151,6 +1189,12 @@ $("#updateLater").addEventListener("click", () => {
   // Asked again when the next release comes out, not for this one.
   try { localStorage.setItem(UPDATE_SKIPPED_KEY, banner.dataset.version || ""); } catch { /* denied */ }
 });
+$("#refreshNow").addEventListener("click", () => location.reload());
+$("#refreshLater").addEventListener("click", () => {
+  // Not asked again for this version while the page stays open; the next launch loads it anyway.
+  refreshDeclined = newerVersion;
+  $("#refreshBanner").classList.add("hidden");
+});
 $("#closeHomeScreenDialog").addEventListener("click", () => $("#homeScreenDialog").close());
 $("#copyAppAddress").addEventListener("click", async (event) => {
   try {
@@ -1163,18 +1207,17 @@ $("#copyAppAddress").addEventListener("click", async (event) => {
 // Every browser that cannot install by itself still needs the row that explains how.
 if (!isStandalone()) $("#installButton").classList.remove("hidden");
 if ("serviceWorker" in navigator) {
-  // Reload only to swap in an updated app: never on a first visit (nothing stale to replace, and the
-  // reload would cut into creating the passkey), and never mid-sign-in or mid-recording.
-  const hadController = Boolean(navigator.serviceWorker.controller);
   window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js").catch((error) => console.warn("PWA registration failed", error)));
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    const signingIn = !$("#authView").classList.contains("hidden");
-    if (hadController && !isRecording && !signingIn && !sessionStorage.getItem("pwa-reloaded-v3")) {
-      sessionStorage.setItem("pwa-reloaded-v3", "1");
-      location.reload();
-    }
-  });
+  // A new service worker taking over only hints that something changed. It used to reload the page
+  // on the spot; now the version check decides, since the page itself usually came over the network
+  // already new, and a real update is offered as a banner rather than done to the owner.
+  navigator.serviceWorker.addEventListener("controllerchange", () => void versionWatch.check({ force: true }));
 }
+// The first answer is the version this page runs; later ones can only be newer.
+void versionWatch.check();
+window.setInterval(() => {
+  if (document.visibilityState === "visible") void versionWatch.check();
+}, VERSION_CHECK_INTERVAL);
 if (navigator.storage?.persist) void navigator.storage.persist();
 // Home-screen shortcuts (manifest.webmanifest) arrive as ?action=record / dictate / ask / note.
 const shortcut = new URLSearchParams(location.search).get("action");
@@ -1210,12 +1253,16 @@ window.addEventListener("meetingnote:open-meeting", (event) => {
   }
   if (event.detail?.id) openMeeting(event.detail.id);
 });
-// One banner at a time: a sign-in warning outranks an invitation to the home screen.
-window.addEventListener("meetingnote:signin-required", () => $("#homeScreenBanner").classList.add("hidden"));
+// One banner at a time: a sign-in warning outranks an invitation to the home screen or to refresh.
+window.addEventListener("meetingnote:signin-required", () => {
+  $("#homeScreenBanner").classList.add("hidden");
+  $("#refreshBanner").classList.add("hidden");
+});
 // After signing in again mid-session, send whatever audio was waiting.
 window.addEventListener("meetingnote:signed-in", () => {
   if (!signedIn) return;
   void processUploads();
   void loadPlans();
   void loadUsage();
+  offerRefresh();
 });

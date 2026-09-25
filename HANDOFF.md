@@ -79,6 +79,9 @@ test/                 259 vitest tests               e2e/   sign-in flows in a r
   `GET /api/health` along with `UPDATE_CHANNEL`).
 - `checkForUpdate()` in `public/app.js` asks `<UPDATE_CHANNEL>/api/release` at most once every six
   hours and shows a banner when the versions differ.
+- An app left open (a home-screen app is resumed, not reloaded) notices when its own Worker has
+  moved on: `public/version-watch.js` compares `/api/health`'s version with the one it started on and
+  `offerRefresh()` shows a Refresh banner, held back while recording or dictating.
 - The owner authorizes Cloudflare once more and `POST /api/update` uploads the new module over the
   same Worker: same database, same audio, same queue, same passkey. Bindings are read back from the
   Worker and carried over; `keep_bindings: ["secret_text"]` keeps the setup code.

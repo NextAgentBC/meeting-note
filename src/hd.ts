@@ -16,6 +16,7 @@ import type { ChunkRow, Env } from "./types";
  * one from somewhere else.
  */
 
+/** What an owner sets HD_MODEL to when they choose to turn the feature on. */
 export const DEFAULT_HD_MODEL = "@cf/deepgram/nova-3";
 /** Cloudflare's published price for the batch endpoint, to show a cost before anyone agrees to it. */
 const USD_PER_AUDIO_MINUTE = 0.0052;
@@ -39,7 +40,9 @@ type Utterance = { speaker: number; start: number; end: number; text: string };
 type Speaker = { id: string; label: string; name: string | null; seconds: number; members: string[] };
 
 export function hdModel(env: Env): string {
-  return (env.HD_MODEL ?? DEFAULT_HD_MODEL).trim();
+  // Off unless the owner turns it on. It is the one thing in the app that is billed, and a fresh
+  // copy promises $0 with no card on file — so a missing HD_MODEL must mean off, not the default.
+  return (env.HD_MODEL ?? "").trim();
 }
 
 function isoNow(): string {

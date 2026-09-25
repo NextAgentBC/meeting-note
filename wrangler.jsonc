@@ -65,6 +65,9 @@
     "FREE_DAILY_NEURONS": "10000",
     "WORKERS_PLAN": "free",
     "AUDIO_RETENTION_DAYS": "7",
-    "SEGMENT_TARGET_MINUTES": "5"
+    "SEGMENT_TARGET_MINUTES": "5",
+    // High-definition re-transcription (tells speakers apart) is billed per audio minute, so it is
+    // off. Set "@cf/deepgram/nova-3" here to offer it; see README → What it costs.
+    "HD_MODEL": ""
   }
 }

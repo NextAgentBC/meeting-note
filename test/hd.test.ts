@@ -2,7 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { reconcileSpeakers, utterancesFrom } from "../src/hd";
+import { APP_VARS } from "../installer/src/provision";
+import { DEFAULT_HD_MODEL, hdModel, reconcileSpeakers, utterancesFrom } from "../src/hd";
 
 const migrationsDir = fileURLToPath(new URL("../migrations", import.meta.url));
 
@@ -92,5 +93,26 @@ describe("holding the chunks together", () => {
     ]);
     const stored = db.prepare("SELECT speakers_json FROM hd_runs WHERE meeting_id = 'm1'").get() as { speakers_json: string };
     expect(JSON.parse(stored.speakers_json)).toHaveLength(2);
+  });
+});
+
+describe("high-definition re-transcription stays off unless the owner turns it on", () => {
+  it("treats a missing or empty HD_MODEL as off, because it is the one billed feature", () => {
+    expect(hdModel({} as never)).toBe("");
+    expect(hdModel({ HD_MODEL: "" } as never)).toBe("");
+    expect(hdModel({ HD_MODEL: "  " } as never)).toBe("");
+  });
+
+  it("uses the model an owner chose", () => {
+    expect(hdModel({ HD_MODEL: DEFAULT_HD_MODEL } as never)).toBe("@cf/deepgram/nova-3");
+  });
+
+  it("is off in every copy the installer creates or updates", () => {
+    expect(APP_VARS.HD_MODEL).toBe("");
+  });
+
+  it("is off in the one-click template", () => {
+    const template = readFileSync(fileURLToPath(new URL("../wrangler.jsonc", import.meta.url)), "utf8");
+    expect(template).toMatch(/"HD_MODEL":\s*""/);
   });
 });

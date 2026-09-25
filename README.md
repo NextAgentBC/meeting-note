@@ -41,6 +41,12 @@ free plan: R2 (audio goes into KV instead) and Cloudflare Access (it has its own
 The app shows how much recording today's allowance still affords, before you start, plus today's AI
 usage broken down by transcription, notes, answers and optional photo understanding.
 
+**One optional extra is not free, so it is off:** high-definition re-transcription, a second pass over
+a finished meeting that also tells the speakers apart (Deepgram nova-3 on Workers AI). It is billed by
+the audio minute to your own Cloudflare account (about US$0.0052 a minute, shown before you start).
+To offer it, set the Worker variable `HD_MODEL` to `@cf/deepgram/nova-3`; even then it only runs on a
+meeting when you ask for it.
+
 ## Put it online
 
 1. Make two free accounts, if you don't have them: [Cloudflare](https://dash.cloudflare.com/sign-up) and [GitHub](https://github.com/signup).

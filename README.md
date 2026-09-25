@@ -60,9 +60,12 @@ warns you. Repeat audience questions before answering them: they are the quietes
 Keep the tab in front; the app keeps the screen awake while recording. At the end, press **Stop &
 create note**, then **Download the full local recording** as your backup.
 
-**A Zoom call:** choose **Zoom + microphone** and, in Chrome's share dialog, pick the Zoom window and
-tick **Share tab audio** or **Share system audio**. Without that tick only your own voice is recorded.
-Phones can't record another app's audio, so record calls from a computer.
+**A Zoom call:** a shared *window* carries no audio at all (the app warns you if it heard none), so
+choose **Zoom + microphone** and share something that does. Easiest: join the call in Chrome — "Join
+from your browser" on the Zoom invite page — then in the share dialog pick that Chrome tab and tick
+**Share tab audio**. With the Zoom desktop app instead, pick **Entire screen** and tick **Share system
+audio**; if Chrome doesn't offer that tick, use the browser route instead. Phones can't record another
+app's audio, so record calls from a computer.
 
 **Tell people you're recording**, and follow the consent rules where you are.
 
@@ -72,13 +75,13 @@ Phones can't record another app's audio, so record calls from a computer.
   section that did transcribe.
 - **Your sign-in ran out mid-meeting:** a banner says so. Recording carries on, the audio waits on your
   device, and it uploads once you press **Sign in again**.
-- **Signing in on a new phone or computer:** on a device where you're already signed in, press **Add device**
-  (top right) and scan the code with the new one, or open the link on it. Press **Add this device** and
-  confirm with Face ID, a fingerprint or the screen lock. Your other devices keep working, and the code
+- **Signing in on a new phone or computer:** on a device where you're already signed in, open **Me → Add a
+  phone or computer** and scan the code with the new one, or open the link on it. Press **Add this device**
+  and confirm with Face ID, a fingerprint or the screen lock. Your other devices keep working, and the code
   works once, for ten minutes. (If both devices use the same Apple or Google account, the passkey may
   already be there: just press **Sign in**.)
-- **You didn't save the recovery code, or lost it:** on a signed-in device, press **Add device**, then
-  **Make a new recovery code**. The old one stops working.
+- **You didn't save the recovery code, or lost it:** on a signed-in device, open **Me → Recovery code**, then
+  press **Make a new recovery code**. The old one stops working.
 - **You lost every device:** on the sign-in screen, choose **Lost every device? Use your recovery code**.
   It puts a new passkey on the device you're holding, signs you out everywhere else, and shows a new
   recovery code; the old one stops working.

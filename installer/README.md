@@ -52,8 +52,11 @@ here. Schema changes are not this installer's business any more — the uploaded
 An installation nobody claimed is shown as such, and `POST /api/reclaim` writes a fresh `SETUP_CODE`
 secret and returns a one-time claim link. For a copy that already has an owner, the same call makes
 a one-time recovery link: it writes the new code's SHA-256 into the copy's `setup_code_grants` table
-(D1 Write), then sets the secret, and the copy spends the code on first use. A copy too old to know
-about grants is refused with `update_first` until it is updated.
+(D1 Write), then sets the secret, and the copy spends the code on first use. A grant lasts 24 hours.
+A copy too old to know about grants is refused with `update_first` until it is updated, and one that
+does not answer `/api/auth/me` with `unreachable`, since not knowing whether it has an owner is not
+the same as knowing it has none. An update keeps `UPDATE_CHANNEL=off`, the owner's opt-out from the
+update check.
 
 ## Shared into WeChat
 

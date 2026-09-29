@@ -178,14 +178,15 @@ export const MIGRATIONS: Migration[] = [
   {
     "name": "0014_setup_codes_and_attempts.sql",
     "statements": [
-      "-- A setup code opens this copy once.\n--\n-- The installer hands a new copy's SETUP_CODE out as a claim link, and people paste links into chats.\n-- The code used to keep working as a recovery code for ever, so an old link could wipe the owner's\n-- passkeys. Now every use is recorded here by SHA-256 and a used code is refused. On a copy the\n-- installer made, recovering with a setup code also needs a grant: a row the installer writes into\n-- this database when the Cloudflare account owner asks it for a one-time recovery code. A claim code\n-- never gets a grant.\n\nCREATE TABLE IF NOT EXISTS setup_code_uses (\n  code_hash TEXT PRIMARY KEY,\n  used_at INTEGER NOT NULL\n)",
-      "CREATE TABLE IF NOT EXISTS setup_code_grants (\n  code_hash TEXT PRIMARY KEY,\n  granted_at INTEGER NOT NULL\n)",
-      "-- Sign-in attempts from one address, so nobody can spend the free plan's database writes on\n-- passkey challenges or keep guessing codes. Rows older than an hour are pruned as new ones arrive.\nCREATE TABLE IF NOT EXISTS auth_attempts (\n  ip_hash TEXT NOT NULL,\n  kind TEXT NOT NULL CHECK (kind IN ('challenge', 'code')),\n  at INTEGER NOT NULL\n)",
-      "CREATE INDEX IF NOT EXISTS auth_attempts_by_ip ON auth_attempts (ip_hash, kind, at)"
+      "-- A code opens this copy once.\n--\n-- The installer hands a new copy's SETUP_CODE out as a claim link, and people paste links into chats.\n-- The code used to keep working as a recovery code for ever, so an old link could wipe the owner's\n-- passkeys. Now every setup code and recovery code that opens the copy is recorded here by SHA-256,\n-- in the same transaction as the claim or recovery, and a spent code is refused.\nCREATE TABLE IF NOT EXISTS spent_codes (\n  code_hash TEXT PRIMARY KEY,\n  used_at INTEGER NOT NULL\n)",
+      "-- On a copy the installer made, recovering with a setup code also needs a grant: a row the installer\n-- writes into this database when the Cloudflare account owner asks it for a recovery link. A grant\n-- lasts a day. A claim code never gets one.\nCREATE TABLE IF NOT EXISTS setup_code_grants (\n  code_hash TEXT PRIMARY KEY,\n  granted_at INTEGER NOT NULL\n)",
+      "-- Sign-in attempts from one address (an IPv6 address by its /64), so nobody can spend the free\n-- plan's database writes on passkey challenges or keep guessing codes. Rows older than an hour are\n-- pruned as new ones arrive, through the index on `at`.\nCREATE TABLE IF NOT EXISTS auth_attempts (\n  ip_hash TEXT NOT NULL,\n  kind TEXT NOT NULL CHECK (kind IN ('challenge', 'code')),\n  at INTEGER NOT NULL\n)",
+      "CREATE INDEX IF NOT EXISTS auth_attempts_by_ip ON auth_attempts (ip_hash, kind, at)",
+      "CREATE INDEX IF NOT EXISTS auth_attempts_by_time ON auth_attempts (at)"
     ],
     "sentinel": {
       "kind": "table",
-      "name": "setup_code_uses"
+      "name": "spent_codes"
     }
   }
 ];

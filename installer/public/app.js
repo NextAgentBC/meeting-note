@@ -272,49 +272,29 @@ function installRow(app, accountId) {
     })));
   }));
   actions.append(update);
-  if (!app.claimed) {
-    const reclaim = document.createElement("button");
-    reclaim.type = "button";
-    reclaim.className = "ghost-button";
-    reclaim.textContent = pick({ zh: "重新获取认领链接", en: "Make a new claim link", fr: "Générer un nouveau lien de récupération" });
-    reclaim.addEventListener("click", () => void act(reclaim, "/api/reclaim", { accountId, workerName: app.name }, (data) => {
-      const claim = document.createElement("a");
-      claim.className = "claim-link";
-      claim.href = `${data.url}#claim=${encodeURIComponent(data.setupCode)}`;
-      claim.textContent = pick({ zh: "用 Face ID 认领这个应用", en: "Claim it with Face ID", fr: "Récupérer cette application avec Face ID" });
-      row.append(claim);
-      row.append(note(pick({
-        zh: "这个链接只用一次，认领后旧的认领码就作废了。",
-        en: "This link works once; the old claim code stops working.",
-        fr: "Ce lien ne fonctionne qu'une fois ; l'ancien code de récupération cesse alors de fonctionner."
-      })));
-    }));
-    actions.append(reclaim);
-  } else {
-    // For an owner who lost every device and the recovery code: a link that works once.
-    const recover = document.createElement("button");
-    recover.type = "button";
-    recover.className = "ghost-button";
-    recover.textContent = pick({ zh: "生成恢复链接", en: "Make a recovery link", fr: "Créer un lien pour restaurer l'accès" });
-    recover.addEventListener("click", () => void act(recover, "/api/reclaim", { accountId, workerName: app.name }, (data) => {
-      if (data.mode !== "recover") return;
-      const link = document.createElement("a");
-      link.className = "claim-link";
-      link.href = `${data.url}#recover=${encodeURIComponent(data.setupCode)}`;
-      link.textContent = pick({ zh: "用这个链接恢复访问", en: "Recover access with this link", fr: "Restaurer l'accès avec ce lien" });
-      row.append(link);
-      row.append(note(pick({
-        zh: "这个链接只能用一次：打开它的设备会得到新的通行密钥，其他设备全部退出，并生成新的恢复码。不要把它发给别人。",
-        en: "This link works once: the device that opens it gets a new passkey, every other device is signed out, and you get a new recovery code. Don't send it to anyone.",
-        fr: "Ce lien ne fonctionne qu'une fois : l'appareil qui l'ouvre reçoit une nouvelle clé d'accès, tous les autres sont déconnectés et vous recevez un nouveau code de récupération. Ne l'envoyez à personne."
-      })));
-    }, (code) => code === "update_first" ? pick({
+  // One call for both: a claim link for a copy nobody owns, a recovery link for one that has an
+  // owner. Which one came back is the installer's answer, not the guess this list was drawn with.
+  const reclaim = document.createElement("button");
+  reclaim.type = "button";
+  reclaim.className = "ghost-button";
+  reclaim.textContent = app.claimed
+    ? pick({ zh: "生成恢复链接", en: "Make a recovery link", fr: "Créer un lien pour restaurer l'accès" })
+    : pick({ zh: "重新获取认领链接", en: "Make a new claim link", fr: "Générer un nouveau lien de récupération" });
+  reclaim.addEventListener("click", () => void act(reclaim, "/api/reclaim", { accountId, workerName: app.name }, (data) => {
+    row.append(...appLink(data));
+  }, (code) => ({
+    update_first: pick({
       zh: "这个应用的版本太旧，还不能生成一次性恢复链接。先点「更新到最新版」，再生成恢复链接。",
       en: "This app is too old for a one-time recovery link. Update it to the latest version first, then make the link.",
       fr: "Cette application est trop ancienne pour un lien à usage unique. Mettez-la d'abord à jour, puis créez le lien."
-    }) : ""));
-    actions.append(recover);
-  }
+    }),
+    unreachable: pick({
+      zh: "这个应用现在没有响应。确认它能打开，再试一次。",
+      en: "This app is not answering right now. Check that it opens, then try again.",
+      fr: "Cette application ne répond pas pour l'instant. Vérifiez qu'elle s'ouvre, puis réessayez."
+    })
+  })[code] || ""));
+  actions.append(reclaim);
   if (actions.children.length) row.append(actions);
   return row;
 }
@@ -326,6 +306,30 @@ function note(text) {
   return line;
 }
 
+// The link /api/reclaim made, and what it does. Both open the app once; the recovery link also
+// expires after a day (src/auth.ts GRANT_TTL_MS).
+function appLink(data) {
+  const recover = data.mode === "recover";
+  const link = document.createElement("a");
+  link.className = "claim-link";
+  link.href = `${data.url}#${recover ? "recover" : "claim"}=${encodeURIComponent(data.setupCode)}`;
+  link.textContent = recover
+    ? pick({ zh: "用这个链接恢复访问", en: "Recover access with this link", fr: "Restaurer l'accès avec ce lien" })
+    : pick({ zh: "用 Face ID 认领这个应用", en: "Claim it with Face ID", fr: "Récupérer cette application avec Face ID" });
+  const detail = recover
+    ? pick({
+        zh: "这个链接 24 小时内有效，只能用一次：打开它的设备会得到新的通行密钥，其他设备全部退出，并生成新的恢复码。不要把它发给别人。刚生成的链接要几秒钟才生效，打不开就稍等再试。",
+        en: "This link works once, within 24 hours: the device that opens it gets a new passkey, every other device is signed out, and you get a new recovery code. Don't send it to anyone. A new link can take a few seconds to start working.",
+        fr: "Ce lien fonctionne une seule fois, dans les 24 heures : l'appareil qui l'ouvre reçoit une nouvelle clé d'accès, tous les autres sont déconnectés et vous recevez un nouveau code de récupération. Ne l'envoyez à personne. Un nouveau lien peut mettre quelques secondes à fonctionner."
+      })
+    : pick({
+        zh: "这个链接只用一次，认领后旧的认领码就作废了。",
+        en: "This link works once; the old claim code stops working.",
+        fr: "Ce lien ne fonctionne qu'une fois ; l'ancien code de récupération cesse alors de fonctionner."
+      });
+  return [link, note(detail)];
+}
+
 // One place for the buttons above: all of them talk to the installer and all of them can fail.
 // `explain` turns an error code into a line shown next to the button; anything it leaves empty
 // goes to the full problem screen, as before.
@@ -334,6 +338,7 @@ async function act(button, path, body, done, explain = () => "") {
   button.disabled = true;
   button.textContent = pick({ zh: "请稍候…", en: "Working…", fr: "Veuillez patienter…" });
   let data = {};
+  let status = 0;
   try {
     const response = await fetch(path, {
       method: "POST",
@@ -341,6 +346,7 @@ async function act(button, path, body, done, explain = () => "") {
       credentials: "same-origin",
       body: JSON.stringify(body)
     });
+    status = response.status;
     data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "That did not work");
     button.remove();
@@ -348,9 +354,20 @@ async function act(button, path, body, done, explain = () => "") {
   } catch (error) {
     button.disabled = false;
     button.textContent = label;
+    const row = button.closest(".existing-app");
     const line = explain(data.code || "");
-    if (line) button.closest(".existing-app")?.append(note(line));
-    else fail("unknown", error.message);
+    if (line && row) {
+      // One line per reason, however many times the button is pressed.
+      row.querySelector(`[data-reason="${data.code}"]`)?.remove();
+      const shown = note(line);
+      shown.dataset.reason = data.code;
+      row.append(shown);
+    } else if (status === 401) {
+      // A claim or recovery link hands the Cloudflare access back, so the next action needs it again.
+      fail("session", error.message);
+    } else {
+      fail("unknown", error.message);
+    }
   }
 }
 

@@ -96,9 +96,16 @@ holds, marks the ones behind the current release, and marks the ones nobody ever
 `POST /api/reclaim` writes a fresh `SETUP_CODE` and returns a one-time claim link. For a copy that
 has an owner it returns a one-time **recovery** link instead (`#recover=…`): it first writes the new
 code's SHA-256 into the copy's `setup_code_grants` through the D1 API, then sets the secret, because
-on an installer-made copy (`UPDATE_CHANNEL` set) a setup code recovers nothing without a grant. A
-copy too old to report `recoveryGrants` from `/api/auth/me` is refused with `update_first`. Reclaim
+on an installer-made copy a setup code recovers nothing without a grant from the last 24 hours.
+"Installer-made" is `INSTALLER_COPY=1`, which `src/standalone.ts` (the entry only the installer's
+bundle runs) sets on every request — never a variable the owner edits: `UPDATE_CHANNEL` played this
+part at first, and deleting it to stop the update check reopened old claim links. The runtime that
+first applies migration 0014 to an owned copy also marks its current `SETUP_CODE` spent
+(`retireClaimCode` in `src/schema.ts`). A copy too old to report `recoveryGrants` from
+`/api/auth/me` is refused with `update_first`, one that does not answer with `unreachable`. Reclaim
 revokes the OAuth token when it is done; an update keeps the session, since it often comes first.
+A recovery ends every other passkey registration in progress, so a recovery someone began earlier
+cannot finish afterwards and undo it.
 
 ⚠️ Copies installed **before** `UPDATE_CHANNEL` existed do not know where to ask, so they never show
 the banner. Their owners have to open the installer once; after that first update they self-announce.

@@ -19,8 +19,14 @@ export interface Env {
   WORKERS_PLAN: string;
   AUDIO_RETENTION_DAYS: string;
   SEGMENT_TARGET_MINUTES: string;
-  /** Where this copy asks whether a newer release exists; empty means it never asks. */
+  /** Where this copy asks whether a newer release exists; empty or "off" means it never asks. */
   UPDATE_CHANNEL?: string;
+  /**
+   * "1" on a copy the installer made. Never configured: src/standalone.ts, the entry only the
+   * installer's bundle runs, sets it on every request. It decides whether a setup code needs the
+   * installer's grant to recover the owner (src/auth.ts).
+   */
+  INSTALLER_COPY?: string;
   /**
    * The model behind "high-definition re-transcription": one pass over a finished meeting that
    * tells speakers apart. Unset or empty (the default) turns the whole feature off; an owner who
@@ -34,7 +40,10 @@ export interface Env {
    * row, the token routes and bearer authentication itself — is off unless a deployment says "on".
    */
   NEXTNOTE?: string;
-  /** Secret chosen at deploy time; needed once to claim the app, and to recover the owner. */
+  /**
+   * Secret that opens the app once: to claim it, or (unused, and on an installer's copy granted by
+   * the installer within the last day) to recover the owner. See "A code opens a copy once" in auth.ts.
+   */
   SETUP_CODE?: string;
   /**
    * Semantic search over memory_items (src/embed.ts). Optional: this binding doesn't exist in the

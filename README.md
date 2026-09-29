@@ -99,8 +99,8 @@ app's audio, so record calls from a computer.
   recovery code; the old one stops working.
 - **You lost every device and the recovery code too, and the installer made your copy:** open the
   installer, sign in with the Cloudflare account your copy lives in, and press **Make a recovery link**
-  next to it. The link works once: it puts a new passkey on the device that opens it and signs out every
-  other one. (An older copy asks you to press **Update to latest** first.) The same
+  next to it. The link works once, within 24 hours: it puts a new passkey on the device that opens it
+  and signs out every other one. (An older copy asks you to press **Update to latest** first.) The same
   link takes back a copy that somebody else claimed before you did.
 - **You deployed it yourself and lost every device and the recovery code, or it asks you to sign in the
   very first time you open it** (someone set it up before you did): in the Cloudflare dashboard, open the
@@ -137,7 +137,9 @@ regional words are left as the speaker said them. Set `CHINESE_SCRIPT` to `off` 
 Requests that change data must come from the app's own address. Nothing is asked at deploy time: a fresh
 copy belongs to whoever sets it up first, so open yours right after deploying. To require a code at setup
 instead, add a `SETUP_CODE` secret to the Worker. A setup code opens the copy once, for a claim or a
-recovery: a claim link that ends up in a chat cannot open the app again. Sign-in is also limited per
+recovery: a claim link that ends up in a chat cannot open the app again. (An installed copy running
+an older release keeps accepting its old claim link as a recovery code until it is updated; the
+update retires it.) Sign-in is also limited per
 network address, to 30 passkey prompts and 10 wrong codes in 15 minutes.
 
 ## Plans and your calendar
@@ -182,8 +184,9 @@ the question, it says so rather than guessing.
 - **The update check.** A copy the installer made asks it, at most once every six hours, whether there is
   a newer release (`GET <installer>/api/release`). Your browser sends that like any request to a website,
   so whoever runs the installer can see your copy's address and your IP address; nothing from your
-  meetings goes with it. To stop it, delete the Worker's `UPDATE_CHANNEL` variable. A copy deployed with
-  the button above has no such variable and asks nobody.
+  meetings goes with it. To stop it, set the Worker's `UPDATE_CHANNEL` variable to `off`; later updates
+  from the installer keep it off. A copy deployed with the button above has no such variable and asks
+  nobody.
 - Connected apps (NextNote) are off in every copy unless its `NEXTNOTE` variable turns them on. Their
   tokens are stored only as SHA-256 hashes, can be revoked from **Me → Connected apps**, and never
   replace your passkey.

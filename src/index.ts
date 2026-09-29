@@ -11,7 +11,7 @@ import { runEmbed } from "./embed";
 import { queueFacts, runFacts } from "./facts";
 import { rememberMeeting, rememberSource, safely, sectionItem, summaryItem, transcriptItems } from "./memory";
 import { memoryRoutes } from "./memory-routes";
-import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
+import { authRoutes, requireOwner, sameOriginWrites, updateChannel } from "./auth";
 import { archiveChunk, audioRetentionDays, audioRoutes, chunkAudio, runArchive } from "./audio";
 import { collapseLoops, correctTranscript, loadVocabulary, transcriptRoutes, whisperInput } from "./transcript";
 import { RELEASE_VERSION } from "./migrations.generated";
@@ -148,7 +148,7 @@ app.route("/api", transcriptRoutes);
 app.route("/api", hdRoutes);
 
 // Public: the version is how an installed copy learns that a newer one has been released.
-app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare", version: RELEASE_VERSION, updateChannel: c.env.UPDATE_CHANNEL || "" }));
+app.get("/api/health", (c) => c.json({ ok: true, service: "meetingnote-cloudflare", version: RELEASE_VERSION, updateChannel: updateChannel(c.env) }));
 
 /**
  * How much Workers AI this app has consumed, and therefore how much longer it

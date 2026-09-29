@@ -148,6 +148,15 @@ async function ownerForSession(c: AppContext): Promise<OwnerRow | null> {
   ).bind(await sha256Hex(token), Date.now()).first<OwnerRow>();
 }
 
+/**
+ * The installer this copy asks about new releases, or "" to ask nobody. "off" is the owner's
+ * opt-out, and the installer's updates keep it (installer/src/provision.ts upgradeInstall).
+ */
+export function updateChannel(env: Pick<Env, "UPDATE_CHANNEL">): string {
+  const channel = (env.UPDATE_CHANNEL || "").trim();
+  return channel.toLowerCase() === "off" ? "" : channel;
+}
+
 /** True only where the owner has connected their own desktop app; see Env.NEXTNOTE. */
 export function nextNoteEnabled(env: { NEXTNOTE?: string }): boolean {
   const setting = (env.NEXTNOTE || "").trim().toLowerCase();
@@ -256,44 +265,90 @@ interface PendingRegistration {
   linkHash?: string;
   /** SHA-256 of the setup code this registration spends, for setup or owner-recover. */
   setupCodeHash?: string;
+  /** The owner's recovery_hash when the recovery code opened this owner-recover; spent with it. */
+  recoveryCodeHash?: string;
 }
 
-// ── Setup codes open a copy once ─────────────────────────────────────────────
-// A code is spent by the claim or recovery it opens. The installer shows a new copy's SETUP_CODE as
-// a claim link, and links end up in chats, so on a copy it made a code recovers nothing unless the
-// installer granted it: a grant row it writes for the Cloudflare account owner who just signed in
-// there. A copy deployed by hand has no installer, and its owner types a code they set themselves.
+// ── A code opens a copy once ─────────────────────────────────────────────────
+// Every setup code and recovery code is spent, in spent_codes, by the claim or recovery it opens.
+// The installer shows a new copy's SETUP_CODE as a claim link, and links end up in chats, so on a
+// copy it made a setup code recovers nothing unless the installer granted it in the last day: a
+// grant row it writes for the Cloudflare account owner who just signed in there. A copy deployed by
+// hand has no installer, and its owner types a code they set themselves.
 
-/** Copies made by the installer know where it is; nothing else sets UPDATE_CHANNEL. */
+const GRANT_TTL_MS = 24 * 60 * 60_000;
+
+/**
+ * Only the installer's bundle runs src/standalone.ts, which sets INSTALLER_COPY. Not a variable the
+ * owner configures: UPDATE_CHANNEL was used for this once, and deleting it (to stop the update
+ * check) turned an old claim link back into a way in.
+ */
 function installerMade(env: Env): boolean {
-  return Boolean(env.UPDATE_CHANNEL?.trim());
+  return env.INSTALLER_COPY === "1";
 }
 
-async function setupCodeUsed(db: D1Database, codeHash: string): Promise<boolean> {
-  return Boolean(await db.prepare("SELECT 1 FROM setup_code_uses WHERE code_hash = ?").bind(codeHash).first());
+/** A copy whose schema update has not landed yet says so, instead of failing with a 500. */
+function rethrowMissingTables(error: unknown): never {
+  if (String(error).includes("no such table")) {
+    fail(503, "update_pending", "This app is finishing an update. Try again in a minute.");
+  }
+  throw error;
 }
 
-async function setupCodeGranted(db: D1Database, codeHash: string): Promise<boolean> {
-  return Boolean(await db.prepare("SELECT 1 FROM setup_code_grants WHERE code_hash = ?").bind(codeHash).first());
+async function codeTables<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    rethrowMissingTables(error);
+  }
+}
+
+function codeSpent(db: D1Database, codeHash: string): Promise<boolean> {
+  return codeTables(async () => Boolean(await db.prepare("SELECT 1 FROM spent_codes WHERE code_hash = ?").bind(codeHash).first()));
+}
+
+function setupCodeGranted(db: D1Database, codeHash: string): Promise<boolean> {
+  return codeTables(async () => Boolean(
+    await db.prepare("SELECT 1 FROM setup_code_grants WHERE code_hash = ? AND granted_at > ?")
+      .bind(codeHash, Date.now() - GRANT_TTL_MS)
+      .first()
+  ));
 }
 
 /** Part of the batch that finishes the claim or recovery: a second use of the code fails on the key. */
-function spendSetupCode(db: D1Database, codeHash: string) {
-  return db.prepare("INSERT INTO setup_code_uses (code_hash, used_at) VALUES (?, ?)").bind(codeHash, Date.now());
+function spendCode(db: D1Database, codeHash: string) {
+  return db.prepare("INSERT INTO spent_codes (code_hash, used_at) VALUES (?, ?)").bind(codeHash, Date.now());
+}
+
+async function tableExists(db: D1Database, name: string): Promise<boolean> {
+  return Boolean(await db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first());
 }
 
 // ── Attempt limits ───────────────────────────────────────────────────────────
 // The sign-in routes answer anyone. Counted per address, a flood cannot spend the free plan's
 // database writes on challenges, and nobody gets more than a few guesses at a code. A refused
-// request writes nothing.
+// request writes nothing. The count and the record are separate statements, so a burst of parallel
+// requests can overshoot a limit once; codes are 80 bits, so the limit is a brake, not the lock.
 
 const ATTEMPT_WINDOW_MS = 15 * 60_000;
 const ATTEMPT_LIMITS = { challenge: 30, code: 10 } as const;
 type AttemptKind = keyof typeof ATTEMPT_LIMITS;
 
+/** An IPv4 address as it is; an IPv6 address by its /64, the block one host usually controls. */
+export function addressBucket(address: string): string {
+  const v4 = address.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (v4) return v4[1];
+  if (!address.includes(":")) return address;
+  const [head, tail] = address.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
+  return `${groups.slice(0, 4).map((group) => group.toLowerCase().replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
 async function attemptKey(c: AppContext): Promise<string> {
   const address = c.req.header("cf-connecting-ip") || "local";
-  return sha256Hex(`attempt:${address}`);
+  return sha256Hex(`attempt:${addressBucket(address)}`);
 }
 
 // Both fail open: a copy whose schema update has not landed yet must still let its owner sign in.
@@ -347,11 +402,12 @@ authRoutes.get("/me", async (c) => {
     name: owner?.name ?? null,
     hasOwner: Boolean(await currentOwner(c.env.DB)),
     setupCodeRequired: Boolean(c.env.SETUP_CODE?.trim()),
-    // Tells the installer this copy spends setup codes and honours recovery grants, so a fresh
-    // code it hands out can open the app once and never again.
-    recoveryGrants: true,
+    // Tells the installer this copy spends codes and honours recovery grants, so a code it hands
+    // out opens the app once and never again. False until the schema update that brings the
+    // tables has landed, so the installer does not write a grant nowhere.
+    recoveryGrants: await tableExists(c.env.DB, "setup_code_grants"),
     // Where a lost setup code can be replaced: the installer that provisioned this copy.
-    installer: (c.env.UPDATE_CHANNEL || "").trim(),
+    installer: updateChannel(c.env),
     // The Connected apps row stays out of the Me tab everywhere this is off.
     nextNote: nextNoteEnabled(c.env)
   });
@@ -376,7 +432,7 @@ authRoutes.post("/register/options", async (c) => {
         fail(403, "wrong_setup_code", "That setup code doesn't match.");
       }
       setupCodeHash = await sha256Hex(setupCode);
-      if (await setupCodeUsed(db, setupCodeHash)) fail(403, "setup_code_used", "This setup code has already been used.");
+      if (await codeSpent(db, setupCodeHash)) fail(403, "setup_code_used", "This setup code has already been used.");
     }
     pending = { purpose: "setup", name: body.name, webauthnUserId: randomToken(), setupCodeHash };
   } else if (body.purpose === "owner-recover") {
@@ -393,17 +449,24 @@ authRoutes.post("/register/options", async (c) => {
       fail(403, "wrong_recovery_code", "That recovery code doesn't match.");
     }
     const setupCodeHash = bySetupCode ? await sha256Hex(setupCode!) : undefined;
-    if (setupCodeHash && (await setupCodeUsed(db, setupCodeHash))) {
+    if (setupCodeHash && (await codeSpent(db, setupCodeHash))) {
       await recordAttempt(db, key, "code");
       fail(403, "setup_code_used", installerMade(c.env)
-        ? "That code has already been used. Make a one-time recovery link in the installer."
+        ? "That code has already been used. Make a new recovery link in the installer."
         : "That code has already been used. Set a new SETUP_CODE secret and try again.");
     }
     if (setupCodeHash && installerMade(c.env) && !(await setupCodeGranted(db, setupCodeHash))) {
       await recordAttempt(db, key, "code");
-      fail(403, "setup_code_used", "That code can't recover this app. Make a one-time recovery link in the installer.");
+      fail(403, "setup_code_not_granted", "That code can't recover this app. Make a recovery link in the installer; each one works once, within a day.");
     }
-    pending = { purpose: "owner-recover", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id, setupCodeHash };
+    pending = {
+      purpose: "owner-recover",
+      ownerId: owner.id,
+      name: owner.name,
+      webauthnUserId: owner.webauthn_user_id,
+      setupCodeHash,
+      recoveryCodeHash: byRecoveryCode ? owner.recovery_hash! : undefined
+    };
   } else if (body.purpose === "link-device") {
     // A new phone or computer, invited by a link from a device that is signed in. The link is
     // checked here and used up when the passkey is saved, so cancelling Face ID doesn't waste it.
@@ -476,32 +539,35 @@ authRoutes.post("/register/verify", async (c) => {
           .bind(ownerId, pending.name, pending.webauthnUserId, await recoveryHash(recoveryCode), now),
         insertCredential(ownerId),
         // The claim link is spent with the claim: it never works again, not even for recovery.
-        ...(pending.setupCodeHash ? [spendSetupCode(db, pending.setupCodeHash)] : [])
+        ...(pending.setupCodeHash ? [spendCode(db, pending.setupCodeHash)] : [])
       ]);
     } catch (error) {
       if (String(error).includes("UNIQUE")) fail(409, "already_set_up", "Someone has just claimed this Meeting Note.");
-      throw error;
+      rethrowMissingTables(error);
     }
   } else if (pending.purpose === "owner-recover") {
     ownerId = pending.ownerId!;
     recoveryCode = newRecoveryCode();
     // Recovery means the old passkeys are lost or can't be trusted: replace them, sign out
-    // everywhere, and retire the code that was just used. A one-time recovery code from the
-    // installer is spent first, so two attempts racing with it cannot both get in.
+    // everywhere, and retire the code that was just used. It is one transaction, so of two
+    // recoveries racing with the same code only one commits. It also ends every other passkey
+    // registration in progress: a recovery someone started earlier and kept waiting — with a code
+    // that worked then — must not be able to finish after this one and undo it.
     try {
       await db.batch([
-        ...(pending.setupCodeHash ? [spendSetupCode(db, pending.setupCodeHash)] : []),
+        ...(pending.setupCodeHash ? [spendCode(db, pending.setupCodeHash)] : []),
+        ...(pending.recoveryCodeHash ? [spendCode(db, pending.recoveryCodeHash)] : []),
         db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
         db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
         db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
+        db.prepare("DELETE FROM challenges WHERE purpose = 'register'"),
+        db.prepare("UPDATE integration_tokens SET revoked_at = ? WHERE owner_id = ? AND revoked_at IS NULL").bind(now, ownerId),
         db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
         insertCredential(ownerId)
       ]);
     } catch (error) {
-      if (pending.setupCodeHash && String(error).includes("UNIQUE")) {
-        fail(409, "setup_code_used", "That recovery code has just been used.");
-      }
-      throw error;
+      if (String(error).includes("UNIQUE")) fail(409, "code_used", "That code has just been used.");
+      rethrowMissingTables(error);
     }
   } else if (pending.purpose === "link-device") {
     // Used up now, whether or not anything below fails: a link works once.
@@ -551,7 +617,11 @@ authRoutes.post("/recovery-code", async (c) => {
   const owner = await ownerForSession(c);
   if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   const recoveryCode = newRecoveryCode();
-  await c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id).run();
+  // A recovery someone began with the old code, and kept waiting, ends here too.
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id),
+    c.env.DB.prepare("DELETE FROM challenges WHERE purpose = 'register'")
+  ]);
   return c.json({ ok: true, recoveryCode });
 });
 

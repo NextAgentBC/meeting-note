@@ -18,6 +18,7 @@ export type InstallErrorCode =
   | "worker"
   | "address"
   | "update_first"
+  | "unreachable"
   | "unknown";
 
 export class InstallError extends Error {
@@ -390,7 +391,8 @@ export async function upgradeInstall(input: UpgradeInput): Promise<{ version: st
     .filter((binding) => binding.type === "plain_text")
     .map((binding) => [String(binding.name), String(binding.text ?? "")]));
   for (const [name, text] of Object.entries(APP_VARS)) if (!vars.has(name)) vars.set(name, text);
-  if (input.updateChannel) vars.set("UPDATE_CHANNEL", input.updateChannel);
+  // "off" is the owner's opt-out from the update check; an update must not quietly undo it.
+  if (input.updateChannel && vars.get("UPDATE_CHANNEL")?.trim().toLowerCase() !== "off") vars.set("UPDATE_CHANNEL", input.updateChannel);
 
   const form = scriptUpload({
     ...SCRIPT_METADATA,
@@ -426,12 +428,16 @@ export type ReclaimResult = { setupCode: string; mode: "claim" | "recover" };
 export async function reclaimInstall(input: { accountId: string; accessToken: string; workerName: string; url: string }): Promise<ReclaimResult> {
   if (!INSTALL_NAME.test(input.workerName)) throw new InstallError("worker", "That is not a Meeting Note installation");
   const me = await ask(`${input.url}/api/auth/me`);
+  // Not knowing whether the copy has an owner is not the same as knowing it has none.
+  if (!me || typeof me.hasOwner !== "boolean") {
+    throw new InstallError("unreachable", "This copy did not answer. Check that it is online, then try again");
+  }
   const account = encodeURIComponent(input.accountId);
   const script = `/accounts/${account}/workers/scripts/${encodeURIComponent(input.workerName)}`;
   const code = setupCode();
   let mode: ReclaimResult["mode"] = "claim";
 
-  if (me?.hasOwner) {
+  if (me.hasOwner) {
     if (me.recoveryGrants !== true) {
       throw new InstallError("update_first", "This copy is too old for a one-time recovery link. Update it, then try again");
     }
@@ -446,7 +452,8 @@ export async function reclaimInstall(input: { accountId: string; accessToken: st
       method: "POST",
       body: JSON.stringify({
         sql: "INSERT INTO setup_code_grants (code_hash, granted_at) VALUES (?, ?)",
-        params: [codeHash, Date.now()]
+        // The query API takes its parameters as strings; the INTEGER column stores a number.
+        params: [codeHash, String(Date.now())]
       })
     }));
     mode = "recover";

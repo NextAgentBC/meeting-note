@@ -1,5 +1,5 @@
 /**
- * Setup codes open a copy once, and sign-in attempts are counted: the passkey routes run for real
+ * A code opens a copy once, and sign-in attempts are counted: the passkey routes run for real
  * against node:sqlite with every migration applied. Only the passkey check itself is stubbed out —
  * a vitest run has no authenticator — so each "passkey" it accepts is a new credential id.
  */
@@ -22,11 +22,14 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-const { authRoutes, sha256Hex } = await import("../src/auth");
+const { addressBucket, authRoutes, sha256Hex } = await import("../src/auth");
+const { applyMigrations, retireClaimCode } = await import("../src/schema");
+const { MIGRATIONS } = await import("../src/migrations.generated");
 
 const migrationsDir = fileURLToPath(new URL("../migrations", import.meta.url));
 const ORIGIN = "https://notes.example.test";
 const CLAIM_CODE = "ABCD-EFGH-JKLM-NPQR";
+const RECOVERY_LINK_CODE = "WXYZ-2345-6789-ABCD";
 
 /** The D1 binding over node:sqlite, with bound values in batches and a batch as one transaction. */
 function d1(db: DatabaseSync): D1Database {
@@ -55,9 +58,9 @@ function d1(db: DatabaseSync): D1Database {
   } as unknown as D1Database;
 }
 
-function freshDb(): DatabaseSync {
+function migratedDb(upTo = Infinity): DatabaseSync {
   const db = new DatabaseSync(":memory:");
-  for (const file of readdirSync(migrationsDir).filter((name) => name.endsWith(".sql")).sort()) {
+  for (const file of readdirSync(migrationsDir).filter((name) => name.endsWith(".sql")).sort().slice(0, upTo)) {
     db.exec(readFileSync(`${migrationsDir}/${file}`, "utf8"));
   }
   return db;
@@ -76,6 +79,10 @@ async function call(path: string, body: unknown = {}, address = "203.0.113.7") {
   return { status: response.status, data: await response.json() as Record<string, any> };
 }
 
+async function me() {
+  return (await app.request(`${ORIGIN}/api/auth/me`, {}, env)).json() as Promise<Record<string, any>>;
+}
+
 /** Both halves of making a passkey: the options (where codes are checked) and the verify. */
 async function registerOptions(body: Record<string, unknown>, address?: string) {
   return call("/register/options", body, address);
@@ -90,9 +97,15 @@ async function register(body: Record<string, unknown>, address?: string) {
 }
 
 /** What the installer does for "Make a recovery link": grant the new code, then make it the secret. */
-async function installerRecoveryCode(code: string) {
-  db.prepare("INSERT INTO setup_code_grants (code_hash, granted_at) VALUES (?, ?)").run(await sha256Hex(code), Date.now());
+async function installerRecoveryCode(code: string, grantedAt = Date.now()) {
+  db.prepare("INSERT INTO setup_code_grants (code_hash, granted_at) VALUES (?, ?)").run(await sha256Hex(code), grantedAt);
   env.SETUP_CODE = code;
+}
+
+/** An owner who claimed before migration 0014 existed: no spent code was ever recorded. */
+function ownerClaimedLongAgo() {
+  db.prepare("INSERT INTO owners (id, name, webauthn_user_id, recovery_hash, created_at) VALUES ('own_old', 'Owner', 'dXNlcg', NULL, 1)").run();
+  db.prepare("INSERT INTO credentials (id, owner_id, public_key, counter, transports, created_at) VALUES ('cred-old', 'own_old', 'AQID', 0, '[]', 1)").run();
 }
 
 function credentialIds(): string[] {
@@ -101,8 +114,9 @@ function credentialIds(): string[] {
 
 beforeEach(() => {
   credentialSerial = 0;
-  db = freshDb();
-  env = { DB: d1(db), SETUP_CODE: CLAIM_CODE, UPDATE_CHANNEL: "https://install.example.test" } as unknown as Env;
+  db = migratedDb();
+  // The installer's copies run src/standalone.ts, which sets INSTALLER_COPY on every request.
+  env = { DB: d1(db), SETUP_CODE: CLAIM_CODE, INSTALLER_COPY: "1", UPDATE_CHANNEL: "https://install.example.test" } as unknown as Env;
 });
 
 describe("a claim code", () => {
@@ -114,18 +128,32 @@ describe("a claim code", () => {
     const again = await registerOptions({ purpose: "setup", setupCode: CLAIM_CODE, name: "Someone" });
     expect(again).toMatchObject({ status: 409, data: { code: "already_set_up" } });
 
-    // The link from the chat, typed into "Lost every device?": refused, and the owner's passkey stays.
+    // The link from the chat, typed into "Lost every device?": spent by the claim, and refused.
     const recover = await registerOptions({ purpose: "owner-recover", code: CLAIM_CODE });
     expect(recover).toMatchObject({ status: 403, data: { code: "setup_code_used" } });
     expect(credentialIds()).toEqual(["cred-1"]);
   });
 
-  it("is refused when it does not match, and says the copy can report that it takes recovery links", async () => {
+  it("is refused once spent, even on a copy that has somehow lost its owner", async () => {
+    await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
+    db.exec("DELETE FROM credentials; DELETE FROM owners;");
+    const again = await registerOptions({ purpose: "setup", setupCode: CLAIM_CODE, name: "Someone" });
+    expect(again).toMatchObject({ status: 403, data: { code: "setup_code_used" } });
+  });
+
+  it("from before this release recovers nothing on an installer's copy, even with UPDATE_CHANNEL deleted", async () => {
+    ownerClaimedLongAgo();
+    // The owner turned the update check off by deleting the variable; the copy is still the installer's.
+    delete (env as Partial<Env>).UPDATE_CHANNEL;
+    const refused = await registerOptions({ purpose: "owner-recover", code: CLAIM_CODE });
+    expect(refused).toMatchObject({ status: 403, data: { code: "setup_code_not_granted" } });
+    expect(credentialIds()).toEqual(["cred-old"]);
+  });
+
+  it("is refused when it does not match, and the copy reports that it takes recovery links", async () => {
     const wrong = await registerOptions({ purpose: "setup", setupCode: "WRONG-CODE", name: "Owner" });
     expect(wrong).toMatchObject({ status: 403, data: { code: "wrong_setup_code" } });
-
-    const me = await app.request(`${ORIGIN}/api/auth/me`, {}, env);
-    expect(await me.json()).toMatchObject({ hasOwner: false, setupCodeRequired: true, recoveryGrants: true });
+    expect(await me()).toMatchObject({ hasOwner: false, setupCodeRequired: true, recoveryGrants: true, installer: "https://install.example.test" });
   });
 });
 
@@ -140,48 +168,103 @@ describe("the recovery code shown at setup", () => {
     const reused = await registerOptions({ purpose: "owner-recover", code: claimed.data.recoveryCode });
     expect(reused).toMatchObject({ status: 403, data: { code: "wrong_recovery_code" } });
   });
+
+  it("finishes one of two recoveries started with it, not both", async () => {
+    const claimed = await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
+    const first = await registerOptions({ purpose: "owner-recover", code: claimed.data.recoveryCode });
+    const second = await registerOptions({ purpose: "owner-recover", code: claimed.data.recoveryCode }, "198.51.100.9");
+    expect([first.status, second.status]).toEqual([200, 200]);
+
+    expect((await registerVerify(first.data.challengeId)).status).toBe(200);
+    const late = await registerVerify(second.data.challengeId, "198.51.100.9");
+    expect(late.status).toBeGreaterThanOrEqual(400);
+    expect(credentialIds()).toEqual(["cred-2"]);
+  });
+
+  it("stops opening a recovery someone began with it once the owner makes a new one", async () => {
+    const claimed = await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
+    const held = await registerOptions({ purpose: "owner-recover", code: claimed.data.recoveryCode }, "198.51.100.9");
+    expect(held.status).toBe(200);
+
+    // The owner, signed in, replaces the code from the Me tab.
+    db.prepare("INSERT INTO sessions (token_hash, owner_id, expires_at, created_at) SELECT ?, id, ?, ? FROM owners").run(await sha256Hex("owner-session"), Date.now() + 60_000, Date.now());
+    const rotated = await app.request(`${ORIGIN}/api/auth/recovery-code`, {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie: "__Host-session=owner-session" }
+    }, env);
+    expect(rotated.status).toBe(200);
+
+    expect(await registerVerify(held.data.challengeId, "198.51.100.9")).toMatchObject({ status: 400, data: { code: "challenge_expired" } });
+    expect(credentialIds()).toEqual(["cred-1"]);
+  });
 });
 
-describe("a one-time recovery code from the installer", () => {
+describe("a one-time recovery link from the installer", () => {
   it("opens the copy once", async () => {
     await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
-    await installerRecoveryCode("WXYZ-2345-6789-ABCD");
+    await installerRecoveryCode(RECOVERY_LINK_CODE);
 
-    const recovered = await register({ purpose: "owner-recover", code: "WXYZ-2345-6789-ABCD" });
+    const recovered = await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
     expect(recovered.status).toBe(200);
     expect(credentialIds()).toEqual(["cred-2"]);
 
-    const again = await registerOptions({ purpose: "owner-recover", code: "WXYZ-2345-6789-ABCD" });
+    const again = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
     expect(again).toMatchObject({ status: 403, data: { code: "setup_code_used" } });
   });
 
   it("lets only one of two racing recoveries in, and leaves the loser's passkey out", async () => {
     await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
-    await installerRecoveryCode("WXYZ-2345-6789-ABCD");
+    await installerRecoveryCode(RECOVERY_LINK_CODE);
 
     // Both get past the options check while the code is still unused.
-    const first = await registerOptions({ purpose: "owner-recover", code: "WXYZ-2345-6789-ABCD" });
-    const second = await registerOptions({ purpose: "owner-recover", code: "WXYZ-2345-6789-ABCD" }, "198.51.100.9");
+    const first = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+    const second = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE }, "198.51.100.9");
     expect([first.status, second.status]).toEqual([200, 200]);
 
     expect((await registerVerify(first.data.challengeId)).status).toBe(200);
     const late = await registerVerify(second.data.challengeId, "198.51.100.9");
-    expect(late).toMatchObject({ status: 409, data: { code: "setup_code_used" } });
+    expect(late.status).toBeGreaterThanOrEqual(400);
+    expect(credentialIds()).toEqual(["cred-2"]);
+  });
+
+  it("takes a copy back from someone who claimed it, and a recovery they kept waiting cannot undo that", async () => {
+    // A squatter claimed through a leaked link and holds its recovery code.
+    const squatter = await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Squatter" }, "198.51.100.9");
+    const held = await registerOptions({ purpose: "owner-recover", code: squatter.data.recoveryCode }, "198.51.100.9");
+    expect(held.status).toBe(200);
+
+    // The Cloudflare account owner makes a recovery link in the installer and uses it.
+    await installerRecoveryCode(RECOVERY_LINK_CODE);
+    expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+    expect(credentialIds()).toEqual(["cred-2"]);
+
+    // The squatter's waiting recovery is gone, and their code no longer matches.
+    expect(await registerVerify(held.data.challengeId, "198.51.100.9")).toMatchObject({ status: 400, data: { code: "challenge_expired" } });
+    expect(await registerOptions({ purpose: "owner-recover", code: squatter.data.recoveryCode }, "198.51.100.9")).toMatchObject({ status: 403, data: { code: "wrong_recovery_code" } });
     expect(credentialIds()).toEqual(["cred-2"]);
   });
 
   it("does nothing without the installer's grant", async () => {
     await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
-    env.SETUP_CODE = "WXYZ-2345-6789-ABCD"; // the secret changed, but nobody granted it
+    env.SETUP_CODE = RECOVERY_LINK_CODE; // the secret changed, but nobody granted it
 
-    const refused = await registerOptions({ purpose: "owner-recover", code: "WXYZ-2345-6789-ABCD" });
-    expect(refused).toMatchObject({ status: 403, data: { code: "setup_code_used" } });
+    const refused = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+    expect(refused).toMatchObject({ status: 403, data: { code: "setup_code_not_granted" } });
     expect(credentialIds()).toEqual(["cred-1"]);
+  });
+
+  it("expires a day after the installer granted it", async () => {
+    await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
+    await installerRecoveryCode(RECOVERY_LINK_CODE, Date.now() - 25 * 60 * 60_000);
+
+    const refused = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+    expect(refused).toMatchObject({ status: 403, data: { code: "setup_code_not_granted" } });
   });
 });
 
 describe("a SETUP_CODE on a copy deployed by hand", () => {
   it("recovers once without any grant, because its owner set it and nobody handed it out", async () => {
+    delete (env as Partial<Env>).INSTALLER_COPY;
     env.UPDATE_CHANNEL = "";
     await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
     // The code the copy was claimed with is spent...
@@ -192,6 +275,38 @@ describe("a SETUP_CODE on a copy deployed by hand", () => {
     expect((await register({ purpose: "owner-recover", code: "my own long code 2026" })).status).toBe(200);
     expect(credentialIds()).toEqual(["cred-2"]);
     expect(await registerOptions({ purpose: "owner-recover", code: "my own long code 2026" })).toMatchObject({ status: 403, data: { code: "setup_code_used" } });
+  });
+});
+
+describe("the update that brings migration 0014", () => {
+  it("retires the claim code of a copy that already has an owner", async () => {
+    const old = migratedDb(MIGRATIONS.length - 1);
+    old.prepare("INSERT INTO owners (id, name, webauthn_user_id, recovery_hash, created_at) VALUES ('own_old', 'Owner', 'dXNlcg', NULL, 1)").run();
+    const oldEnv = { DB: d1(old), SETUP_CODE: CLAIM_CODE } as unknown as Env;
+
+    const applied = await applyMigrations(oldEnv.DB);
+    expect(applied).toContain("0014_setup_codes_and_attempts.sql");
+    await retireClaimCode(oldEnv, applied);
+
+    const spent = old.prepare("SELECT code_hash FROM spent_codes").all() as Array<{ code_hash: string }>;
+    expect(spent.map((row) => row.code_hash)).toEqual([await sha256Hex(CLAIM_CODE)]);
+  });
+
+  it("leaves the code of a copy nobody has claimed yet alone", async () => {
+    const old = migratedDb(MIGRATIONS.length - 1);
+    const oldEnv = { DB: d1(old), SETUP_CODE: CLAIM_CODE } as unknown as Env;
+    await retireClaimCode(oldEnv, await applyMigrations(oldEnv.DB));
+    expect(old.prepare("SELECT COUNT(*) AS n FROM spent_codes").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("a copy whose schema update has not landed", () => {
+  it("lets the owner sign in, and says a code check is waiting for the update instead of failing", async () => {
+    db.exec("DROP TABLE auth_attempts; DROP TABLE spent_codes; DROP TABLE setup_code_grants;");
+    expect((await call("/login/options")).status).toBe(200);
+    expect(await registerOptions({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" })).toMatchObject({ status: 503, data: { code: "update_pending" } });
+    // ...and tells the installer not to write a grant yet.
+    expect(await me()).toMatchObject({ recoveryGrants: false });
   });
 });
 
@@ -207,6 +322,23 @@ describe("attempt limits", () => {
     // Someone else, somewhere else, is not held up by it.
     const elsewhere = await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" }, "192.0.2.44");
     expect(elsewhere.status).toBe(200);
+  });
+
+  it("stop guessing at recovery codes too", async () => {
+    await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" }, "192.0.2.44");
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect((await registerOptions({ purpose: "owner-recover", code: `NOPE-${attempt}` })).data.code).toBe("wrong_recovery_code");
+    }
+    expect(await registerOptions({ purpose: "owner-recover", code: "NOPE-X" })).toMatchObject({ status: 429, data: { code: "too_many_attempts" } });
+  });
+
+  it("count an IPv6 address by its /64, so one host cannot rotate through its own block", async () => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await registerOptions({ purpose: "setup", setupCode: `WRONG-${attempt}`, name: "Owner" }, `2001:db8:1:2::${attempt + 1}`);
+    }
+    const blocked = await registerOptions({ purpose: "setup", setupCode: "WRONG", name: "Owner" }, "2001:db8:1:2:ffff::9");
+    expect(blocked).toMatchObject({ status: 429, data: { code: "too_many_attempts" } });
+    expect((await registerOptions({ purpose: "setup", setupCode: "WRONG", name: "Owner" }, "2001:db8:1:3::1")).data.code).toBe("wrong_setup_code");
   });
 
   it("count challenges, so a flood cannot spend the database's writes", async () => {
@@ -226,9 +358,15 @@ describe("attempt limits", () => {
     for (let attempt = 0; attempt < 30; attempt += 1) insert.run(key, Date.now() - 16 * 60_000);
     expect((await call("/login/options")).status).toBe(200);
   });
+});
 
-  it("let the owner sign in on a copy whose schema update has not landed", async () => {
-    db.exec("DROP TABLE auth_attempts");
-    expect((await call("/login/options")).status).toBe(200);
+describe("address buckets", () => {
+  it("keep IPv4 as it is, group IPv6 by /64, and read an IPv4-mapped address as IPv4", () => {
+    expect(addressBucket("203.0.113.7")).toBe("203.0.113.7");
+    expect(addressBucket("2001:db8:1:2::1")).toBe("2001:db8:1:2::/64");
+    expect(addressBucket("2001:0DB8:0001:0002:aaaa:bbbb:cccc:dddd")).toBe("2001:db8:1:2::/64");
+    expect(addressBucket("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(addressBucket("::ffff:198.51.100.9")).toBe("198.51.100.9");
+    expect(addressBucket("local")).toBe("local");
   });
 });

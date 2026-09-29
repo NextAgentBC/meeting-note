@@ -363,7 +363,9 @@ async function act(button, path, body, done, explain = () => "") {
       shown.dataset.reason = data.code;
       row.append(shown);
     } else if (status === 401) {
-      // A claim or recovery link hands the Cloudflare access back, so the next action needs it again.
+      // A claim or recovery link hands the Cloudflare access back, so the next action needs it again,
+      // and "Authorize again" must lead there rather than re-run an earlier install.
+      retryAction = () => location.assign("/oauth/start");
       fail("session", error.message);
     } else {
       fail("unknown", error.message);

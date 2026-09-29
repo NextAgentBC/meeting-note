@@ -11,14 +11,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/types";
 
 let credentialSerial = 0;
+// A test can hold the next passkey check until it opens a gate, to run something else in between.
+const registrationGates: Array<Promise<void>> = [];
+const authenticationGates: Array<Promise<void>> = [];
+function gate(queue: Array<Promise<void>>): () => void {
+  let open!: () => void;
+  queue.push(new Promise<void>((resolve) => { open = resolve; }));
+  return open;
+}
 vi.mock("@simplewebauthn/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@simplewebauthn/server")>();
   return {
     ...actual,
-    verifyRegistrationResponse: vi.fn(async () => ({
-      verified: true,
-      registrationInfo: { credential: { id: `cred-${++credentialSerial}`, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: [] } }
-    }))
+    verifyRegistrationResponse: vi.fn(async () => {
+      const id = `cred-${++credentialSerial}`;
+      await registrationGates.shift();
+      return { verified: true, registrationInfo: { credential: { id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: [] } } };
+    }),
+    verifyAuthenticationResponse: vi.fn(async () => {
+      await authenticationGates.shift();
+      return { verified: true, authenticationInfo: { newCounter: 1 } };
+    })
   };
 });
 
@@ -49,7 +62,7 @@ function d1(db: DatabaseSync): D1Database {
       try {
         const results = statements.map((item) => db.prepare(item.sql).run(...clean(item.values)));
         db.exec("COMMIT");
-        return results;
+        return results.map((result) => ({ success: true, meta: { changes: Number(result.changes) } }));
       } catch (error) {
         db.exec("ROLLBACK");
         throw error;
@@ -77,6 +90,28 @@ async function call(path: string, body: unknown = {}, address = "203.0.113.7") {
     body: JSON.stringify(body)
   }, env);
   return { status: response.status, data: await response.json() as Record<string, any> };
+}
+
+async function post(path: string, body: unknown = {}, cookie = "", address = "203.0.113.7") {
+  return app.request(`${ORIGIN}/api/auth${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: ORIGIN, "cf-connecting-ip": address, ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body)
+  }, env);
+}
+
+/** The session cookie a response set, ready to send back. */
+function sessionCookie(response: Response): string {
+  const match = /__Host-session=([^;]+)/.exec(response.headers.get("set-cookie") || "");
+  return match ? `__Host-session=${match[1]}` : "";
+}
+
+async function sessionHashes(): Promise<string[]> {
+  return (db.prepare("SELECT token_hash FROM sessions").all() as Array<{ token_hash: string }>).map((row) => row.token_hash);
+}
+
+async function hashOfCookie(cookie: string): Promise<string> {
+  return sha256Hex(decodeURIComponent(cookie.split("=")[1]));
 }
 
 async function me() {
@@ -194,7 +229,7 @@ describe("the recovery code shown at setup", () => {
     }, env);
     expect(rotated.status).toBe(200);
 
-    expect(await registerVerify(held.data.challengeId, "198.51.100.9")).toMatchObject({ status: 400, data: { code: "challenge_expired" } });
+    expect(await registerVerify(held.data.challengeId, "198.51.100.9")).toMatchObject({ status: 409, data: { code: "code_used" } });
     expect(credentialIds()).toEqual(["cred-1"]);
   });
 });
@@ -238,8 +273,8 @@ describe("a one-time recovery link from the installer", () => {
     expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
     expect(credentialIds()).toEqual(["cred-2"]);
 
-    // The squatter's waiting recovery is gone, and their code no longer matches.
-    expect(await registerVerify(held.data.challengeId, "198.51.100.9")).toMatchObject({ status: 400, data: { code: "challenge_expired" } });
+    // The squatter's waiting recovery fails on its spent code, and the code no longer matches.
+    expect(await registerVerify(held.data.challengeId, "198.51.100.9")).toMatchObject({ status: 409, data: { code: "code_used" } });
     expect(await registerOptions({ purpose: "owner-recover", code: squatter.data.recoveryCode }, "198.51.100.9")).toMatchObject({ status: 403, data: { code: "wrong_recovery_code" } });
     expect(credentialIds()).toEqual(["cred-2"]);
   });
@@ -259,6 +294,92 @@ describe("a one-time recovery link from the installer", () => {
 
     const refused = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
     expect(refused).toMatchObject({ status: 403, data: { code: "setup_code_not_granted" } });
+  });
+});
+
+describe("a squatter who claimed first", () => {
+  async function squatterAndOwnerLink() {
+    const claimed = await post("/register/options", { purpose: "setup", setupCode: CLAIM_CODE, name: "Squatter" }, "", "198.51.100.9");
+    const verified = await post("/register/verify", { challengeId: (await claimed.json() as any).challengeId, response: { id: "stubbed" } }, "", "198.51.100.9");
+    const squatter = { cookie: sessionCookie(verified), recoveryCode: (await verified.json() as any).recoveryCode as string };
+    await installerRecoveryCode(RECOVERY_LINK_CODE);
+    return squatter;
+  }
+
+  it("cannot stop the owner's recovery by rotating the recovery code in a loop", async () => {
+    const squatter = await squatterAndOwnerLink();
+    const options = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+    for (let round = 0; round < 5; round += 1) {
+      expect((await post("/recovery-code", {}, squatter.cookie, "198.51.100.9")).status).toBe(200);
+    }
+    const recovered = await post("/register/verify", { challengeId: options.data.challengeId, response: { id: "stubbed" } });
+    expect(recovered.status).toBe(200);
+    expect(credentialIds()).toEqual(["cred-2"]);
+    expect(await sessionHashes()).toEqual([await hashOfCookie(sessionCookie(recovered))]);
+  });
+
+  it("loses a recovery it runs alongside the owner's, whichever finishes first", async () => {
+    for (const squatterFirst of [false, true]) {
+      credentialSerial = 0;
+      db = migratedDb();
+      env = { ...env, DB: d1(db), SETUP_CODE: CLAIM_CODE } as Env;
+      const squatter = await squatterAndOwnerLink();
+      const theirs = await registerOptions({ purpose: "owner-recover", code: squatter.recoveryCode }, "198.51.100.9");
+      const ours = await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+
+      // One verify waits at its passkey check while the other finishes.
+      const release = gate(registrationGates);
+      const [held, run] = squatterFirst ? [ours, theirs] : [theirs, ours];
+      const heldAddress = squatterFirst ? "203.0.113.7" : "198.51.100.9";
+      const waiting = post("/register/verify", { challengeId: held.data.challengeId, response: { id: "stubbed" } }, "", heldAddress);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const first = await post("/register/verify", { challengeId: run.data.challengeId, response: { id: "stubbed" } }, "", squatterFirst ? "198.51.100.9" : "203.0.113.7");
+      release();
+      const second = await waiting;
+
+      const owner = squatterFirst ? second : first;
+      expect(owner.status).toBe(200);
+      if (!squatterFirst) expect(second.status).toBe(409);
+      // The owner holds the only passkey and the only session.
+      expect(credentialIds()).toHaveLength(1);
+      expect(await sessionHashes()).toEqual([await hashOfCookie(sessionCookie(owner))]);
+    }
+  });
+
+  it("cannot add a device through a link made before the owner took the copy back", async () => {
+    const squatter = await squatterAndOwnerLink();
+    const link = await post("/device-link", {}, squatter.cookie, "198.51.100.9");
+    const token = /#add-device=(.+)$/.exec((await link.json() as any).url)![1];
+    const linkOptions = await registerOptions({ purpose: "link-device", token }, "198.51.100.9");
+    expect(linkOptions.status).toBe(200);
+
+    expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+    const late = await registerVerify(linkOptions.data.challengeId, "198.51.100.9");
+    expect(late).toMatchObject({ status: 400, data: { code: "link_expired" } });
+    expect(credentialIds()).toEqual(["cred-2"]);
+  });
+
+  it("gets no session from a sign-in whose check passed just before the owner took the copy back", async () => {
+    await squatterAndOwnerLink();
+    const signIn = await call("/login/options", {}, "198.51.100.9");
+    const release = gate(authenticationGates);
+    const waiting = post("/login/verify", { challengeId: signIn.data.challengeId, response: { id: "cred-1", response: {} } }, "", "198.51.100.9");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const recovered = await post("/register/options", { purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+    const owner = await post("/register/verify", { challengeId: (await recovered.json() as any).challengeId, response: { id: "stubbed" } });
+    expect(owner.status).toBe(200);
+    release();
+
+    expect((await waiting).status).toBe(400);
+    expect(await sessionHashes()).toEqual([await hashOfCookie(sessionCookie(owner))]);
+  });
+
+  it("loses the app tokens it made when the owner takes the copy back", async () => {
+    await squatterAndOwnerLink();
+    db.prepare("INSERT INTO integration_tokens (id, owner_id, label, token_hash, created_at) SELECT 'tok1', id, 'NextNote', 'hash', 1 FROM owners").run();
+    expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+    expect(db.prepare("SELECT revoked_at FROM integration_tokens WHERE id = 'tok1'").get()).not.toEqual({ revoked_at: null });
   });
 });
 
@@ -301,6 +422,12 @@ describe("the update that brings migration 0014", () => {
 });
 
 describe("a copy whose schema update has not landed", () => {
+  it("still lets the owner recover with the recovery code", async () => {
+    const claimed = await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
+    db.exec("DROP TABLE spent_codes;");
+    expect((await register({ purpose: "owner-recover", code: claimed.data.recoveryCode })).status).toBe(200);
+  });
+
   it("lets the owner sign in, and says a code check is waiting for the update instead of failing", async () => {
     db.exec("DROP TABLE auth_attempts; DROP TABLE spent_codes; DROP TABLE setup_code_grants;");
     expect((await call("/login/options")).status).toBe(200);

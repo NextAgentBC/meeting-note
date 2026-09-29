@@ -105,7 +105,7 @@ app's audio, so record calls from a computer.
 - **You deployed it yourself and lost every device and the recovery code, or it asks you to sign in the
   very first time you open it** (someone set it up before you did): in the Cloudflare dashboard, open the
   `meeting-note` Worker → **Settings** → **Variables and Secrets** and add a secret named `SETUP_CODE`
-  with a code you have never used there before. Then choose **Lost every device? Use your recovery code**
+  with a long, random code you have never used there before. Then choose **Lost every device? Use your recovery code**
   and type that code: every other passkey and session is removed and the app is yours. The code works
   once.
 - **Today's AI allowance is used up:** transcription pauses until 00:00 UTC. Open the meeting afterwards
@@ -185,8 +185,9 @@ the question, it says so rather than guessing.
   a newer release (`GET <installer>/api/release`). Your browser sends that like any request to a website,
   so whoever runs the installer can see your copy's address and your IP address; nothing from your
   meetings goes with it. To stop it, set the Worker's `UPDATE_CHANNEL` variable to `off`; later updates
-  from the installer keep it off. A copy deployed with the button above has no such variable and asks
-  nobody.
+  from the installer keep it off. The app then no longer knows where its installer is, so its "Open
+  the installer" hints disappear too; the installer's address is still the one you installed from. A
+  copy deployed with the button above has no such variable and asks nobody.
 - Connected apps (NextNote) are off in every copy unless its `NEXTNOTE` variable turns them on. Their
   tokens are stored only as SHA-256 hashes, can be revoked from **Me → Connected apps**, and never
   replace your passkey.

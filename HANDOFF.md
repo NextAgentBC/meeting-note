@@ -104,8 +104,12 @@ first applies migration 0014 to an owned copy also marks its current `SETUP_CODE
 (`retireClaimCode` in `src/schema.ts`). A copy too old to report `recoveryGrants` from
 `/api/auth/me` is refused with `update_first`, one that does not answer with `unreachable`. Reclaim
 revokes the OAuth token when it is done; an update keeps the session, since it often comes first.
-A recovery ends every other passkey registration in progress, so a recovery someone began earlier
-cannot finish afterwards and undo it.
+A recovery cannot be undone by one someone began earlier: every replacement of the recovery code
+(a recovery, or Me → Recovery code) spends the code it replaces, a recovery through the installer also
+spends every grant, and the new session is written in the recovery's own batch. Sign-in, adding a
+device and device links write their credential or session only while what authorised them still
+exists (`INSERT … SELECT … WHERE EXISTS`), so one whose check passed a moment before a recovery
+cannot land after it.
 
 ⚠️ Copies installed **before** `UPDATE_CHANNEL` existed do not know where to ask, so they never show
 the banner. Their owners have to open the installer once; after that first update they self-announce.

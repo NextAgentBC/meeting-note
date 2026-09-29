@@ -124,12 +124,28 @@ function cookiePrefix(c: AppContext): "host" | undefined {
   return isHttps(c) ? "host" : undefined;
 }
 
-async function startSession(c: AppContext, ownerId: string): Promise<void> {
+/**
+ * A new session, written in the same batch as whatever authorises it: otherwise a sign-in whose
+ * check passed a moment before a recovery could add its session after the recovery signed
+ * everyone out. The cookie is set only once that batch has committed.
+ */
+async function newSession(db: D1Database, ownerId: string) {
   const token = randomToken();
+  const tokenHash = await sha256Hex(token);
   const now = Date.now();
-  await c.env.DB.prepare("INSERT INTO sessions (token_hash, owner_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
-    .bind(await sha256Hex(token), ownerId, now + SESSION_DAYS * 86_400_000, now)
-    .run();
+  const expiresAt = now + SESSION_DAYS * 86_400_000;
+  return {
+    token,
+    insert: db.prepare("INSERT INTO sessions (token_hash, owner_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
+      .bind(tokenHash, ownerId, expiresAt, now),
+    /** The same row, written only while this passkey still belongs to the owner. */
+    insertIfPasskey: (credentialId: string) =>
+      db.prepare("INSERT INTO sessions (token_hash, owner_id, expires_at, created_at) SELECT ?, owner_id, ?, ? FROM credentials WHERE id = ? AND owner_id = ?")
+        .bind(tokenHash, expiresAt, now, credentialId, ownerId)
+  };
+}
+
+function setSessionCookie(c: AppContext, token: string): void {
   setCookie(c, COOKIE, token, {
     httpOnly: true,
     secure: isHttps(c),
@@ -138,6 +154,16 @@ async function startSession(c: AppContext, ownerId: string): Promise<void> {
     maxAge: SESSION_DAYS * 86_400,
     prefix: cookiePrefix(c)
   });
+}
+
+/** Rows a batch statement changed, as D1 reports it. */
+function changed(result: D1Result | undefined): number {
+  return Number(result?.meta?.changes ?? 0);
+}
+
+async function currentSessionHash(c: AppContext): Promise<string> {
+  const token = getCookie(c, COOKIE, cookiePrefix(c));
+  return token ? sha256Hex(token) : "";
 }
 
 async function ownerForSession(c: AppContext): Promise<OwnerRow | null> {
@@ -324,6 +350,15 @@ async function tableExists(db: D1Database, name: string): Promise<boolean> {
   return Boolean(await db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first());
 }
 
+// Once there, the grants table stays: after the first yes this isolate stops asking, so a flood of
+// unauthenticated /me requests does not read the schema every time. Keyed by the binding, which a
+// Worker gets as the same object on every request.
+const grantsTableSeen = new WeakSet<D1Database>();
+async function grantsReady(db: D1Database): Promise<boolean> {
+  if (!grantsTableSeen.has(db) && (await tableExists(db, "setup_code_grants"))) grantsTableSeen.add(db);
+  return grantsTableSeen.has(db);
+}
+
 // ── Attempt limits ───────────────────────────────────────────────────────────
 // The sign-in routes answer anyone. Counted per address, a flood cannot spend the free plan's
 // database writes on challenges, and nobody gets more than a few guesses at a code. A refused
@@ -405,7 +440,7 @@ authRoutes.get("/me", async (c) => {
     // Tells the installer this copy spends codes and honours recovery grants, so a code it hands
     // out opens the app once and never again. False until the schema update that brings the
     // tables has landed, so the installer does not write a grant nowhere.
-    recoveryGrants: await tableExists(c.env.DB, "setup_code_grants"),
+    recoveryGrants: await grantsReady(c.env.DB),
     // Where a lost setup code can be replaced: the installer that provisioned this copy.
     installer: updateChannel(c.env),
     // The Connected apps row stays out of the Me tab everywhere this is off.
@@ -529,9 +564,11 @@ authRoutes.post("/register/verify", async (c) => {
 
   let ownerId: string;
   let recoveryCode: string | null = null;
+  let sessionToken: string;
   if (pending.purpose === "setup") {
     ownerId = `own_${randomToken(12)}`;
     recoveryCode = newRecoveryCode();
+    const session = await newSession(db, ownerId);
     try {
       // One transaction: the owner never exists without a passkey.
       await db.batch([
@@ -539,54 +576,88 @@ authRoutes.post("/register/verify", async (c) => {
           .bind(ownerId, pending.name, pending.webauthnUserId, await recoveryHash(recoveryCode), now),
         insertCredential(ownerId),
         // The claim link is spent with the claim: it never works again, not even for recovery.
-        ...(pending.setupCodeHash ? [spendCode(db, pending.setupCodeHash)] : [])
+        ...(pending.setupCodeHash ? [spendCode(db, pending.setupCodeHash)] : []),
+        session.insert
       ]);
     } catch (error) {
       if (String(error).includes("UNIQUE")) fail(409, "already_set_up", "Someone has just claimed this Meeting Note.");
       rethrowMissingTables(error);
     }
+    sessionToken = session.token;
   } else if (pending.purpose === "owner-recover") {
     ownerId = pending.ownerId!;
     recoveryCode = newRecoveryCode();
+    const session = await newSession(db, ownerId);
     // Recovery means the old passkeys are lost or can't be trusted: replace them, sign out
-    // everywhere, and retire the code that was just used. It is one transaction, so of two
-    // recoveries racing with the same code only one commits. It also ends every other passkey
-    // registration in progress: a recovery someone started earlier and kept waiting — with a code
-    // that worked then — must not be able to finish after this one and undo it.
+    // everywhere, and retire the code that was just used — one transaction, so of two recoveries
+    // racing with the same code only one commits. Whatever authorised another recovery goes too:
+    // the recovery code being replaced is spent, so a recovery someone began with it and kept
+    // waiting fails at its own verify. A recovery through the installer also spends every other
+    // grant; one through a recovery code leaves grants alone, so the Cloudflare account owner's
+    // link still outranks a code someone else holds.
+    const spends = [
+      ...(pending.setupCodeHash ? [spendCode(db, pending.setupCodeHash)] : []),
+      ...(pending.recoveryCodeHash ? [spendCode(db, pending.recoveryCodeHash)] : []),
+      db.prepare("INSERT OR IGNORE INTO spent_codes (code_hash, used_at) SELECT recovery_hash, ? FROM owners WHERE id = ? AND recovery_hash IS NOT NULL")
+        .bind(now, ownerId),
+      ...(pending.setupCodeHash
+        ? [db.prepare("INSERT OR IGNORE INTO spent_codes (code_hash, used_at) SELECT code_hash, ? FROM setup_code_grants").bind(now)]
+        : [])
+    ];
+    const replace = [
+      db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
+      db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
+      db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
+      db.prepare("UPDATE integration_tokens SET revoked_at = ? WHERE owner_id = ? AND revoked_at IS NULL").bind(now, ownerId),
+      db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
+      insertCredential(ownerId),
+      session.insert
+    ];
     try {
-      await db.batch([
-        ...(pending.setupCodeHash ? [spendCode(db, pending.setupCodeHash)] : []),
-        ...(pending.recoveryCodeHash ? [spendCode(db, pending.recoveryCodeHash)] : []),
-        db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
-        db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
-        db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
-        db.prepare("DELETE FROM challenges WHERE purpose = 'register'"),
-        db.prepare("UPDATE integration_tokens SET revoked_at = ? WHERE owner_id = ? AND revoked_at IS NULL").bind(now, ownerId),
-        db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
-        insertCredential(ownerId)
-      ]);
+      await db.batch([...spends, ...replace]);
     } catch (error) {
       if (String(error).includes("UNIQUE")) fail(409, "code_used", "That code has just been used.");
-      rethrowMissingTables(error);
+      // A copy whose schema update has not landed has nowhere to record spent codes. The recovery
+      // code still works there, as it did before; a setup code never reaches this point without it.
+      if (!String(error).includes("no such table") || pending.setupCodeHash) rethrowMissingTables(error);
+      await db.batch(replace);
     }
+    sessionToken = session.token;
   } else if (pending.purpose === "link-device") {
-    // Used up now, whether or not anything below fails: a link works once.
-    const link = await db.prepare("DELETE FROM device_links WHERE token_hash = ? AND expires_at > ? RETURNING owner_id")
-      .bind(pending.linkHash!, Date.now())
-      .first<{ owner_id: string }>();
-    if (!link || link.owner_id !== pending.ownerId) {
+    // The link is used up by the batch that saves the passkey, and only a link that is still there
+    // saves one: a recovery that removed it a moment ago wins.
+    const session = await newSession(db, pending.ownerId!);
+    const [saved] = await db.batch([
+      db.prepare(
+        `INSERT INTO credentials (id, owner_id, public_key, counter, transports, created_at)
+         SELECT ?, owner_id, ?, ?, ?, ? FROM device_links WHERE token_hash = ? AND expires_at > ? AND owner_id = ?`
+      ).bind(info.credential.id, toBase64Url(info.credential.publicKey), info.credential.counter, JSON.stringify(info.credential.transports ?? []), now, pending.linkHash!, now, pending.ownerId!),
+      db.prepare("DELETE FROM device_links WHERE token_hash = ?").bind(pending.linkHash!),
+      session.insertIfPasskey(info.credential.id)
+    ]);
+    if (changed(saved) !== 1) {
       fail(400, "link_expired", "This link has expired or has already been used. Make a new one on your signed-in device.");
     }
-    ownerId = link.owner_id;
-    await insertCredential(ownerId).run();
+    ownerId = pending.ownerId!;
+    sessionToken = session.token;
   } else {
+    // Add a device from one that is signed in: saved only while that session is still valid.
     const owner = await ownerForSession(c);
     if (!owner || owner.id !== pending.ownerId) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
     ownerId = owner.id;
-    await insertCredential(ownerId).run();
+    const session = await newSession(db, ownerId);
+    const [saved] = await db.batch([
+      db.prepare(
+        `INSERT INTO credentials (id, owner_id, public_key, counter, transports, created_at)
+         SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sessions WHERE token_hash = ? AND owner_id = ? AND expires_at > ?)`
+      ).bind(info.credential.id, ownerId, toBase64Url(info.credential.publicKey), info.credential.counter, JSON.stringify(info.credential.transports ?? []), now, await currentSessionHash(c), ownerId, now),
+      session.insertIfPasskey(info.credential.id)
+    ]);
+    if (changed(saved) !== 1) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+    sessionToken = session.token;
   }
 
-  await startSession(c, ownerId);
+  setSessionCookie(c, sessionToken);
   return c.json({ ok: true, name: pending.name ?? null, recoveryCode });
 });
 
@@ -616,12 +687,23 @@ authRoutes.post("/device-link", async (c) => {
 authRoutes.post("/recovery-code", async (c) => {
   const owner = await ownerForSession(c);
   if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  // Counted like a challenge: a signed-in session cannot turn this into a stream of writes.
+  const key = await attemptKey(c);
+  await checkAttempts(c, key, "challenge");
   const recoveryCode = newRecoveryCode();
-  // A recovery someone began with the old code, and kept waiting, ends here too.
-  await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id),
-    c.env.DB.prepare("DELETE FROM challenges WHERE purpose = 'register'")
-  ]);
+  // The code being replaced is spent, so a recovery someone began with it fails at its verify.
+  const replace = c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id);
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare("INSERT OR IGNORE INTO spent_codes (code_hash, used_at) SELECT recovery_hash, ? FROM owners WHERE id = ? AND recovery_hash IS NOT NULL")
+        .bind(Date.now(), owner.id),
+      replace
+    ]);
+  } catch (error) {
+    if (!String(error).includes("no such table")) throw error;
+    await replace.run();
+  }
+  await recordAttempt(c.env.DB, key, "challenge");
   return c.json({ ok: true, recoveryCode });
 });
 
@@ -727,10 +809,16 @@ authRoutes.post("/login/verify", async (c) => {
   }
   if (!verification.verified) fail(400, "passkey_rejected", "The passkey could not be checked.");
 
-  await db.prepare("UPDATE credentials SET counter = ?, last_used_at = ? WHERE id = ?")
-    .bind(verification.authenticationInfo.newCounter, Date.now(), credential.id)
-    .run();
-  await startSession(c, credential.owner_id);
+  // The session is written only while this passkey is still the owner's: a recovery may have
+  // removed it between the check above and now.
+  const session = await newSession(db, credential.owner_id);
+  const [, signedIn] = await db.batch([
+    db.prepare("UPDATE credentials SET counter = ?, last_used_at = ? WHERE id = ?")
+      .bind(verification.authenticationInfo.newCounter, Date.now(), credential.id),
+    session.insertIfPasskey(credential.id)
+  ]);
+  if (changed(signedIn) !== 1) fail(400, "unknown_passkey", "This passkey isn't registered here.");
+  setSessionCookie(c, session.token);
   return c.json({ ok: true });
 });
 

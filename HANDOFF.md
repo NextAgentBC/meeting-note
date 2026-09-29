@@ -69,7 +69,8 @@ test/                 259 vitest tests               e2e/   sign-in flows in a r
    one first means a refusal costs nothing to roll back. A taken name answers 10031 → try another.
 2. D1, KV, queue, migrations, the Worker (one self-contained module with the static files embedded),
    the queue consumer, then the public address.
-3. A one-time `SETUP_CODE` secret travels to the owner in the URL fragment (`#claim=…`).
+3. A one-time `SETUP_CODE` secret travels to the owner in the URL fragment (`#claim=…`). The claim
+   spends it (`setup_code_uses`, migration 0014), so the link in a chat opens nothing afterwards.
 4. The OAuth token is revoked immediately and the installer session deleted.
 5. Any failure rolls back what it made, and reaches the page as a code the page can say in Chinese.
 
@@ -92,7 +93,27 @@ test/                 259 vitest tests               e2e/   sign-in flows in a r
 
 **Recovery.** The installer's account screen lists the `meeting-note-*` Workers the account already
 holds, marks the ones behind the current release, and marks the ones nobody ever claimed —
-`POST /api/reclaim` writes a fresh `SETUP_CODE` and returns a one-time claim link.
+`POST /api/reclaim` writes a fresh `SETUP_CODE` and returns a one-time claim link. For a copy that
+has an owner it returns a one-time **recovery** link instead (`#recover=…`): it first writes the new
+code's SHA-256 into the copy's `setup_code_grants` through the D1 API, then sets the secret, because
+on an installer-made copy a setup code recovers nothing without a grant from the last 24 hours.
+"Installer-made" is `INSTALLER_COPY=1`, which `src/standalone.ts` (the entry only the installer's
+bundle runs) sets on every request — never a variable the owner edits: `UPDATE_CHANNEL` played this
+part at first, and deleting it to stop the update check reopened old claim links. The runtime that
+first applies migration 0014 to an owned copy also marks its current `SETUP_CODE` spent
+(`retireClaimCode` in `src/schema.ts`). A copy too old to report `recoveryGrants` from
+`/api/auth/me` is refused with `update_first`, one that does not answer with `unreachable`. Reclaim
+revokes the OAuth token when it is done; an update keeps the session, since it often comes first.
+A recovery cannot be undone by one someone began earlier: every replacement of the recovery code
+(a recovery, or Me → Recovery code) spends the code it replaces, a recovery through the installer also
+spends every grant, and the new session is written in the recovery's own batch. Sign-in, adding a
+device and device links write their credential or session only while what authorised them still
+exists (`INSERT … SELECT … WHERE EXISTS`), so one whose check passed a moment before a recovery
+cannot land after it. The same goes for a device link, a new recovery code and an app token
+requested by a session a recovery is about to end: each is written only while that session still
+exists. Taking a copy back through the installer also retires the calendar feed address, and a new
+one is written only while the session (or app token) that asked for it is still valid
+(`stillAuthorised` in `src/auth.ts`, for writes outside that file).
 
 ⚠️ Copies installed **before** `UPDATE_CHANNEL` existed do not know where to ask, so they never show
 the banner. Their owners have to open the installer once; after that first update they self-announce.
@@ -142,7 +163,7 @@ tokens (`--ink`, `--ink-2`, `--ink-3`, `--brand-fg`, `--danger`…), never hex.
 
 ```sh
 npm run dev                 # http://localhost:8787, fully local (no Workers AI)
-npm test                    # 259 tests
+npm test                    # 344 tests
 npm run typecheck
 npm run test:themes         # 84 contrast checks
 
@@ -150,6 +171,12 @@ npm run deploy:installer                      # build the release, then deploy t
 node scripts/deploy-installer.mjs --dry-run   # same, without deploying
 npx wrangler deploy --config wrangler.production.jsonc   # the author's own copy
 ```
+
+**Before publishing a release that touches sign-in:** the passkey routes decide on D1's
+`meta.changes` (a write that finds its session, link or passkey gone changes no rows). On one deployed
+copy, sign in, add a device from a signed-in one, and open a device link on another device. Local
+workerd D1 reports the expected counts (checked 2026-09-28 against Miniflare 5.20260911), but the unit
+tests run on node:sqlite.
 
 **Values that never enter the repo:**
 

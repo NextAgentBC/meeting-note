@@ -16,7 +16,8 @@ transcribes and writes notes, and only the owner can sign in. Read this before c
    the button wouldn't create one. Schema changes are new files in `migrations/`, applied in `predeploy`.
 3. **One owner, passkeys only, nothing asked at deploy time.** The first person to open a fresh copy claims
    it; `owners.singleton` is UNIQUE, so a second claim fails in the database. The owner is shown a recovery
-   code once (stored as SHA-256, replaced every time it's used); a `SETUP_CODE` secret is optional. No
+   code once (stored as SHA-256, replaced every time it's used); a `SETUP_CODE` secret is optional and
+   opens the copy once (see "Setup codes open a copy once" in `src/auth.ts`). No
    passwords: the free plan's 10 ms of CPU per request can't afford password hashing. Don't add a
    `.dev.vars.example`: the Deploy button turns every line in it into a form field.
 4. **Audio is temporary, unless the owner binds somewhere to keep it.** Chunks expire from KV after
@@ -51,7 +52,8 @@ public/          the app, with no build step: app.js (recording, uploads), auth.
                  version-watch.js (the "new version, refresh" check; see Updating an installed copy)
 migrations/      0001–0003 meetings, segments, AI usage; 0004 passkeys; 0005 recovery code; 0006 plans; 0007 memory;
                  0008 device links; 0009 memory embedding tracking; 0010 integration tokens;
-                 0011 permanent audio/tuned ASR; 0012 quick notes/photos
+                 0011 permanent audio/tuned ASR; 0012 quick notes/photos; 0013 HD runs;
+                 0014 one-time setup codes, installer recovery grants, sign-in attempt limits
 e2e/             the sign-in flows in a real browser (own package.json)
 installer/       install.meeting.nextagent.ca: Cloudflare OAuth, then one account's private copy.
                  src/provision.ts creates D1/KV/the queue and uploads the release bundle built by

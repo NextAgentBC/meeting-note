@@ -118,7 +118,10 @@ const arrivalUrl = location.href;
 const hashParams = new URLSearchParams(location.hash.slice(1));
 let deviceLinkToken = hashParams.get("add-device");
 let installerClaimCode = hashParams.get("claim");
-if (deviceLinkToken || installerClaimCode) history.replaceState(null, "", location.pathname + location.search);
+// A one-time recovery link from the installer, for an owner who lost every device and the
+// recovery code too: #recover=<code>. It works once, and only after the installer granted it.
+let installerRecoveryCode = hashParams.get("recover");
+if (deviceLinkToken || installerClaimCode || installerRecoveryCode) history.replaceState(null, "", location.pathname + location.search);
 
 function showError(error) {
   $("#authError").textContent = messageFor(error);
@@ -207,7 +210,16 @@ function renderChoice(me) {
     return;
   }
 
-  if (me.hasOwner && deviceLinkToken) {
+  // Lost the recovery code as well? The installer can make a one-time recovery link.
+  show($("#lostRecoveryCode"), me.hasOwner && Boolean(me.installer) && !installerRecoveryCode);
+  if (me.installer) $("#lostRecoveryCodeLink").href = me.installer;
+
+  if (me.hasOwner && installerRecoveryCode) {
+    $("#authTitle").textContent = "Recover your Meeting Note";
+    $("#authLede").textContent = "You opened a one-time recovery link from the installer. Create a new passkey on this device: your old passkeys stop working, and you get a new recovery code.";
+    $("#recoverCode").value = installerRecoveryCode;
+    showPanel("recover");
+  } else if (me.hasOwner && deviceLinkToken) {
     $("#authTitle").textContent = "Add this device";
     $("#authLede").textContent = "You opened a link from a device where you're signed in. Create a passkey here, and this phone or computer can sign in with Face ID, a fingerprint or its screen lock.";
     showPanel("link");

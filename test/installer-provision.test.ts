@@ -267,6 +267,41 @@ describe("personal Cloudflare installer", () => {
     expect(metadata.bindings.some((binding: { type: string }) => binding.type === "secret_text")).toBe(false);
   });
 
+  it("keeps an owner's opt-out from the update check through an update", async () => {
+    const requests: Array<{ url: string; method: string; body?: BodyInit | null }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method || "GET";
+      requests.push({ url, method, body: init?.body });
+      if (url.endsWith("/workers/scripts/meeting-note-zz11/settings")) {
+        return response({
+          bindings: [
+            { type: "d1", name: "DB", id: "db-1" },
+            { type: "kv_namespace", name: "AUDIO", namespace_id: "kv-1" },
+            { type: "queue", name: "JOBS", queue_name: "meeting-note-jobs-zz11" },
+            { type: "ai", name: "AI" },
+            { type: "plain_text", name: "UPDATE_CHANNEL", text: "off" }
+          ]
+        });
+      }
+      if (url.endsWith("/workers/scripts/meeting-note-zz11") && method === "PUT") return response({ id: "meeting-note-zz11" });
+      throw new Error(`Unexpected request ${method} ${url}`);
+    }));
+
+    await upgradeInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      releaseScript: "export default {}",
+      version: "3.0.0",
+      updateChannel: "https://install.example.test"
+    });
+
+    const upload = requests.find((request) => request.method === "PUT");
+    const metadata = JSON.parse(await ((upload!.body as FormData).get("metadata") as Blob).text());
+    expect(metadata.bindings).toEqual(expect.arrayContaining([{ type: "plain_text", name: "UPDATE_CHANNEL", text: "off" }]));
+  });
+
   it("refuses to overwrite a Worker that is not one of its own", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -287,13 +322,12 @@ describe("personal Cloudflare installer", () => {
     })).rejects.toThrow(/d1 binding/);
   });
 
-  it("makes a new claim code for a copy nobody has claimed, and refuses one that has an owner", async () => {
+  it("makes a new claim code for a copy nobody has claimed", async () => {
     const requests: Array<{ url: string; method: string; body?: BodyInit | null }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       requests.push({ url, method: init?.method || "GET", body: init?.body });
-      if (url === "https://app.example.test/api/auth/me") return Response.json({ hasOwner: false });
-      if (url === "https://claimed.example.test/api/auth/me") return Response.json({ hasOwner: true });
+      if (url === "https://app.example.test/api/auth/me") return Response.json({ hasOwner: false, recoveryGrants: true });
       if (url.endsWith("/workers/scripts/meeting-note-zz11/secrets")) return response({ name: "SETUP_CODE" });
       throw new Error(`Unexpected request ${url}`);
     }));
@@ -305,16 +339,86 @@ describe("personal Cloudflare installer", () => {
       url: "https://app.example.test"
     });
 
+    expect(result.mode).toBe("claim");
     expect(result.setupCode).toMatch(/^[A-Z2-9]{4}(?:-[A-Z2-9]{4}){3}$/);
     const secret = JSON.parse(String(requests.find((request) => request.url.endsWith("/secrets"))!.body));
     expect(secret).toMatchObject({ name: "SETUP_CODE", type: "secret_text", text: result.setupCode });
+    // Nothing is granted for a claim: a claim code never recovers anything.
+    expect(requests.some((request) => request.url.includes("/d1/database/"))).toBe(false);
+  });
+
+  it("grants a one-time recovery code for a copy with an owner, before setting it", async () => {
+    const requests: Array<{ url: string; method: string; body?: BodyInit | null }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      requests.push({ url, method: init?.method || "GET", body: init?.body });
+      if (url === "https://claimed.example.test/api/auth/me") return Response.json({ hasOwner: true, recoveryGrants: true });
+      if (url.endsWith("/workers/scripts/meeting-note-zz11/settings")) {
+        return response({ bindings: [{ type: "ai", name: "AI" }, { type: "d1", name: "DB", id: "db-9" }] });
+      }
+      if (url.endsWith("/d1/database/db-9/query")) return response([{ success: true }]);
+      if (url.endsWith("/workers/scripts/meeting-note-zz11/secrets")) return response({ name: "SETUP_CODE" });
+      throw new Error(`Unexpected request ${url}`);
+    }));
+
+    const result = await reclaimInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      url: "https://claimed.example.test"
+    });
+
+    expect(result.mode).toBe("recover");
+    const grantAt = requests.findIndex((request) => request.url.endsWith("/query"));
+    const secretAt = requests.findIndex((request) => request.url.endsWith("/secrets"));
+    expect(grantAt).toBeGreaterThan(-1);
+    expect(grantAt).toBeLessThan(secretAt);
+    const grant = JSON.parse(String(requests[grantAt].body));
+    expect(grant.sql).toMatch(/INSERT INTO setup_code_grants/);
+    // The query API takes parameters as strings.
+    expect(grant.params.every((value: unknown) => typeof value === "string")).toBe(true);
+    // Only the code's SHA-256 goes into the database, never the code.
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(result.setupCode));
+    const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    expect(grant.params[0]).toBe(hash);
+    expect(JSON.stringify(grant)).not.toContain(result.setupCode);
+    expect(JSON.parse(String(requests[secretAt].body))).toMatchObject({ name: "SETUP_CODE", text: result.setupCode });
+  });
+
+  it("changes nothing when the copy does not say whether it has an owner", async () => {
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requests.push(url);
+      if (url === "https://down.example.test/api/auth/me") return new Response("unavailable", { status: 503 });
+      throw new Error(`Unexpected request ${url}`);
+    }));
 
     await expect(reclaimInstall({
       accountId: "account-1",
       accessToken: "secret-oauth-token",
       workerName: "meeting-note-zz11",
-      url: "https://claimed.example.test"
-    })).rejects.toThrow(/already has an owner/);
+      url: "https://down.example.test"
+    })).rejects.toMatchObject({ code: "unreachable" });
+    expect(requests).toEqual(["https://down.example.test/api/auth/me"]);
+  });
+
+  it("refuses a recovery code for an owned copy too old to spend it, and changes nothing", async () => {
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requests.push(url);
+      if (url === "https://old.example.test/api/auth/me") return Response.json({ hasOwner: true });
+      throw new Error(`Unexpected request ${url}`);
+    }));
+
+    await expect(reclaimInstall({
+      accountId: "account-1",
+      accessToken: "secret-oauth-token",
+      workerName: "meeting-note-zz11",
+      url: "https://old.example.test"
+    })).rejects.toMatchObject({ code: "update_first" });
+    expect(requests).toEqual(["https://old.example.test/api/auth/me"]);
   });
 
   it("tries again when Cloudflare says a thing it just created is not there yet", async () => {

@@ -9,7 +9,7 @@ let ensured: Promise<unknown> | null = null;
 
 export function ensureSchema(env: Env): Promise<unknown> {
   if (!ensured) {
-    ensured = applyMigrations(env.DB).catch((error) => {
+    ensured = applyMigrations(env.DB).then((applied) => retireClaimCode(env, applied)).catch((error) => {
       // A failure must not stick for the life of the isolate: the next request tries again.
       ensured = null;
       throw error;
@@ -50,4 +50,23 @@ async function objectExists(db: D1Database, sentinel: MigrationSentinel): Promis
     .bind(sentinel.name)
     .first<{ sql: string }>();
   return Boolean(table?.sql && new RegExp(`\\b${sentinel.column}\\b`).test(table.sql));
+}
+
+const SPENT_CODES_MIGRATION = "0014_setup_codes_and_attempts.sql";
+
+/**
+ * A copy claimed before migration 0014 never recorded its claim code as spent, and an update keeps
+ * the SETUP_CODE secret, so the claim link from back then still matches it. When this runtime is the
+ * one that brings 0014 to a copy that already has an owner, the code in place now is that claim code
+ * (or one its owner set by hand), and it is retired. Copies whose migrations wrangler applies before
+ * deploying never get here, and keep an owner-set SETUP_CODE as a one-time way back in.
+ */
+export async function retireClaimCode(env: Pick<Env, "DB" | "SETUP_CODE">, applied: string[]): Promise<void> {
+  const code = env.SETUP_CODE?.trim();
+  if (!code || !applied.includes(SPENT_CODES_MIGRATION)) return;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+  const codeHash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  await env.DB.prepare("INSERT OR IGNORE INTO spent_codes (code_hash, used_at) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM owners)")
+    .bind(codeHash, Date.now())
+    .run();
 }

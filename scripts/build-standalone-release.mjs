@@ -31,7 +31,9 @@ function files(dir) {
   });
 }
 
-const assets = Object.fromEntries(files(publicDir).map((path) => {
+// _headers is an instruction to Cloudflare's static asset server, not a file for visitors; the
+// embedded copy gets the same headers from secureResponse() in src/headers.ts.
+const assets = Object.fromEntries(files(publicDir).filter((path) => !relative(publicDir, path).startsWith("_")).map((path) => {
   const pathname = `/${relative(publicDir, path).replaceAll("\\", "/")}`;
   const extension = extname(path);
   const contents = readFileSync(path);

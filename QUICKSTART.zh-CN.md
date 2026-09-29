@@ -10,7 +10,9 @@
 
 ## 第一次安装
 
-你会遇到两个名字：
+**更省事的办法：** 打开安装器 [install.meeting.nextagent.ca](https://install.meeting.nextagent.ca)，用 Cloudflare 登录，点 **安装**。它会直接在你自己的 Cloudflare 账户里装好一份，不需要 GitHub；装完就把对你账户的授权交还。装好后马上点它给你的认领链接（只能用一次），用 Face ID、指纹或开机密码创建通行密钥，再照下面第三步第 3 点保存恢复码。
+
+想自己动手部署，就按下面的步骤来。你会遇到两个名字：
 
 - **GitHub**：放着 Meeting Note 原始文件的地方。安装时会自动在你的 GitHub 里复制一份。
 - **Cloudflare**：替你免费运行这套工具的服务器。
@@ -63,7 +65,9 @@
 
 **所有设备都丢了怎么办？** 在登录页点 **Lost every device? Use your recovery code**，输入恢复码。恢复后会显示一个新的恢复码，旧的作废，记得再截图。其他设备上的登录也会全部失效。
 
-**第一次打开就让我 Sign in，没有 Set up？** 说明有人抢在你前面认领了，很少见。进 Cloudflare 后台，打开 `meeting-note` 这个 Worker，依次点 **Settings（设置）→ Variables and Secrets（变量和机密）**，添加一个名为 `SETUP_CODE` 的机密（Secret），值设成一串你记得住的字。回到 Meeting Note，点 **Lost every device? Use your recovery code**，输入这串字，对方的登录就全部失效，这份 Meeting Note 归你。
+**设备和恢复码都丢了，而当初是用安装器装的？** 打开安装器，用这份 Meeting Note 所在的 Cloudflare 账户登录，在你的应用旁点 **生成恢复链接**。这个链接 24 小时内有效，只能用一次：打开它的设备会得到新的通行密钥，其他设备全部退出。旧版本会先让你点 **更新到最新版**。有人抢在你前面认领时，也用这个办法拿回来。
+
+**自己部署的、设备和恢复码都丢了；或者第一次打开就让我 Sign in，没有 Set up？**（后者说明有人抢在你前面认领了，很少见。）进 Cloudflare 后台，打开 `meeting-note` 这个 Worker，依次点 **Settings（设置）→ Variables and Secrets（变量和机密）**，添加一个名为 `SETUP_CODE` 的机密（Secret），值设成一串**以前没在这里用过**的字。回到 Meeting Note，点 **Lost every device? Use your recovery code**，输入这串字，其他人的登录就全部失效，这份 Meeting Note 归你。这串字只能用一次。
 
 **会议结束后一直没有纪要？** 打开这场会议，点 **Create the note from what we have**。如果当天免费 AI 额度已经用完，第二天再点 **Retry**。
 

@@ -218,13 +218,17 @@ async function reclaim(request: Request, env: Env): Promise<Response> {
   const install = body.workerName ? await ownInstall(session, body.accountId, body.workerName) : null;
   if (!install) return json({ error: "That installation is not in this account" }, 404);
   try {
-    const { setupCode } = await reclaimInstall({
+    const { setupCode, mode } = await reclaimInstall({
       accountId: body.accountId,
       accessToken: session.value.accessToken,
       workerName: install.name,
       url: install.url
     });
-    return json({ ok: true, url: install.url, setupCode });
+    // The owner leaves for the app from here, so the Cloudflare access goes back now, as it does
+    // after an install. An update keeps its session: it is often the step before a recovery link.
+    await revoke(session.value.accessToken, env).catch((error) => console.error("OAuth revoke failed", error));
+    await env.INSTALL_SESSIONS.delete(`session:${session.id}`);
+    return json({ ok: true, url: install.url, setupCode, mode }, 200, { "set-cookie": setCookie(SESSION_COOKIE, "", 0) });
   } catch (error) {
     console.error("Re-claim failed", error);
     return json({ error: error instanceof Error ? error.message : "Could not make a new claim link", code: error instanceof InstallError ? error.code : "unknown" }, 502);

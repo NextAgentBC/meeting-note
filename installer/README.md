@@ -33,7 +33,9 @@ Required OAuth permissions are D1 Write, Queues Write, Workers KV Storage Write,
 Write, Workers AI Write, and User Details Read.
 
 The installer encrypts OAuth access tokens in its private KV, keeps them for no more than 30
-minutes, revokes the token after a successful installation, and deletes the installer session. If
+minutes, revokes the token after a successful installation or a new claim or recovery link, and
+deletes the installer session. An update keeps the session for the rest of its 30 minutes, because
+it is often the step before a recovery link. If
 provisioning fails, newly created resources are rolled back so the user can retry cleanly — the
 token is kept, so Try again re-runs the installation without a second Cloudflare sign-in.
 
@@ -48,7 +50,13 @@ here. Schema changes are not this installer's business any more — the uploaded
 (`src/schema.ts`).
 
 An installation nobody claimed is shown as such, and `POST /api/reclaim` writes a fresh `SETUP_CODE`
-secret and returns a one-time claim link. It refuses a copy that already has an owner.
+secret and returns a one-time claim link. For a copy that already has an owner, the same call makes
+a one-time recovery link: it writes the new code's SHA-256 into the copy's `setup_code_grants` table
+(D1 Write), then sets the secret, and the copy spends the code on first use. A grant lasts 24 hours.
+A copy too old to know about grants is refused with `update_first` until it is updated, and one that
+does not answer `/api/auth/me` with `unreachable`, since not knowing whether it has an owner is not
+the same as knowing it has none. An update keeps `UPDATE_CHANNEL=off`, the owner's opt-out from the
+update check.
 
 ## Shared into WeChat
 

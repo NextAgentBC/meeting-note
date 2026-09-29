@@ -101,7 +101,8 @@ app's audio, so record calls from a computer.
   installer, sign in with the Cloudflare account your copy lives in, and press **Make a recovery link**
   next to it. The link works once, within 24 hours: it puts a new passkey on the device that opens it
   and signs out every other one. (An older copy asks you to press **Update to latest** first.) The same
-  link takes back a copy that somebody else claimed before you did.
+  link takes back a copy that somebody else claimed before you did. It also retires the private
+  calendar address, in case someone else made one: make a new one under **Plans** if you use it.
 - **You deployed it yourself and lost every device and the recovery code, or it asks you to sign in the
   very first time you open it** (someone set it up before you did): in the Cloudflare dashboard, open the
   `meeting-note` Worker → **Settings** → **Variables and Secrets** and add a secret named `SETUP_CODE`

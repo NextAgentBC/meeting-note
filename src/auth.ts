@@ -156,7 +156,10 @@ function setSessionCookie(c: AppContext, token: string): void {
   });
 }
 
-/** Rows a batch statement changed, as D1 reports it. */
+/**
+ * Rows a statement changed, as D1 reports it. Callers test for zero rather than one: D1 derives this
+ * from total_changes(), which also counts rows a trigger writes.
+ */
 function changed(result: D1Result | undefined): number {
   return Number(result?.meta?.changes ?? 0);
 }
@@ -605,6 +608,10 @@ authRoutes.post("/register/verify", async (c) => {
         : [])
     ];
     const replace = [
+      // Taking the copy back through the installer also retires the private calendar address: whoever
+      // held the copy could have made one, and would keep reading new plans. The owner's own
+      // recovery code leaves it alone, so a lost phone doesn't break a calendar subscription.
+      ...(pending.setupCodeHash ? [db.prepare("DELETE FROM settings WHERE key = 'calendar_feed_token'")] : []),
       db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
       db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
       db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
@@ -635,7 +642,7 @@ authRoutes.post("/register/verify", async (c) => {
       db.prepare("DELETE FROM device_links WHERE token_hash = ?").bind(pending.linkHash!),
       session.insertIfPasskey(info.credential.id)
     ]);
-    if (changed(saved) !== 1) {
+    if (changed(saved) === 0) {
       fail(400, "link_expired", "This link has expired or has already been used. Make a new one on your signed-in device.");
     }
     ownerId = pending.ownerId!;
@@ -653,7 +660,7 @@ authRoutes.post("/register/verify", async (c) => {
       ).bind(info.credential.id, ownerId, toBase64Url(info.credential.publicKey), info.credential.counter, JSON.stringify(info.credential.transports ?? []), now, await currentSessionHash(c), ownerId, now),
       session.insertIfPasskey(info.credential.id)
     ]);
-    if (changed(saved) !== 1) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+    if (changed(saved) === 0) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
     sessionToken = session.token;
   }
 
@@ -668,14 +675,21 @@ authRoutes.post("/register/verify", async (c) => {
 authRoutes.post("/device-link", async (c) => {
   const owner = await ownerForSession(c);
   if (!owner) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
+  const key = await attemptKey(c);
+  await checkAttempts(c, key, "challenge");
   const token = randomToken(32);
   const now = Date.now();
   const expiresAt = now + DEVICE_LINK_TTL_MS;
-  await c.env.DB.batch([
+  // Written only while the session that asked still exists: a recovery that signed everyone out
+  // a moment after the check above must not hand the old session a fresh way back in.
+  const [, made] = await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM device_links WHERE expires_at < ?").bind(now),
-    c.env.DB.prepare("INSERT INTO device_links (token_hash, owner_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
-      .bind(await sha256Hex(token), owner.id, expiresAt, now)
+    c.env.DB.prepare(
+      "INSERT INTO device_links (token_hash, owner_id, expires_at, created_at) SELECT ?, owner_id, ?, ? FROM sessions WHERE token_hash = ? AND owner_id = ? AND expires_at > ?"
+    ).bind(await sha256Hex(token), expiresAt, now, await currentSessionHash(c), owner.id, now)
   ]);
+  await recordAttempt(c.env.DB, key, "challenge");
+  if (changed(made) === 0) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   const url = `${new URL(c.req.url).origin}/#add-device=${token}`;
   return c.json({ ok: true, url, qrSvg: renderSVG(url, { ecc: "M", border: 2 }), expiresAt: new Date(expiresAt).toISOString() });
 });
@@ -691,19 +705,27 @@ authRoutes.post("/recovery-code", async (c) => {
   const key = await attemptKey(c);
   await checkAttempts(c, key, "challenge");
   const recoveryCode = newRecoveryCode();
-  // The code being replaced is spent, so a recovery someone began with it fails at its verify.
-  const replace = c.env.DB.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), owner.id);
+  const now = Date.now();
+  const sessionHash = await currentSessionHash(c);
+  // Both statements run only while the session that asked still exists, so a rotation whose check
+  // passed just before a recovery cannot replace the recovered owner's new code afterwards. The
+  // code being replaced is spent, so a recovery someone began with it fails at its verify.
+  const signedIn = "EXISTS (SELECT 1 FROM sessions WHERE token_hash = ? AND owner_id = ? AND expires_at > ?)";
+  const replace = c.env.DB.prepare(`UPDATE owners SET recovery_hash = ? WHERE id = ? AND ${signedIn}`)
+    .bind(await recoveryHash(recoveryCode), owner.id, sessionHash, owner.id, now);
+  let replaced: D1Result | undefined;
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare("INSERT OR IGNORE INTO spent_codes (code_hash, used_at) SELECT recovery_hash, ? FROM owners WHERE id = ? AND recovery_hash IS NOT NULL")
-        .bind(Date.now(), owner.id),
+    [, replaced] = await c.env.DB.batch([
+      c.env.DB.prepare(`INSERT OR IGNORE INTO spent_codes (code_hash, used_at) SELECT recovery_hash, ? FROM owners WHERE id = ? AND recovery_hash IS NOT NULL AND ${signedIn}`)
+        .bind(now, owner.id, sessionHash, owner.id, now),
       replace
     ]);
   } catch (error) {
     if (!String(error).includes("no such table")) throw error;
-    await replace.run();
+    replaced = await replace.run();
   }
   await recordAttempt(c.env.DB, key, "challenge");
+  if (changed(replaced) === 0) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   return c.json({ ok: true, recoveryCode });
 });
 
@@ -742,9 +764,11 @@ authRoutes.post("/integration-tokens", async (c) => {
   const secret = `mn_${randomToken(32)}`;
   const id = `int_${randomToken(12)}`;
   const now = Date.now();
-  await c.env.DB.prepare(
-    "INSERT INTO integration_tokens (id, owner_id, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?)"
-  ).bind(id, owner.id, body.label, await sha256Hex(secret), now).run();
+  // Created only while the asking session still exists (see /device-link).
+  const made = await c.env.DB.prepare(
+    "INSERT INTO integration_tokens (id, owner_id, label, token_hash, created_at) SELECT ?, owner_id, ?, ?, ? FROM sessions WHERE token_hash = ? AND owner_id = ? AND expires_at > ?"
+  ).bind(id, body.label, await sha256Hex(secret), now, await currentSessionHash(c), owner.id, now).run();
+  if (changed(made) === 0) fail(401, "sign_in_required", "Sign in with your passkey to continue.");
   return c.json({ ok: true, id, label: body.label, token: secret, createdAt: new Date(now).toISOString() }, 201);
 });
 
@@ -817,7 +841,7 @@ authRoutes.post("/login/verify", async (c) => {
       .bind(verification.authenticationInfo.newCounter, Date.now(), credential.id),
     session.insertIfPasskey(credential.id)
   ]);
-  if (changed(signedIn) !== 1) fail(400, "unknown_passkey", "This passkey isn't registered here.");
+  if (changed(signedIn) === 0) fail(400, "unknown_passkey", "This passkey isn't registered here.");
   setSessionCookie(c, session.token);
   return c.json({ ok: true });
 });

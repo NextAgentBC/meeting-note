@@ -109,7 +109,9 @@ A recovery cannot be undone by one someone began earlier: every replacement of t
 spends every grant, and the new session is written in the recovery's own batch. Sign-in, adding a
 device and device links write their credential or session only while what authorised them still
 exists (`INSERT … SELECT … WHERE EXISTS`), so one whose check passed a moment before a recovery
-cannot land after it.
+cannot land after it. The same goes for a device link, a new recovery code and an app token
+requested by a session a recovery is about to end: each is written only while that session still
+exists. Taking a copy back through the installer also retires the calendar feed address.
 
 ⚠️ Copies installed **before** `UPDATE_CHANNEL` existed do not know where to ask, so they never show
 the banner. Their owners have to open the installer once; after that first update they self-announce.
@@ -159,7 +161,7 @@ tokens (`--ink`, `--ink-2`, `--ink-3`, `--brand-fg`, `--danger`…), never hex.
 
 ```sh
 npm run dev                 # http://localhost:8787, fully local (no Workers AI)
-npm test                    # 259 tests
+npm test                    # 343 tests
 npm run typecheck
 npm run test:themes         # 84 contrast checks
 
@@ -167,6 +169,12 @@ npm run deploy:installer                      # build the release, then deploy t
 node scripts/deploy-installer.mjs --dry-run   # same, without deploying
 npx wrangler deploy --config wrangler.production.jsonc   # the author's own copy
 ```
+
+**Before publishing a release that touches sign-in:** the passkey routes decide on D1's
+`meta.changes` (a write that finds its session, link or passkey gone changes no rows). On one deployed
+copy, sign in, add a device from a signed-in one, and open a device link on another device. Local
+workerd D1 reports the expected counts (checked 2026-09-28 against Miniflare 5.20260911), but the unit
+tests run on node:sqlite.
 
 **Values that never enter the repo:**
 

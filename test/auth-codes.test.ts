@@ -44,6 +44,21 @@ const ORIGIN = "https://notes.example.test";
 const CLAIM_CODE = "ABCD-EFGH-JKLM-NPQR";
 const RECOVERY_LINK_CODE = "WXYZ-2345-6789-ABCD";
 
+// A test can hold the next statement (or batch) whose SQL matches, before or after it runs, to put
+// another request's whole flow in that gap — the moment a race needs.
+type Hold = { match: RegExp; when: "before" | "after"; wait: Promise<void> };
+const holds: Hold[] = [];
+function holdNext(match: RegExp, when: Hold["when"] = "before"): () => void {
+  let open!: () => void;
+  holds.push({ match, when, wait: new Promise<void>((resolve) => { open = resolve; }) });
+  return open;
+}
+function takeHold(sqls: string[]): Hold | undefined {
+  const index = holds.findIndex((hold) => sqls.some((sql) => hold.match.test(sql)));
+  return index >= 0 ? holds.splice(index, 1)[0] : undefined;
+}
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 /** The D1 binding over node:sqlite, with bound values in batches and a batch as one transaction. */
 function d1(db: DatabaseSync): D1Database {
   const clean = (values: unknown[]) => values.map((value) => (value === undefined ? null : value)) as never[];
@@ -51,13 +66,30 @@ function d1(db: DatabaseSync): D1Database {
     sql,
     values,
     bind: (...bound: unknown[]) => statement(sql, bound),
-    run: async () => ({ success: true, meta: db.prepare(sql).run(...clean(values)) }),
+    run: async () => {
+      const hold = takeHold([sql]);
+      if (hold?.when === "before") await hold.wait;
+      const result = { success: true, meta: db.prepare(sql).run(...clean(values)) };
+      if (hold?.when === "after") await hold.wait;
+      return result;
+    },
     all: async () => ({ results: db.prepare(sql).all(...clean(values)) }),
     first: async () => db.prepare(sql).get(...clean(values)) ?? null
   });
   return {
     prepare: (sql: string) => statement(sql),
     batch: async (statements: Array<{ sql: string; values: unknown[] }>) => {
+      const hold = takeHold(statements.map((item) => item.sql));
+      if (hold?.when === "before") await hold.wait;
+      try {
+        return runBatch(statements);
+      } finally {
+        if (hold?.when === "after") await hold.wait;
+      }
+    }
+  } as unknown as D1Database;
+
+  function runBatch(statements: Array<{ sql: string; values: unknown[] }>) {
       db.exec("BEGIN");
       try {
         const results = statements.map((item) => db.prepare(item.sql).run(...clean(item.values)));
@@ -67,8 +99,7 @@ function d1(db: DatabaseSync): D1Database {
         db.exec("ROLLBACK");
         throw error;
       }
-    }
-  } as unknown as D1Database;
+  }
 }
 
 function migratedDb(upTo = Infinity): DatabaseSync {
@@ -373,6 +404,91 @@ describe("a squatter who claimed first", () => {
 
     expect((await waiting).status).toBe(400);
     expect(await sessionHashes()).toEqual([await hashOfCookie(sessionCookie(owner))]);
+  });
+
+  describe("cannot open a new way in with a request that passed its check just before the recovery", () => {
+    it("a device link", async () => {
+      const squatter = await squatterAndOwnerLink();
+      const release = holdNext(/INSERT INTO device_links/);
+      const late = post("/device-link", {}, squatter.cookie, "198.51.100.9");
+      await tick();
+      expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+      release();
+      expect((await late).status).toBe(401);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM device_links").get()).toEqual({ n: 0 });
+    });
+
+    it("a new recovery code", async () => {
+      const squatter = await squatterAndOwnerLink();
+      const release = holdNext(/UPDATE owners SET recovery_hash/);
+      const late = post("/recovery-code", {}, squatter.cookie, "198.51.100.9");
+      await tick();
+      const owner = await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE });
+      expect(owner.status).toBe(200);
+      release();
+      const rotated = await late;
+      expect(rotated.status).toBe(401);
+      expect(await rotated.json()).not.toHaveProperty("recoveryCode");
+      // The recovered owner's code is still the one that works.
+      expect((await registerOptions({ purpose: "owner-recover", code: owner.data.recoveryCode })).status).toBe(200);
+    });
+
+    it("a second passkey", async () => {
+      const squatter = await squatterAndOwnerLink();
+      const options = await post("/register/options", { purpose: "add-device" }, squatter.cookie, "198.51.100.9");
+      const challengeId = (await options.json() as any).challengeId;
+      const release = holdNext(/INSERT INTO credentials[\s\S]*WHERE EXISTS/);
+      const late = post("/register/verify", { challengeId, response: { id: "stubbed" } }, squatter.cookie, "198.51.100.9");
+      await tick();
+      expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+      release();
+      expect((await late).status).toBe(401);
+      expect(credentialIds()).toHaveLength(1);
+    });
+
+    it("an app token, where connected apps are on", async () => {
+      env.NEXTNOTE = "on";
+      const squatter = await squatterAndOwnerLink();
+      const release = holdNext(/INSERT INTO integration_tokens/);
+      const late = post("/integration-tokens", { label: "NextNote" }, squatter.cookie, "198.51.100.9");
+      await tick();
+      expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+      release();
+      expect((await late).status).toBe(401);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM integration_tokens").get()).toEqual({ n: 0 });
+    });
+  });
+
+  it("keeps no session from its own recovery once the owner's lands after it", async () => {
+    const squatter = await squatterAndOwnerLink();
+    const theirs = await registerOptions({ purpose: "owner-recover", code: squatter.recoveryCode }, "198.51.100.9");
+    // Their recovery commits, then waits before answering; the owner's runs in that gap.
+    const release = holdNext(/DELETE FROM credentials WHERE owner_id/, "after");
+    const late = post("/register/verify", { challengeId: theirs.data.challengeId, response: { id: "stubbed" } }, "", "198.51.100.9");
+    await tick();
+    const owner = await post("/register/verify", {
+      challengeId: (await registerOptions({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).data.challengeId,
+      response: { id: "stubbed" }
+    });
+    expect(owner.status).toBe(200);
+    release();
+    await late;
+    expect(credentialIds()).toHaveLength(1);
+    expect(await sessionHashes()).toEqual([await hashOfCookie(sessionCookie(owner))]);
+  });
+
+  it("loses the calendar address it made when the owner takes the copy back", async () => {
+    await squatterAndOwnerLink();
+    db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('calendar_feed_token', 'squatter-feed-token-xxxxxxxx', '2026-09-28')").run();
+    expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key = 'calendar_feed_token'").get()).toEqual({ n: 0 });
+  });
+
+  it("leaves the calendar address alone when the owner recovers with their own recovery code", async () => {
+    const claimed = await register({ purpose: "setup", setupCode: CLAIM_CODE, name: "Owner" });
+    db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('calendar_feed_token', 'owner-feed-token-xxxxxxxxxx', '2026-09-28')").run();
+    expect((await register({ purpose: "owner-recover", code: claimed.data.recoveryCode })).status).toBe(200);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key = 'calendar_feed_token'").get()).toEqual({ n: 1 });
   });
 
   it("loses the app tokens it made when the owner takes the copy back", async () => {

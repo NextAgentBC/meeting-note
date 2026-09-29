@@ -22,7 +22,6 @@ private copy of Meeting Note.
   and converted to WebP before they leave the device. Optional photo understanding can read visible
   text, write a caption and suggest a category.
 - **Only you can sign in**, with a passkey: Face ID, a fingerprint or your screen lock. No password.
-- **Connect NextNote** with a revocable app token so recordings can be processed here and saved back into your local Markdown vault.
 - **Audio deletes itself after seven days.**
 
 ## What it costs
@@ -48,6 +47,13 @@ To offer it, set the Worker variable `HD_MODEL` to `@cf/deepgram/nova-3`; even t
 meeting when you ask for it.
 
 ## Put it online
+
+**The easy way:** open the installer at [install.meeting.nextagent.ca](https://install.meeting.nextagent.ca),
+sign in with Cloudflare and press **Install**. It puts a private copy into your own Cloudflare account
+and gives you a claim link that works once; it hands its access to your account back the moment it is
+done. The installer's code is in [`installer/`](installer/).
+
+**Or deploy it yourself:**
 
 1. Make two free accounts, if you don't have them: [Cloudflare](https://dash.cloudflare.com/sign-up) and [GitHub](https://github.com/signup).
 2. Press **Deploy to Cloudflare** above and keep the suggested settings. It takes a few minutes.
@@ -91,10 +97,17 @@ app's audio, so record calls from a computer.
 - **You lost every device:** on the sign-in screen, choose **Lost every device? Use your recovery code**.
   It puts a new passkey on the device you're holding, signs you out everywhere else, and shows a new
   recovery code; the old one stops working.
-- **It asks you to sign in the very first time you open it:** someone set it up before you did. In the
-  Cloudflare dashboard, open the `meeting-note` Worker → **Settings** → **Variables and Secrets** and add a
-  secret named `SETUP_CODE` with any code. Then choose **Lost every device? Use your recovery code** and
-  type that code: their passkeys and sessions are removed and the app is yours.
+- **You lost every device and the recovery code too, and the installer made your copy:** open the
+  installer, sign in with the Cloudflare account your copy lives in, and press **Make a recovery link**
+  next to it. The link works once: it puts a new passkey on the device that opens it and signs out every
+  other one. (An older copy asks you to press **Update to latest** first.) The same
+  link takes back a copy that somebody else claimed before you did.
+- **You deployed it yourself and lost every device and the recovery code, or it asks you to sign in the
+  very first time you open it** (someone set it up before you did): in the Cloudflare dashboard, open the
+  `meeting-note` Worker → **Settings** → **Variables and Secrets** and add a secret named `SETUP_CODE`
+  with a code you have never used there before. Then choose **Lost every device? Use your recovery code**
+  and type that code: every other passkey and session is removed and the app is yours. The code works
+  once.
 - **Today's AI allowance is used up:** transcription pauses until 00:00 UTC. Open the meeting afterwards
   and press **Retry**.
 - **A plan landed on the wrong day:** press **Edit** before adding it. Dates like 明天, 下周二 or "by Friday"
@@ -123,7 +136,9 @@ regional words are left as the speaker said them. Set `CHINESE_SCRIPT` to `off` 
 10 ms of CPU per request. The database stores only hashes of session tokens and of the recovery code.
 Requests that change data must come from the app's own address. Nothing is asked at deploy time: a fresh
 copy belongs to whoever sets it up first, so open yours right after deploying. To require a code at setup
-instead, add a `SETUP_CODE` secret to the Worker.
+instead, add a `SETUP_CODE` secret to the Worker. A setup code opens the copy once, for a claim or a
+recovery: a claim link that ends up in a chat cannot open the app again. Sign-in is also limited per
+network address, to 30 passkey prompts and 10 wrong codes in 15 minutes.
 
 ## Plans and your calendar
 
@@ -164,7 +179,14 @@ the question, it says so rather than guessing.
 - The calendar address is the only way in that doesn't need your passkey, and it can only read plans you
   have added.
 - AI notes are drafts. Check names, numbers and decisions against the transcript.
-- NextNote app tokens are stored only as SHA-256 hashes, can be revoked from **Me → Connected apps**, and never replace your passkey.
+- **The update check.** A copy the installer made asks it, at most once every six hours, whether there is
+  a newer release (`GET <installer>/api/release`). Your browser sends that like any request to a website,
+  so whoever runs the installer can see your copy's address and your IP address; nothing from your
+  meetings goes with it. To stop it, delete the Worker's `UPDATE_CHANNEL` variable. A copy deployed with
+  the button above has no such variable and asks nobody.
+- Connected apps (NextNote) are off in every copy unless its `NEXTNOTE` variable turns them on. Their
+  tokens are stored only as SHA-256 hashes, can be revoked from **Me → Connected apps**, and never
+  replace your passkey.
 
 ## Settings
 

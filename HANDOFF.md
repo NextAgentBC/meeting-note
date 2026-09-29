@@ -69,7 +69,8 @@ test/                 259 vitest tests               e2e/   sign-in flows in a r
    one first means a refusal costs nothing to roll back. A taken name answers 10031 → try another.
 2. D1, KV, queue, migrations, the Worker (one self-contained module with the static files embedded),
    the queue consumer, then the public address.
-3. A one-time `SETUP_CODE` secret travels to the owner in the URL fragment (`#claim=…`).
+3. A one-time `SETUP_CODE` secret travels to the owner in the URL fragment (`#claim=…`). The claim
+   spends it (`setup_code_uses`, migration 0014), so the link in a chat opens nothing afterwards.
 4. The OAuth token is revoked immediately and the installer session deleted.
 5. Any failure rolls back what it made, and reaches the page as a code the page can say in Chinese.
 
@@ -92,7 +93,12 @@ test/                 259 vitest tests               e2e/   sign-in flows in a r
 
 **Recovery.** The installer's account screen lists the `meeting-note-*` Workers the account already
 holds, marks the ones behind the current release, and marks the ones nobody ever claimed —
-`POST /api/reclaim` writes a fresh `SETUP_CODE` and returns a one-time claim link.
+`POST /api/reclaim` writes a fresh `SETUP_CODE` and returns a one-time claim link. For a copy that
+has an owner it returns a one-time **recovery** link instead (`#recover=…`): it first writes the new
+code's SHA-256 into the copy's `setup_code_grants` through the D1 API, then sets the secret, because
+on an installer-made copy (`UPDATE_CHANNEL` set) a setup code recovers nothing without a grant. A
+copy too old to report `recoveryGrants` from `/api/auth/me` is refused with `update_first`. Reclaim
+revokes the OAuth token when it is done; an update keeps the session, since it often comes first.
 
 ⚠️ Copies installed **before** `UPDATE_CHANNEL` existed do not know where to ask, so they never show
 the banner. Their owners have to open the installer once; after that first update they self-announce.

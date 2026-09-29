@@ -290,6 +290,30 @@ function installRow(app, accountId) {
       })));
     }));
     actions.append(reclaim);
+  } else {
+    // For an owner who lost every device and the recovery code: a link that works once.
+    const recover = document.createElement("button");
+    recover.type = "button";
+    recover.className = "ghost-button";
+    recover.textContent = pick({ zh: "生成恢复链接", en: "Make a recovery link", fr: "Créer un lien pour restaurer l'accès" });
+    recover.addEventListener("click", () => void act(recover, "/api/reclaim", { accountId, workerName: app.name }, (data) => {
+      if (data.mode !== "recover") return;
+      const link = document.createElement("a");
+      link.className = "claim-link";
+      link.href = `${data.url}#recover=${encodeURIComponent(data.setupCode)}`;
+      link.textContent = pick({ zh: "用这个链接恢复访问", en: "Recover access with this link", fr: "Restaurer l'accès avec ce lien" });
+      row.append(link);
+      row.append(note(pick({
+        zh: "这个链接只能用一次：打开它的设备会得到新的通行密钥，其他设备全部退出，并生成新的恢复码。不要把它发给别人。",
+        en: "This link works once: the device that opens it gets a new passkey, every other device is signed out, and you get a new recovery code. Don't send it to anyone.",
+        fr: "Ce lien ne fonctionne qu'une fois : l'appareil qui l'ouvre reçoit une nouvelle clé d'accès, tous les autres sont déconnectés et vous recevez un nouveau code de récupération. Ne l'envoyez à personne."
+      })));
+    }, (code) => code === "update_first" ? pick({
+      zh: "这个应用的版本太旧，还不能生成一次性恢复链接。先点「更新到最新版」，再生成恢复链接。",
+      en: "This app is too old for a one-time recovery link. Update it to the latest version first, then make the link.",
+      fr: "Cette application est trop ancienne pour un lien à usage unique. Mettez-la d'abord à jour, puis créez le lien."
+    }) : ""));
+    actions.append(recover);
   }
   if (actions.children.length) row.append(actions);
   return row;
@@ -302,11 +326,14 @@ function note(text) {
   return line;
 }
 
-// One place for the two buttons above: both talk to the installer and both can fail.
-async function act(button, path, body, done) {
+// One place for the buttons above: all of them talk to the installer and all of them can fail.
+// `explain` turns an error code into a line shown next to the button; anything it leaves empty
+// goes to the full problem screen, as before.
+async function act(button, path, body, done, explain = () => "") {
   const label = button.textContent;
   button.disabled = true;
   button.textContent = pick({ zh: "请稍候…", en: "Working…", fr: "Veuillez patienter…" });
+  let data = {};
   try {
     const response = await fetch(path, {
       method: "POST",
@@ -314,14 +341,16 @@ async function act(button, path, body, done) {
       credentials: "same-origin",
       body: JSON.stringify(body)
     });
-    const data = await response.json().catch(() => ({}));
+    data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "That did not work");
     button.remove();
     done(data);
   } catch (error) {
     button.disabled = false;
     button.textContent = label;
-    fail("unknown", error.message);
+    const line = explain(data.code || "");
+    if (line) button.closest(".existing-app")?.append(note(line));
+    else fail("unknown", error.message);
   }
 }
 

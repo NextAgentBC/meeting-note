@@ -5,6 +5,9 @@
 //   cd e2e && npm install && npx playwright install chromium
 //   npm test                                           (in e2e/, another terminal)
 //
+// The fresh database matters twice: the first visitor claims the copy, and sign-in is limited to 30
+// passkey prompts per address in 15 minutes, which two runs back to back against one database reach.
+//
 // Environment: BASE (default http://localhost:8787); SETUP_CODE, only if the deployment has that
 // secret; PW_CHANNEL=chrome to use the installed Google Chrome; SHOTS=<folder> to save screenshots;
 // AUDIO_FILE=<speech.mp3> to send real speech through a deployed copy (Workers AI isn't local).

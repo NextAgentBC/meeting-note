@@ -81,6 +81,7 @@
                 <input id="recoverCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
                 <small>The code you saved when you set up Meeting Note. It puts a new passkey on this device, signs you out everywhere else, and gives you a new code.</small>
               </label>
+              <p id="lostRecoveryCode" class="auth-hint hidden">Lost the recovery code too? <a id="lostRecoveryCodeLink" href="#" target="_blank" rel="noopener noreferrer">Open the installer</a>, sign in with the Cloudflare account this copy lives in, and choose "Make a recovery link".</p>
               <button class="primary-button" type="submit"><span>Replace my passkey</span><b>→</b></button>
               <button id="hideRecover" class="auth-link" type="button">← Back to sign in</button>
             </form>

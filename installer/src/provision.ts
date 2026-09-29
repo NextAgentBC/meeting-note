@@ -17,6 +17,7 @@ export type InstallErrorCode =
   | "queue"
   | "worker"
   | "address"
+  | "update_first"
   | "unknown";
 
 export class InstallError extends Error {
@@ -405,21 +406,55 @@ export async function upgradeInstall(input: UpgradeInput): Promise<{ version: st
   return { version: input.version };
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export type ReclaimResult = { setupCode: string; mode: "claim" | "recover" };
+
 /**
- * A copy that was installed but never claimed — the claim link was lost, or it was opened in a
- * browser that cannot make a passkey — is otherwise a dead end, because claiming needs the setup
- * code the installer showed once. The Cloudflare account owner can replace that code here.
+ * The two ways back into a copy, both for the Cloudflare account owner who has just signed in here.
+ *
+ * - Nobody has claimed it (the claim link was lost, or opened in a browser that cannot make a
+ *   passkey): a new claim code replaces the old one.
+ * - It has an owner who lost every device and the recovery code as well: a one-time recovery code.
+ *   The copy's database records the code as granted before the code is set, and the copy spends it
+ *   on first use, so this link cannot sit in a chat and open the app again later. A copy too old to
+ *   know about grants is refused, because there the code would keep working for ever.
  */
-export async function reclaimInstall(input: { accountId: string; accessToken: string; workerName: string; url: string }): Promise<{ setupCode: string }> {
+export async function reclaimInstall(input: { accountId: string; accessToken: string; workerName: string; url: string }): Promise<ReclaimResult> {
   if (!INSTALL_NAME.test(input.workerName)) throw new InstallError("worker", "That is not a Meeting Note installation");
-  const claimed = await ask(`${input.url}/api/auth/me`);
-  // Never touch a copy that already has an owner: a new code could not take it over anyway.
-  if (claimed?.hasOwner) throw new InstallError("worker", "This app already has an owner");
-  const code = setupCode();
+  const me = await ask(`${input.url}/api/auth/me`);
   const account = encodeURIComponent(input.accountId);
-  await step("worker", () => cf(input.accessToken, `/accounts/${account}/workers/scripts/${encodeURIComponent(input.workerName)}/secrets`, {
+  const script = `/accounts/${account}/workers/scripts/${encodeURIComponent(input.workerName)}`;
+  const code = setupCode();
+  let mode: ReclaimResult["mode"] = "claim";
+
+  if (me?.hasOwner) {
+    if (me.recoveryGrants !== true) {
+      throw new InstallError("update_first", "This copy is too old for a one-time recovery link. Update it, then try again");
+    }
+    const settings = await step("worker", () => cf<{ bindings?: Array<Record<string, unknown>> }>(input.accessToken, `${script}/settings`));
+    const database = (settings?.bindings || []).find((binding) => binding.type === "d1" && binding.name === "DB");
+    const databaseId = String(database?.id ?? database?.database_id ?? "");
+    if (!databaseId) throw new InstallError("database", "This Worker has no database binding");
+    // Granted first: a code with no grant opens nothing, so a failure after this leaves no way in.
+    // Only the hash is written, the way the copy stores every code.
+    const codeHash = await sha256Hex(code);
+    await step("database", () => cf(input.accessToken, `/accounts/${account}/d1/database/${encodeURIComponent(databaseId)}/query`, {
+      method: "POST",
+      body: JSON.stringify({
+        sql: "INSERT INTO setup_code_grants (code_hash, granted_at) VALUES (?, ?)",
+        params: [codeHash, Date.now()]
+      })
+    }));
+    mode = "recover";
+  }
+
+  await step("worker", () => cf(input.accessToken, `${script}/secrets`, {
     method: "PUT",
     body: JSON.stringify({ name: "SETUP_CODE", text: code, type: "secret_text" })
   }));
-  return { setupCode: code };
+  return { setupCode: code, mode };
 }

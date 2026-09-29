@@ -20,8 +20,9 @@ import type { Env } from "./types";
 // well under a millisecond, so it fits the free plan's 10 ms of CPU per request.
 //
 // Nothing needs choosing at deploy time. The first person to open a fresh copy claims it,
-// straight after installing, and is shown a recovery code once. That code (or a SETUP_CODE
-// secret, for anyone who configures one) is the way back in after losing every device.
+// straight after installing, and is shown a recovery code once. That code is the way back in
+// after losing every device; a SETUP_CODE opens the copy once, for a claim or a recovery (see
+// "Setup codes open a copy once" below).
 
 type AppContext = Context<{ Bindings: Env }>;
 
@@ -253,6 +254,74 @@ interface PendingRegistration {
   name?: string;
   /** SHA-256 of the device link being used, for link-device. */
   linkHash?: string;
+  /** SHA-256 of the setup code this registration spends, for setup or owner-recover. */
+  setupCodeHash?: string;
+}
+
+// ── Setup codes open a copy once ─────────────────────────────────────────────
+// A code is spent by the claim or recovery it opens. The installer shows a new copy's SETUP_CODE as
+// a claim link, and links end up in chats, so on a copy it made a code recovers nothing unless the
+// installer granted it: a grant row it writes for the Cloudflare account owner who just signed in
+// there. A copy deployed by hand has no installer, and its owner types a code they set themselves.
+
+/** Copies made by the installer know where it is; nothing else sets UPDATE_CHANNEL. */
+function installerMade(env: Env): boolean {
+  return Boolean(env.UPDATE_CHANNEL?.trim());
+}
+
+async function setupCodeUsed(db: D1Database, codeHash: string): Promise<boolean> {
+  return Boolean(await db.prepare("SELECT 1 FROM setup_code_uses WHERE code_hash = ?").bind(codeHash).first());
+}
+
+async function setupCodeGranted(db: D1Database, codeHash: string): Promise<boolean> {
+  return Boolean(await db.prepare("SELECT 1 FROM setup_code_grants WHERE code_hash = ?").bind(codeHash).first());
+}
+
+/** Part of the batch that finishes the claim or recovery: a second use of the code fails on the key. */
+function spendSetupCode(db: D1Database, codeHash: string) {
+  return db.prepare("INSERT INTO setup_code_uses (code_hash, used_at) VALUES (?, ?)").bind(codeHash, Date.now());
+}
+
+// ── Attempt limits ───────────────────────────────────────────────────────────
+// The sign-in routes answer anyone. Counted per address, a flood cannot spend the free plan's
+// database writes on challenges, and nobody gets more than a few guesses at a code. A refused
+// request writes nothing.
+
+const ATTEMPT_WINDOW_MS = 15 * 60_000;
+const ATTEMPT_LIMITS = { challenge: 30, code: 10 } as const;
+type AttemptKind = keyof typeof ATTEMPT_LIMITS;
+
+async function attemptKey(c: AppContext): Promise<string> {
+  const address = c.req.header("cf-connecting-ip") || "local";
+  return sha256Hex(`attempt:${address}`);
+}
+
+// Both fail open: a copy whose schema update has not landed yet must still let its owner sign in.
+async function checkAttempts(c: AppContext, key: string, kind: AttemptKind): Promise<void> {
+  let count = 0;
+  try {
+    const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM auth_attempts WHERE ip_hash = ? AND kind = ? AND at > ?")
+      .bind(key, kind, Date.now() - ATTEMPT_WINDOW_MS)
+      .first<{ n: number }>();
+    count = row?.n ?? 0;
+  } catch (error) {
+    console.error("Sign-in attempts could not be counted", error);
+  }
+  if (count >= ATTEMPT_LIMITS[kind]) {
+    fail(429, "too_many_attempts", "Too many attempts from this network. Wait a few minutes and try again.");
+  }
+}
+
+async function recordAttempt(db: D1Database, key: string, kind: AttemptKind): Promise<void> {
+  const now = Date.now();
+  try {
+    await db.batch([
+      db.prepare("DELETE FROM auth_attempts WHERE at < ?").bind(now - 60 * 60_000),
+      db.prepare("INSERT INTO auth_attempts (ip_hash, kind, at) VALUES (?, ?, ?)").bind(key, kind, now)
+    ]);
+  } catch (error) {
+    console.error("Sign-in attempt could not be recorded", error);
+  }
 }
 
 async function credentialsToExclude(db: D1Database, ownerId: string) {
@@ -278,6 +347,9 @@ authRoutes.get("/me", async (c) => {
     name: owner?.name ?? null,
     hasOwner: Boolean(await currentOwner(c.env.DB)),
     setupCodeRequired: Boolean(c.env.SETUP_CODE?.trim()),
+    // Tells the installer this copy spends setup codes and honours recovery grants, so a fresh
+    // code it hands out can open the app once and never again.
+    recoveryGrants: true,
     // Where a lost setup code can be replaced: the installer that provisioned this copy.
     installer: (c.env.UPDATE_CHANNEL || "").trim(),
     // The Connected apps row stays out of the Me tab everywhere this is off.
@@ -288,26 +360,50 @@ authRoutes.get("/me", async (c) => {
 authRoutes.post("/register/options", async (c) => {
   const body = await readBody(c, registerBody);
   const db = c.env.DB;
+  const key = await attemptKey(c);
+  await checkAttempts(c, key, "challenge");
   let pending: PendingRegistration;
   let exclude: { id: string; transports: AuthenticatorTransport[] }[] = [];
 
   if (body.purpose === "setup") {
     if (await currentOwner(db)) fail(409, "already_set_up", "This Meeting Note already has an owner.");
     const setupCode = c.env.SETUP_CODE?.trim();
-    if (setupCode && !(await secretsMatch(body.setupCode.trim(), setupCode))) {
-      fail(403, "wrong_setup_code", "That setup code doesn't match.");
+    let setupCodeHash: string | undefined;
+    if (setupCode) {
+      await checkAttempts(c, key, "code");
+      if (!(await secretsMatch(body.setupCode.trim(), setupCode))) {
+        await recordAttempt(db, key, "code");
+        fail(403, "wrong_setup_code", "That setup code doesn't match.");
+      }
+      setupCodeHash = await sha256Hex(setupCode);
+      if (await setupCodeUsed(db, setupCodeHash)) fail(403, "setup_code_used", "This setup code has already been used.");
     }
-    pending = { purpose: "setup", name: body.name, webauthnUserId: randomToken() };
+    pending = { purpose: "setup", name: body.name, webauthnUserId: randomToken(), setupCodeHash };
   } else if (body.purpose === "owner-recover") {
-    // The way back in after losing every device: the recovery code shown at setup, or the
-    // SETUP_CODE secret if this deployment has one.
+    // The way back in after losing every device: the recovery code shown at setup, or an unused
+    // SETUP_CODE — on an installer's copy, only one the installer granted, never the claim code.
     const owner = await currentOwner(db);
     if (!owner) fail(409, "not_set_up", "Nobody has set this app up yet.");
+    await checkAttempts(c, key, "code");
     const setupCode = c.env.SETUP_CODE?.trim();
     const byRecoveryCode = Boolean(owner.recovery_hash) && (await secretsMatch(await recoveryHash(body.code), owner.recovery_hash!));
-    const bySetupCode = Boolean(setupCode) && (await secretsMatch(body.code, setupCode!));
-    if (!byRecoveryCode && !bySetupCode) fail(403, "wrong_recovery_code", "That recovery code doesn't match.");
-    pending = { purpose: "owner-recover", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id };
+    const bySetupCode = !byRecoveryCode && Boolean(setupCode) && (await secretsMatch(body.code, setupCode!));
+    if (!byRecoveryCode && !bySetupCode) {
+      await recordAttempt(db, key, "code");
+      fail(403, "wrong_recovery_code", "That recovery code doesn't match.");
+    }
+    const setupCodeHash = bySetupCode ? await sha256Hex(setupCode!) : undefined;
+    if (setupCodeHash && (await setupCodeUsed(db, setupCodeHash))) {
+      await recordAttempt(db, key, "code");
+      fail(403, "setup_code_used", installerMade(c.env)
+        ? "That code has already been used. Make a one-time recovery link in the installer."
+        : "That code has already been used. Set a new SETUP_CODE secret and try again.");
+    }
+    if (setupCodeHash && installerMade(c.env) && !(await setupCodeGranted(db, setupCodeHash))) {
+      await recordAttempt(db, key, "code");
+      fail(403, "setup_code_used", "That code can't recover this app. Make a one-time recovery link in the installer.");
+    }
+    pending = { purpose: "owner-recover", ownerId: owner.id, name: owner.name, webauthnUserId: owner.webauthn_user_id, setupCodeHash };
   } else if (body.purpose === "link-device") {
     // A new phone or computer, invited by a link from a device that is signed in. The link is
     // checked here and used up when the passkey is saved, so cancelling Face ID doesn't waste it.
@@ -337,6 +433,7 @@ authRoutes.post("/register/options", async (c) => {
     authenticatorSelection: { residentKey: "required", userVerification: "preferred" }
   });
   const challengeId = await storeChallenge(db, "register", options.challenge, pending);
+  await recordAttempt(db, key, "challenge");
   return c.json({ ok: true, challengeId, options });
 });
 
@@ -377,7 +474,9 @@ authRoutes.post("/register/verify", async (c) => {
       await db.batch([
         db.prepare("INSERT INTO owners (id, name, webauthn_user_id, recovery_hash, created_at) VALUES (?, ?, ?, ?, ?)")
           .bind(ownerId, pending.name, pending.webauthnUserId, await recoveryHash(recoveryCode), now),
-        insertCredential(ownerId)
+        insertCredential(ownerId),
+        // The claim link is spent with the claim: it never works again, not even for recovery.
+        ...(pending.setupCodeHash ? [spendSetupCode(db, pending.setupCodeHash)] : [])
       ]);
     } catch (error) {
       if (String(error).includes("UNIQUE")) fail(409, "already_set_up", "Someone has just claimed this Meeting Note.");
@@ -387,14 +486,23 @@ authRoutes.post("/register/verify", async (c) => {
     ownerId = pending.ownerId!;
     recoveryCode = newRecoveryCode();
     // Recovery means the old passkeys are lost or can't be trusted: replace them, sign out
-    // everywhere, and retire the code that was just used.
-    await db.batch([
-      db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
-      db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
-      db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
-      db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
-      insertCredential(ownerId)
-    ]);
+    // everywhere, and retire the code that was just used. A one-time recovery code from the
+    // installer is spent first, so two attempts racing with it cannot both get in.
+    try {
+      await db.batch([
+        ...(pending.setupCodeHash ? [spendSetupCode(db, pending.setupCodeHash)] : []),
+        db.prepare("DELETE FROM credentials WHERE owner_id = ?").bind(ownerId),
+        db.prepare("DELETE FROM sessions WHERE owner_id = ?").bind(ownerId),
+        db.prepare("DELETE FROM device_links WHERE owner_id = ?").bind(ownerId),
+        db.prepare("UPDATE owners SET recovery_hash = ? WHERE id = ?").bind(await recoveryHash(recoveryCode), ownerId),
+        insertCredential(ownerId)
+      ]);
+    } catch (error) {
+      if (pending.setupCodeHash && String(error).includes("UNIQUE")) {
+        fail(409, "setup_code_used", "That recovery code has just been used.");
+      }
+      throw error;
+    }
   } else if (pending.purpose === "link-device") {
     // Used up now, whether or not anything below fails: a link works once.
     const link = await db.prepare("DELETE FROM device_links WHERE token_hash = ? AND expires_at > ? RETURNING owner_id")
@@ -500,12 +608,15 @@ authRoutes.delete("/integration-tokens/:id", async (c) => {
 });
 
 authRoutes.post("/login/options", async (c) => {
+  const key = await attemptKey(c);
+  await checkAttempts(c, key, "challenge");
   const options = await generateAuthenticationOptions({
     rpID: relyingParty(c).rpID,
     userVerification: "preferred",
     allowCredentials: [] // empty: the device offers whichever passkey it holds for this site
   });
   const challengeId = await storeChallenge(c.env.DB, "login", options.challenge, {});
+  await recordAttempt(c.env.DB, key, "challenge");
   return c.json({ ok: true, challengeId, options });
 });
 

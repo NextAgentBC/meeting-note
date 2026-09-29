@@ -1,3 +1,4 @@
+import { secureResponse } from "./headers";
 import appWorker from "./index";
 import { serveEmbeddedAsset } from "./standalone-assets.generated";
 import type { Env, JobMessage } from "./types";
@@ -8,7 +9,8 @@ export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
     const path = new URL(request.url).pathname;
     if (!path.startsWith("/api/") && !path.startsWith("/cal/")) {
-      return serveEmbeddedAsset(request);
+      // What public/_headers does for the template's static files; the app's own routes add it too.
+      return secureResponse(serveEmbeddedAsset(request));
     }
     return appWorker.fetch(request, env, ctx);
   },

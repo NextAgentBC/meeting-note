@@ -15,6 +15,7 @@ import { authRoutes, requireOwner, sameOriginWrites } from "./auth";
 import { archiveChunk, audioRetentionDays, audioRoutes, chunkAudio, runArchive } from "./audio";
 import { collapseLoops, correctTranscript, loadVocabulary, transcriptRoutes, whisperInput } from "./transcript";
 import { RELEASE_VERSION } from "./migrations.generated";
+import { secureResponse } from "./headers";
 import { ensureSchema } from "./schema";
 import { hdRoutes, runHd } from "./hd";
 import {
@@ -880,7 +881,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     // A copy updated in place brings a new database schema with it; this applies it, once.
     await ensureSchemaSafely(env);
-    return app.fetch(request, env, ctx);
+    return secureResponse(await app.fetch(request, env, ctx));
   },
   async queue(batch: MessageBatch<JobMessage>, env: Env) {
     await ensureSchemaSafely(env);

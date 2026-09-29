@@ -111,7 +111,9 @@ device and device links write their credential or session only while what author
 exists (`INSERT … SELECT … WHERE EXISTS`), so one whose check passed a moment before a recovery
 cannot land after it. The same goes for a device link, a new recovery code and an app token
 requested by a session a recovery is about to end: each is written only while that session still
-exists. Taking a copy back through the installer also retires the calendar feed address.
+exists. Taking a copy back through the installer also retires the calendar feed address, and a new
+one is written only while the session (or app token) that asked for it is still valid
+(`stillAuthorised` in `src/auth.ts`, for writes outside that file).
 
 ⚠️ Copies installed **before** `UPDATE_CHANNEL` existed do not know where to ask, so they never show
 the banner. Their owners have to open the installer once; after that first update they self-announce.
@@ -161,7 +163,7 @@ tokens (`--ink`, `--ink-2`, `--ink-3`, `--brand-fg`, `--danger`…), never hex.
 
 ```sh
 npm run dev                 # http://localhost:8787, fully local (no Workers AI)
-npm test                    # 343 tests
+npm test                    # 344 tests
 npm run typecheck
 npm run test:themes         # 84 contrast checks
 

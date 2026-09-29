@@ -35,7 +35,8 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   };
 });
 
-const { addressBucket, authRoutes, sha256Hex } = await import("../src/auth");
+const { addressBucket, authRoutes, requireOwner, sameOriginWrites, sha256Hex } = await import("../src/auth");
+const { assistantRoutes } = await import("../src/assistant");
 const { applyMigrations, retireClaimCode } = await import("../src/schema");
 const { MIGRATIONS } = await import("../src/migrations.generated");
 
@@ -113,6 +114,19 @@ function migratedDb(upTo = Infinity): DatabaseSync {
 let db: DatabaseSync;
 let env: Env;
 const app = new Hono<{ Bindings: Env }>().route("/api/auth", authRoutes);
+// The owner's routes behind the same checks as in src/index.ts, for the calendar address.
+const ownerApp = new Hono<{ Bindings: Env }>();
+ownerApp.use("/api/*", sameOriginWrites);
+ownerApp.use("/api/*", requireOwner);
+ownerApp.route("/api/auth", authRoutes);
+ownerApp.route("/api", assistantRoutes);
+
+function makeCalendarAddress(cookie: string) {
+  return ownerApp.request(`${ORIGIN}/api/calendar/feed`, {
+    method: "POST",
+    headers: { origin: ORIGIN, cookie, "cf-connecting-ip": "198.51.100.9" }
+  }, env);
+}
 
 async function call(path: string, body: unknown = {}, address = "203.0.113.7") {
   const response = await app.request(`${ORIGIN}/api/auth${path}`, {
@@ -481,6 +495,20 @@ describe("a squatter who claimed first", () => {
     await squatterAndOwnerLink();
     db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('calendar_feed_token', 'squatter-feed-token-xxxxxxxx', '2026-09-28')").run();
     expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key = 'calendar_feed_token'").get()).toEqual({ n: 0 });
+  });
+
+  it("cannot bring the calendar address back with a request checked just before the take-back", async () => {
+    const squatter = await squatterAndOwnerLink();
+    // Held by the owner's routes, as anyone signed in may make one.
+    expect((await makeCalendarAddress(squatter.cookie)).status).toBe(200);
+
+    const release = holdNext(/INSERT INTO settings/);
+    const late = makeCalendarAddress(squatter.cookie);
+    await tick();
+    expect((await register({ purpose: "owner-recover", code: RECOVERY_LINK_CODE })).status).toBe(200);
+    release();
+    expect((await late).status).toBe(401);
     expect(db.prepare("SELECT COUNT(*) AS n FROM settings WHERE key = 'calendar_feed_token'").get()).toEqual({ n: 0 });
   });
 

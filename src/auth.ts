@@ -192,6 +192,26 @@ export function nextNoteEnabled(env: { NEXTNOTE?: string }): boolean {
   return setting !== "" && setting !== "off" && setting !== "false" && setting !== "0";
 }
 
+/**
+ * An SQL condition that holds while whatever authorised this request — the session cookie, or a
+ * NextNote app token — is still valid. A route outside this file that writes something giving
+ * access (the calendar feed address) adds it to its write, so a request checked by requireOwner just
+ * before a recovery cannot land after it: the write then changes nothing, and the route says 401.
+ */
+export async function stillAuthorised(c: AppContext): Promise<{ sql: string; params: unknown[] }> {
+  const bearer = /^Bearer\s+(mn_[A-Za-z0-9_-]{20,})$/i.exec(c.req.header("authorization") ?? "");
+  if (bearer && nextNoteEnabled(c.env)) {
+    return {
+      sql: "EXISTS (SELECT 1 FROM integration_tokens WHERE token_hash = ? AND revoked_at IS NULL)",
+      params: [await sha256Hex(bearer[1])]
+    };
+  }
+  return {
+    sql: "EXISTS (SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at > ?)",
+    params: [await currentSessionHash(c), Date.now()]
+  };
+}
+
 async function ownerForIntegrationToken(c: AppContext): Promise<OwnerRow | null> {
   if (!nextNoteEnabled(c.env)) return null;
   const authorization = c.req.header("authorization") ?? "";

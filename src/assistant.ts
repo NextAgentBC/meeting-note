@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { Buffer } from "node:buffer";
 import { z } from "zod";
 import { isDailyLimitError, modelOptions, modelText, parseModelJson, recordUsage, runModel } from "./ai";
-import { sha256Hex } from "./auth";
+import { sha256Hex, stillAuthorised } from "./auth";
 import { buildEventIcs, buildFeedIcs, icsFilename, type CalendarTask } from "./calendar";
 import { deepSimplify, simplifyEnabled, toSimplified } from "./chinese";
 import { dictationItem, planItem, rememberSource, safely } from "./memory";
@@ -289,12 +289,23 @@ assistantRoutes.get("/calendar", async (c) => {
   return c.json({ ok: true, timezone: await ownerTimeZone(c.env, c.req.header("x-timezone")), feedUrl: token ? feedUrl(c, token) : null });
 });
 
-/** Creates the private feed address, or replaces it: the old address stops working. */
+/**
+ * Creates the private feed address, or replaces it: the old address stops working. Written only while
+ * the session (or app token) that asked is still valid, so a request checked just before a recovery
+ * through the installer, which retires the address, cannot bring one back after it.
+ */
 assistantRoutes.post("/calendar/feed", async (c) => {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   const token = Buffer.from(bytes).toString("base64url");
-  await setSetting(c.env.DB, FEED_TOKEN_KEY, token);
+  const guard = await stillAuthorised(c);
+  const written = await c.env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at) SELECT ?, ?, ? WHERE ${guard.sql}
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).bind(FEED_TOKEN_KEY, token, new Date().toISOString(), ...guard.params).run();
+  if (Number(written.meta?.changes ?? 0) === 0) {
+    return Response.json({ ok: false, error: "Sign in with your passkey to continue.", code: "sign_in_required" }, { status: 401 });
+  }
   return c.json({ ok: true, feedUrl: feedUrl(c, token) });
 });
 

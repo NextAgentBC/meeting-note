@@ -96,3 +96,29 @@ describe("the Worker's answers", () => {
     expect(answer.choices[0].message.content).toBe("好的。");
   });
 });
+
+describe("the day's usage", () => {
+  function kv() {
+    const store = new Map<string, string>();
+    return { store, get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => { store.set(k, v); } };
+  }
+  const ctx = { waitUntil: (p: Promise<unknown>) => { void p; } };
+
+  it("counts Whisper by audio length and reports it", async () => {
+    const usage = kv();
+    const value = { KEY, USAGE: usage, AI: { run: async () => ({ text: "好", transcription_info: { duration: 60 } }) } };
+    const response = await (worker.fetch as (r: Request, e: unknown, c: unknown) => Promise<Response>)(
+      post("/ai/run/@cf/openai/whisper-large-v3-turbo", { audio: "x" }), value, ctx);
+    expect(response.headers.get("x-voiceinput-neurons-today")).toBe("47");
+    expect(response.headers.get("x-voiceinput-neurons-free")).toBe("10000");
+  });
+
+  it("counts chat tokens, and says nothing without the namespace", async () => {
+    const usage = kv();
+    const run = async () => ({ choices: [{ message: { content: "好的" } }], usage: { prompt_tokens: 1_000_000, completion_tokens: 0 } });
+    const fetch = worker.fetch as (r: Request, e: unknown, c: unknown) => Promise<Response>;
+    const body = { model: "@cf/zai-org/glm-4.7-flash", messages: [{ role: "user", content: "嗯" }] };
+    expect((await fetch(post("/ai/v1/chat/completions", body), { KEY, USAGE: usage, AI: { run } }, ctx)).headers.get("x-voiceinput-neurons-today")).toBe("5500");
+    expect((await fetch(post("/ai/v1/chat/completions", body), { KEY, AI: { run } }, ctx)).headers.get("x-voiceinput-neurons-today")).toBeNull();
+  });
+});

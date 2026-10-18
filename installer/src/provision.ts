@@ -144,13 +144,14 @@ function setupCode(): string {
 
 // A workers.dev subdomain is one name for the whole account, so it cannot reuse the install id:
 // a second account installing from the same page would ask for a name that is already taken.
-function subdomainCandidate(): string {
+function subdomainCandidate(prefix: string): string {
   const alphabet = "abcdefghijkmnpqrstuvwxyz23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(6));
-  return `meeting-note-${[...bytes].map((byte) => alphabet[byte % alphabet.length]).join("")}`;
+  return `${prefix}-${[...bytes].map((byte) => alphabet[byte % alphabet.length]).join("")}`;
 }
 
-export async function ensureWorkersSubdomain(token: string, account: string): Promise<{ subdomain: string; created: boolean }> {
+/** `prefix` names a fresh account's subdomain after what is being installed (VoiceInput's own setup too). */
+export async function ensureWorkersSubdomain(token: string, account: string, prefix = "meeting-note"): Promise<{ subdomain: string; created: boolean }> {
   try {
     const current = await cf<{ subdomain?: string | null }>(token, `/accounts/${account}/workers/subdomain`);
     if (current?.subdomain) return { subdomain: current.subdomain, created: false };
@@ -164,7 +165,7 @@ export async function ensureWorkersSubdomain(token: string, account: string): Pr
   let lastError = "";
   let lastCodes: number[] = [];
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const candidate = subdomainCandidate();
+    const candidate = subdomainCandidate(prefix);
     try {
       const created = await cf<{ subdomain?: string }>(token, `/accounts/${account}/workers/subdomain`, {
         method: "PUT",

@@ -1,4 +1,8 @@
 import { InstallError, listInstalls, provisionMeetingNote, reclaimInstall, upgradeInstall } from "./provision";
+import { chooseAccountPage, doneRedirect, failedPage, provisionVoiceInput, VOICEINPUT_SCOPES } from "./voiceinput";
+
+/** What a sign-in is for: a Meeting Note install (the page) or VoiceInput's one-click setup (the app). */
+type Flow = "meeting-note" | "voiceinput";
 
 type Env = {
   ASSETS: Fetcher;
@@ -83,16 +87,16 @@ async function accounts(accessToken: string): Promise<Array<{ id: string; name: 
   return data.result.map(({ id, name }) => ({ id, name }));
 }
 
-async function oauthStart(_request: Request, env: Env): Promise<Response> {
+async function oauthStart(env: Env, flow: Flow): Promise<Response> {
   const state = id();
-  await env.INSTALL_SESSIONS.put(`state:${state}`, "1", { expirationTtl: 600 });
+  await env.INSTALL_SESSIONS.put(`state:${state}`, flow, { expirationTtl: 600 });
   const callback = `${env.INSTALLER_ORIGIN}/oauth/callback`;
   const target = new URL("https://dash.cloudflare.com/oauth2/auth");
   target.search = new URLSearchParams({
     response_type: "code",
     client_id: env.OAUTH_CLIENT_ID,
     redirect_uri: callback,
-    scope: env.OAUTH_SCOPES,
+    scope: flow === "voiceinput" ? VOICEINPUT_SCOPES : env.OAUTH_SCOPES,
     state
   }).toString();
   return new Response(null, {
@@ -106,7 +110,8 @@ async function oauthCallback(request: Request, env: Env): Promise<Response> {
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code") || "";
   const expectedState = cookie(request, STATE_COOKIE);
-  if (!state || !code || state !== expectedState || !(await env.INSTALL_SESSIONS.get(`state:${state}`))) {
+  const flow = state ? await env.INSTALL_SESSIONS.get(`state:${state}`) : null;
+  if (!state || !code || state !== expectedState || !flow) {
     return new Response(null, {
       status: 302,
       headers: { location: `${env.INSTALLER_ORIGIN}/?error=authorization`, "set-cookie": setCookie(STATE_COOKIE, "", 0) }
@@ -125,7 +130,8 @@ async function oauthCallback(request: Request, env: Env): Promise<Response> {
   const visibleAccounts = await accounts(token.access_token);
   const encryptedSession = await seal({ accessToken: token.access_token, accounts: visibleAccounts }, env.SESSION_ENCRYPTION_KEY);
   await env.INSTALL_SESSIONS.put(`session:${sessionId}`, encryptedSession, { expirationTtl: SESSION_TTL });
-  const headers = new Headers({ location: env.INSTALLER_ORIGIN, "cache-control": "no-store" });
+  const next = flow === "voiceinput" ? `${env.INSTALLER_ORIGIN}/oauth/voiceinput/account` : env.INSTALLER_ORIGIN;
+  const headers = new Headers({ location: next, "cache-control": "no-store" });
   headers.append("set-cookie", setCookie(SESSION_COOKIE, sessionId, SESSION_TTL));
   headers.append("set-cookie", setCookie(STATE_COOKIE, "", 0));
   return new Response(null, { status: 302, headers });
@@ -289,6 +295,28 @@ async function install(request: Request, env: Env): Promise<Response> {
   }
 }
 
+/** VoiceInput's setup, after sign-in: the account is confirmed (or chosen) on a page, then set up. */
+async function voiceInputAccount(request: Request, env: Env): Promise<Response> {
+  const session = await getSession(request, env);
+  if (!session) return Response.redirect(`${env.INSTALLER_ORIGIN}/oauth/voiceinput`, 302);
+  if (request.method === "GET") return chooseAccountPage(session.value.accounts);
+  if (!sameOrigin(request, env)) return failedPage("Invalid request origin");
+  const accountId = String((await request.formData().catch(() => new FormData())).get("accountId") || "");
+  if (!session.value.accounts.some((account) => account.id === accountId)) return failedPage("Unknown Cloudflare account");
+  try {
+    const { worker, key, ready } = await provisionVoiceInput(session.value.accessToken, accountId);
+    console.log("VoiceInput set up", ready ? "and answering" : "not answering yet");
+    await revoke(session.value.accessToken, env).catch((error) => console.error("OAuth revoke failed", error));
+    await env.INSTALL_SESSIONS.delete(`session:${session.id}`);
+    const response = doneRedirect(worker, key);
+    response.headers.append("set-cookie", setCookie(SESSION_COOKIE, "", 0));
+    return response;
+  } catch (error) {
+    console.error("VoiceInput setup failed", error);
+    return failedPage(error instanceof Error ? error.message : "Setup failed");
+  }
+}
+
 function secureAsset(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("content-security-policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
@@ -305,7 +333,9 @@ export default {
     if (url.pathname === "/api/health" && request.method === "GET") {
       return json({ ok: true, service: "meeting-note-installer" });
     }
-    if (url.pathname === "/oauth/start") return oauthStart(request, env);
+    if (url.pathname === "/oauth/start") return oauthStart(env, "meeting-note");
+    if (url.pathname === "/oauth/voiceinput") return oauthStart(env, "voiceinput");
+    if (url.pathname === "/oauth/voiceinput/account") return voiceInputAccount(request, env);
     if (url.pathname === "/oauth/callback") return oauthCallback(request, env);
     if (url.pathname === "/api/session" && request.method === "GET") {
       const session = await getSession(request, env);

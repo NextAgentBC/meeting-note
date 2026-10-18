@@ -176,7 +176,7 @@ background:var(--accent);color:#fff;font:600 1rem/1.2 inherit;text-align:center;
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
       "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-      "referrer-policy": "no-referrer"
+      "referrer-policy": "same-origin"  // a form post keeps its Origin (no-referrer sends "null")
     }
   });
 }

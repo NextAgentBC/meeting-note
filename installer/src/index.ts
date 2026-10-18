@@ -300,7 +300,8 @@ async function voiceInputAccount(request: Request, env: Env): Promise<Response> 
   const session = await getSession(request, env);
   if (!session) return Response.redirect(`${env.INSTALLER_ORIGIN}/oauth/voiceinput`, 302);
   if (request.method === "GET") return chooseAccountPage(session.value.accounts);
-  if (!sameOrigin(request, env)) return failedPage("Invalid request origin");
+  // A form post from this page: its Origin, or the browser's word that it came from this site.
+  if (!sameOrigin(request, env) && request.headers.get("sec-fetch-site") !== "same-origin") return failedPage("Invalid request origin");
   const accountId = String((await request.formData().catch(() => new FormData())).get("accountId") || "");
   if (!session.value.accounts.some((account) => account.id === accountId)) return failedPage("Unknown Cloudflare account");
   try {

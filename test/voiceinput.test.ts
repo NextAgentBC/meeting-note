@@ -63,3 +63,21 @@ describe("the way back to the app", () => {
     expect(page).toContain(`voiceinput://cloudflare#worker=https%3A%2F%2Fvoiceinput-ai.x.workers.dev&#38;key=${KEY}`);
   });
 });
+
+describe("a brand-new Cloudflare account", () => {
+  it("is told to verify its email instead of failing", async () => {
+    const { needsEmailVerification } = await import("../installer/src/voiceinput");
+    const { InstallError } = await import("../installer/src/provision");
+    expect(needsEmailVerification(new InstallError("worker", "You must verify your email address before creating a Worker"))).toBe(true);
+    expect(needsEmailVerification(new InstallError("worker", "Forbidden", [10034]))).toBe(true);
+    expect(needsEmailVerification(new InstallError("worker", "Subdomain unavailable", [10031]))).toBe(false);
+    expect(needsEmailVerification("not an error")).toBe(false);
+  });
+
+  it("carries on in the same session from the verify page", async () => {
+    const { verifyEmailPage } = await import("../installer/src/voiceinput");
+    const page = await verifyEmailPage("abc123").text();
+    expect(page).toContain('action="/oauth/voiceinput/account"');
+    expect(page).toContain('value="abc123"');
+  });
+});

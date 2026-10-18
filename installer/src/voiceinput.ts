@@ -5,9 +5,8 @@
 // revokes its own access. The Worker answers the same paths as the Workers AI REST API, so the apps
 // treat it exactly like an account ID + API token.
 
-import { ensureWorkersSubdomain, InstallError } from "./provision";
+import { cf, ensureWorkersSubdomain, InstallError, settle, step, waitForApp } from "./provision";
 
-const API = "https://api.cloudflare.com/client/v4";
 export const VOICEINPUT_WORKER = "voiceinput-ai";
 export const VOICEINPUT_SCOPES = "workers-scripts.write ai.write user-details.read";
 /** Where the apps' web sign-in sheet waits; it closes when the browser is sent here. */
@@ -72,7 +71,12 @@ export default {
       try {
         const result = await env.AI.run(model, rest);
         if (result && Array.isArray(result.choices)) return json(result);
-        const content = typeof result?.response === "string" ? result.response : JSON.stringify(result?.response ?? "");
+        // Older models answer { response }, the Responses-style ones an output list; nothing usable
+        // is an error, so the app keeps the raw text instead of pasting an empty answer.
+        const content = typeof result?.response === "string" ? result.response
+          : (Array.isArray(result?.output) ? result.output : []).flatMap((part) => part?.content || [])
+            .map((piece) => piece?.text || "").join("");
+        if (!content) return refused(502, "The model gave no text");
         return json({
           object: "chat.completion",
           model,
@@ -87,37 +91,9 @@ export default {
 };
 `;
 
-async function cf<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
-    ...init,
-    headers: { authorization: `Bearer ${token}`, ...(init.body instanceof FormData ? {} : { "content-type": "application/json" }) }
-  });
-  const data = await response.json<{ success: boolean; result: T; errors?: Array<{ message?: string; code?: number }> }>()
-    .catch(() => ({ success: false, result: null as T, errors: [] }));
-  if (!response.ok || !data.success) {
-    const codes = data.errors?.map((error) => error.code).filter((code): code is number => typeof code === "number") || [];
-    throw new InstallError("worker", data.errors?.map((error) => error.message).filter(Boolean).join("; ") || `Cloudflare request failed (${response.status})`, codes);
-  }
-  return data.result;
-}
-
 function randomKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
-/** Waits for a new workers.dev address to answer (its certificate is issued on first use). */
-async function answers(url: string, attempts = 15): Promise<boolean> {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(4000) });
-      if (response.ok) return true;
-    } catch {
-      // Not there yet.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-  return false;
 }
 
 /**
@@ -136,22 +112,16 @@ export async function provisionVoiceInput(accessToken: string, accountId: string
     annotations: { "workers/message": "VoiceInput one-click setup" }
   })], { type: "application/json" }));
   form.set("worker.js", new Blob([VOICEINPUT_SCRIPT], { type: "application/javascript+module" }), "worker.js");
-  // A subdomain registered a second ago can refuse the upload for a moment (10063): try again.
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      await cf(accessToken, `/accounts/${account}/workers/scripts/${VOICEINPUT_WORKER}`, { method: "PUT", body: form });
-      break;
-    } catch (error) {
-      if (attempt === 3) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
-    }
-  }
-  await cf(accessToken, `/accounts/${account}/workers/scripts/${VOICEINPUT_WORKER}/subdomain`, {
-    method: "POST",
-    body: JSON.stringify({ enabled: true, previews_enabled: false })
-  });
+  // A subdomain registered a second ago refuses the upload for a moment (10063): `settle` tries again.
+  await step("worker", () => settle("voiceinput upload", () =>
+    cf(accessToken, `/accounts/${account}/workers/scripts/${VOICEINPUT_WORKER}`, { method: "PUT", body: form })));
+  await step("address", () => settle("voiceinput address", () =>
+    cf(accessToken, `/accounts/${account}/workers/scripts/${VOICEINPUT_WORKER}/subdomain`, {
+      method: "POST",
+      body: JSON.stringify({ enabled: true, previews_enabled: false })
+    })));
   const worker = `https://${VOICEINPUT_WORKER}.${address.subdomain}.workers.dev`;
-  return { worker, key, ready: await answers(worker) };
+  return { worker, key, ready: await waitForApp(worker, "/health", 15) };
 }
 
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

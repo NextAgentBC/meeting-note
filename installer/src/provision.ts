@@ -53,7 +53,7 @@ export type ProvisionResult = {
   addressIsNew: boolean;
 };
 
-async function cf<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
+export async function cf<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, {
     ...init,
     headers: {
@@ -73,7 +73,7 @@ async function cf<T>(token: string, path: string, init: RequestInit = {}): Promi
 
 // Every Cloudflare failure reaches the browser as a code the installer page can say in the reader's
 // own language, instead of one English sentence written for the dashboard.
-async function step<T>(code: InstallErrorCode, work: () => Promise<T>): Promise<T> {
+export async function step<T>(code: InstallErrorCode, work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (error) {
@@ -99,7 +99,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * idempotent enough to repeat — a create that already happened answers with the same object, and
  * a script upload is a PUT — so a step that fails on a settling error is simply tried again.
  */
-async function settle<T>(label: string, work: () => Promise<T>, attempts = 3): Promise<T> {
+export async function settle<T>(label: string, work: () => Promise<T>, attempts = 3): Promise<T> {
   let last: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -216,6 +216,24 @@ function scriptUpload(metadata: Record<string, unknown>, script: string): FormDa
   form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
   form.set("standalone.js", new Blob([script], { type: "application/javascript+module" }), "standalone.js");
   return form;
+}
+
+/**
+ * A workers.dev address that was registered a minute ago is not live the moment the API returns:
+ * the certificate for the account's new subdomain is issued on demand, and until it exists the
+ * browser gets ERR_CONNECTION_CLOSED. So the installer waits for its own handiwork to answer.
+ */
+export async function waitForApp(url: string, path = "/api/health", attempts = 20): Promise<boolean> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(`${url}${path}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(4000) });
+      if (response.ok) return true;
+    } catch {
+      // Not there yet: no DNS, no certificate, or the route is still being published.
+    }
+    await sleep(2000);
+  }
+  return false;
 }
 
 export type ExistingInstall = {

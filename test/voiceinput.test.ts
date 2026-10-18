@@ -81,3 +81,18 @@ describe("a brand-new Cloudflare account", () => {
     expect(page).toContain('value="abc123"');
   });
 });
+
+describe("the Worker's answers", () => {
+  it("never pastes an empty answer", async () => {
+    const e = env(() => ({}));
+    const body = { model: "@cf/openai/gpt-oss-120b", messages: [{ role: "user", content: "好的" }] };
+    expect((await worker.fetch(post("/ai/v1/chat/completions", body), e.value)).status).toBe(502);
+  });
+
+  it("reads a Responses-style output list", async () => {
+    const e = env(() => ({ output: [{ type: "message", content: [{ type: "output_text", text: "好的。" }] }] }));
+    const body = { model: "@cf/openai/gpt-oss-120b", messages: [{ role: "user", content: "好的" }] };
+    const answer = await (await worker.fetch(post("/ai/v1/chat/completions", body), e.value)).json() as { choices: Array<{ message: { content: string } }> };
+    expect(answer.choices[0].message.content).toBe("好的。");
+  });
+});

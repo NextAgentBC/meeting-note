@@ -1,4 +1,4 @@
-import { InstallError, listInstalls, provisionMeetingNote, reclaimInstall, upgradeInstall } from "./provision";
+import { InstallError, listInstalls, provisionMeetingNote, reclaimInstall, upgradeInstall, waitForApp } from "./provision";
 import { chooseAccountPage, doneRedirect, failedPage, needsEmailVerification, provisionVoiceInput, verifyEmailPage, VOICEINPUT_SCOPES } from "./voiceinput";
 
 /** What a sign-in is for: a Meeting Note install (the page) or VoiceInput's one-click setup (the app). */
@@ -243,28 +243,6 @@ async function reclaim(request: Request, env: Env): Promise<Response> {
   }
 }
 
-/**
- * A workers.dev address that was registered a minute ago is not live the moment the API returns:
- * the certificate for the account's new subdomain is issued on demand, and until it exists the
- * browser gets ERR_CONNECTION_CLOSED — a scary page for someone who just installed something. So
- * the installer waits for its own handiwork to answer before it hands the address over.
- */
-async function waitForApp(url: string, attempts = 20): Promise<boolean> {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const response = await fetch(`${url}/api/health`, {
-        headers: { accept: "application/json" },
-        signal: AbortSignal.timeout(4000)
-      });
-      if (response.ok) return true;
-    } catch {
-      // Not there yet: no DNS, no certificate, or the route is still being published.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-  return false;
-}
-
 async function install(request: Request, env: Env): Promise<Response> {
   if (!sameOrigin(request, env)) return json({ error: "Invalid request origin" }, 403);
   const body = await request.json<{ accountId?: string }>().catch(() => ({}) as { accountId?: string });
@@ -306,16 +284,19 @@ async function voiceInputAccount(request: Request, env: Env): Promise<Response> 
   if (!sameOrigin(request, env) && request.headers.get("sec-fetch-site") !== "same-origin") return failedPage("Invalid request origin");
   const accountId = String((await request.formData().catch(() => new FormData())).get("accountId") || "");
   if (!session.value.accounts.some((account) => account.id === accountId)) return failedPage("Unknown Cloudflare account");
+  // Claimed before the slow part: a second click must not deploy again with another key (the Worker
+  // would keep one, the app get the other). Put back on failure, for Continue and Try again.
+  await env.INSTALL_SESSIONS.delete(`session:${session.id}`);
   try {
     const { worker, key, ready } = await provisionVoiceInput(session.value.accessToken, accountId);
     console.log("VoiceInput set up", ready ? "and answering" : "not answering yet");
     await revoke(session.value.accessToken, env).catch((error) => console.error("OAuth revoke failed", error));
-    await env.INSTALL_SESSIONS.delete(`session:${session.id}`);
     const response = doneRedirect(worker, key);
     response.headers.append("set-cookie", setCookie(SESSION_COOKIE, "", 0));
     return response;
   } catch (error) {
-    // The session stays (30 min): verifying the email, or trying again, needs no second sign-in.
+    // The session comes back (30 min): verifying the email, or trying again, needs no second sign-in.
+    await env.INSTALL_SESSIONS.put(`session:${session.id}`, await seal(session.value, env.SESSION_ENCRYPTION_KEY), { expirationTtl: SESSION_TTL });
     if (needsEmailVerification(error)) return verifyEmailPage(accountId);
     console.error("VoiceInput setup failed", error);
     return failedPage(error instanceof Error ? error.message : "Setup failed");

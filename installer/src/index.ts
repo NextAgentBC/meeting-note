@@ -1,5 +1,5 @@
 import { InstallError, listInstalls, provisionMeetingNote, reclaimInstall, upgradeInstall } from "./provision";
-import { chooseAccountPage, doneRedirect, failedPage, provisionVoiceInput, VOICEINPUT_SCOPES } from "./voiceinput";
+import { chooseAccountPage, doneRedirect, failedPage, needsEmailVerification, provisionVoiceInput, verifyEmailPage, VOICEINPUT_SCOPES } from "./voiceinput";
 
 /** What a sign-in is for: a Meeting Note install (the page) or VoiceInput's one-click setup (the app). */
 type Flow = "meeting-note" | "voiceinput";
@@ -89,7 +89,9 @@ async function accounts(accessToken: string): Promise<Array<{ id: string; name: 
 
 async function oauthStart(env: Env, flow: Flow): Promise<Response> {
   const state = id();
-  await env.INSTALL_SESSIONS.put(`state:${state}`, flow, { expirationTtl: 600 });
+  // Signing up on Cloudflare's page (a new VoiceInput user) takes longer than signing in.
+  const stateTTL = flow === "voiceinput" ? SESSION_TTL : 600;
+  await env.INSTALL_SESSIONS.put(`state:${state}`, flow, { expirationTtl: stateTTL });
   const callback = `${env.INSTALLER_ORIGIN}/oauth/callback`;
   const target = new URL("https://dash.cloudflare.com/oauth2/auth");
   target.search = new URLSearchParams({
@@ -101,7 +103,7 @@ async function oauthStart(env: Env, flow: Flow): Promise<Response> {
   }).toString();
   return new Response(null, {
     status: 302,
-    headers: { location: target.toString(), "set-cookie": setCookie(STATE_COOKIE, state, 600), "cache-control": "no-store" }
+    headers: { location: target.toString(), "set-cookie": setCookie(STATE_COOKIE, state, stateTTL), "cache-control": "no-store" }
   });
 }
 
@@ -313,6 +315,8 @@ async function voiceInputAccount(request: Request, env: Env): Promise<Response> 
     response.headers.append("set-cookie", setCookie(SESSION_COOKIE, "", 0));
     return response;
   } catch (error) {
+    // The session stays (30 min): verifying the email, or trying again, needs no second sign-in.
+    if (needsEmailVerification(error)) return verifyEmailPage(accountId);
     console.error("VoiceInput setup failed", error);
     return failedPage(error instanceof Error ? error.message : "Setup failed");
   }

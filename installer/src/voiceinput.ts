@@ -92,10 +92,11 @@ async function cf<T>(token: string, path: string, init: RequestInit = {}): Promi
     ...init,
     headers: { authorization: `Bearer ${token}`, ...(init.body instanceof FormData ? {} : { "content-type": "application/json" }) }
   });
-  const data = await response.json<{ success: boolean; result: T; errors?: Array<{ message?: string }> }>()
+  const data = await response.json<{ success: boolean; result: T; errors?: Array<{ message?: string; code?: number }> }>()
     .catch(() => ({ success: false, result: null as T, errors: [] }));
   if (!response.ok || !data.success) {
-    throw new InstallError("worker", data.errors?.map((error) => error.message).filter(Boolean).join("; ") || `Cloudflare request failed (${response.status})`);
+    const codes = data.errors?.map((error) => error.code).filter((code): code is number => typeof code === "number") || [];
+    throw new InstallError("worker", data.errors?.map((error) => error.message).filter(Boolean).join("; ") || `Cloudflare request failed (${response.status})`, codes);
   }
   return data.result;
 }
@@ -198,7 +199,27 @@ export function doneRedirect(worker: string, key: string): Response {
 <a class="button" href="${escape(target)}">回到声入 · Back to VoiceInput</a>`, `<meta http-equiv="refresh" content="0;url=${escape(target)}">`);
 }
 
+/**
+ * A brand-new Cloudflare account can't create Workers until its email address is verified. Cloudflare
+ * documents no code for it, so the message decides (and 10034, seen for it in the wild).
+ */
+export function needsEmailVerification(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const codes = error instanceof InstallError ? error.apiCodes : [];
+  return codes.includes(10034) || /verif|confirm (your|the) email|email (address )?(is )?not (yet )?(verified|confirmed)/i.test(error.message);
+}
+
+/** The new account's one manual step, then the same session carries on (no second sign-in). */
+export function verifyEmailPage(accountId: string): Response {
+  return voiceInputPage("验证邮箱 · Verify your email", `<h1>只差一步：验证邮箱</h1>
+<p class="en">One step left: verify your email</p>
+<div class="card"><p>Cloudflare 给你注册的邮箱发了一封信，点一下里面的验证链接，再回到这里点「继续」。</p>
+<p class="en">Cloudflare has sent a message to the address you signed up with. Click the link in it, then come back here and tap Continue.</p></div>
+<form method="post" action="/oauth/voiceinput/account"><input type="hidden" name="accountId" value="${escape(accountId)}">
+<button>继续 · Continue</button></form>`);
+}
+
 export function failedPage(message: string): Response {
   return voiceInputPage("没有连上 · Not connected", `<h1>这次没有连上</h1><p class="en">That didn't work</p>
-<div class="card"><p>${escape(message)}</p></div><a class="button" href="/oauth/voiceinput">再试一次 · Try again</a>`);
+<div class="card"><p>${escape(message)}</p></div><a class="button" href="/oauth/voiceinput/account">再试一次 · Try again</a>`);
 }

@@ -122,11 +122,13 @@ async function ownSpeech(request, env, ctx) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), seconds > 0 ? (2.5 + 0.15 * seconds) * 1000 : 120000);
     try {
+      // Access answers a token it doesn't accept with its sign-in page (a redirect, or 200 HTML when
+      // followed): only the server's JSON counts.
       const answer = await fetch(env.ASR_URL, {
-        method: "POST", body: form, signal: controller.signal,
+        method: "POST", body: form, signal: controller.signal, redirect: "manual",
         headers: { "CF-Access-Client-Id": env.ASR_ACCESS_ID, "CF-Access-Client-Secret": env.ASR_ACCESS_SECRET }
       });
-      if (answer.ok) {
+      if (answer.status === 200 && (answer.headers.get("content-type") || "").includes("application/json")) {
         const served = new Response(answer.body, answer);
         served.headers.set("x-voiceinput-served-by", "server");
         return served;

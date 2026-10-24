@@ -93,6 +93,19 @@ async function authorized(request, key) {
 // instead, with the decoding options the apps use for it. The answer says who: x-voiceinput-served-by.
 const DECODING = { vad_filter: false, condition_on_previous_text: false, compression_ratio_threshold: 2.0, beam_size: 5 };
 
+// The server's GPU also serves the MMC CRM in production: at most this many requests a minute go
+// to it (counted in the usage namespace — an estimate, like the neurons), the rest to Whisper here.
+const SERVER_PER_MINUTE = 30;
+
+async function serverAllowed(env, ctx) {
+  if (!env.USAGE) return true;
+  const key = "asr:" + new Date().toISOString().slice(0, 16);
+  const used = Number(await env.USAGE.get(key)) || 0;
+  if (used >= SERVER_PER_MINUTE) return false;
+  ctx.waitUntil(env.USAGE.put(key, String(used + 1), { expirationTtl: 120 }).catch(() => {}));
+  return true;
+}
+
 function base64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -105,7 +118,7 @@ async function ownSpeech(request, env, ctx) {
   const file = form?.get("file");
   if (!file || typeof file === "string") return refused(400, "Expected a multipart form with a file");
   const seconds = Number(request.headers.get("x-audio-seconds")) || 0;
-  if (env.ASR_URL && env.ASR_ACCESS_ID && env.ASR_ACCESS_SECRET) {
+  if (env.ASR_URL && env.ASR_ACCESS_ID && env.ASR_ACCESS_SECRET && await serverAllowed(env, ctx)) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), seconds > 0 ? (2.5 + 0.15 * seconds) * 1000 : 120000);
     try {

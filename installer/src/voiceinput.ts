@@ -85,6 +85,61 @@ async function authorized(request, key) {
   return crypto.subtle.timingSafeEqual(a, b);
 }
 
+// The owner's own speech server (faster-whisper behind Cloudflare Access): only when this account
+// has the secrets ASR_URL, ASR_ACCESS_ID and ASR_ACCESS_SECRET, set by hand — the one-click setup
+// never writes them and keeps them (keep_bindings). The apps send OpenAI-style multipart to
+// /asr/v1/audio/transcriptions; the server gets the same form with the Access service token. Slow
+// (past 2.5 s + 0.15 s per second of audio, as the apps' own hedge) or down, Whisper here answers
+// instead, with the decoding options the apps use for it. The answer says who: x-voiceinput-served-by.
+const DECODING = { vad_filter: false, condition_on_previous_text: false, compression_ratio_threshold: 2.0, beam_size: 5 };
+
+function base64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+async function ownSpeech(request, env, ctx) {
+  const form = await request.formData().catch(() => null);
+  const file = form?.get("file");
+  if (!file || typeof file === "string") return refused(400, "Expected a multipart form with a file");
+  const seconds = Number(request.headers.get("x-audio-seconds")) || 0;
+  if (env.ASR_URL && env.ASR_ACCESS_ID && env.ASR_ACCESS_SECRET) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), seconds > 0 ? (2.5 + 0.15 * seconds) * 1000 : 120000);
+    try {
+      const answer = await fetch(env.ASR_URL, {
+        method: "POST", body: form, signal: controller.signal,
+        headers: { "CF-Access-Client-Id": env.ASR_ACCESS_ID, "CF-Access-Client-Secret": env.ASR_ACCESS_SECRET }
+      });
+      if (answer.ok) {
+        const served = new Response(answer.body, answer);
+        served.headers.set("x-voiceinput-served-by", "server");
+        return served;
+      }
+    } catch (error) {
+      // Down or slow: Whisper here.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const model = "@cf/openai/whisper-large-v3-turbo";
+  const input = { ...DECODING, audio: base64(await file.arrayBuffer()) };
+  const prompt = form.get("prompt");
+  if (typeof prompt === "string" && prompt) input.initial_prompt = prompt;
+  const language = form.get("language");
+  if (typeof language === "string" && language) input.language = language;
+  try {
+    const result = await env.AI.run(model, input);
+    const response = json({ text: result?.text || "", segments: result?.segments || [] });
+    response.headers.set("x-voiceinput-served-by", "cloudflare");
+    return withUsage(response, await count(env, ctx, speechNeurons(model, result, request)));
+  } catch (error) {
+    return withUsage(failed(error), await usedToday(env));
+  }
+}
+
 // The free daily allowance used up comes back as an error mentioning neurons: the apps read 429 as
 // "quota used up for today" and recognize on the device instead.
 function failed(error) {
@@ -103,6 +158,7 @@ export default {
       return withUsage(json({ success: true, result: { neurons: await usedToday(env), free: FREE_PER_DAY } }), await usedToday(env));
     }
     if (request.method !== "POST") return refused(405, "Method not allowed");
+    if (url.pathname === "/asr/v1/audio/transcriptions") return ownSpeech(request, env, ctx);
     const input = await request.json().catch(() => null);
     if (!input || typeof input !== "object") return refused(400, "Expected a JSON body");
 
@@ -182,6 +238,8 @@ export async function provisionVoiceInput(accessToken: string, accountId: string
       { type: "secret_text", name: "KEY", text: key },
       { type: "kv_namespace", name: "USAGE", namespace_id: usage }
     ],
+    // Secrets set by hand (the owner's speech server, `ownSpeech`) survive a new setup.
+    keep_bindings: ["secret_text"],
     annotations: { "workers/message": "VoiceInput one-click setup" }
   })], { type: "application/json" }));
   form.set("worker.js", new Blob([VOICEINPUT_SCRIPT], { type: "application/javascript+module" }), "worker.js");

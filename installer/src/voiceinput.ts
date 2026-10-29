@@ -79,8 +79,10 @@ function refused(status, message) {
   return json({ success: false, errors: [{ code: status, message }] }, status);
 }
 
-// Constant-time comparison of the bearer key.
+// Constant-time comparison of the bearer key. A key that is missing or short (a setup gone wrong)
+// opens nothing: "Bearer undefined" must not be a password.
 async function authorized(request, key) {
+  if (typeof key !== "string" || key.length < 32) return false;
   const given = new TextEncoder().encode(request.headers.get("authorization") || "");
   const wanted = new TextEncoder().encode("Bearer " + key);
   const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", given), crypto.subtle.digest("SHA-256", wanted)]);
@@ -168,7 +170,10 @@ function failed(error) {
 // the user's own D1: one row a document, its bytes as they are, and a version that goes up by one
 // with every write. A write names the version it read (x-if-version, 0 for "there was none") and
 // is refused with 409 when another device wrote in between: the app reads again, merges, retries.
-// Writing nothing (DELETE) removes it. Names are the apps' file names; 1.5 MB at most.
+// "*" instead of a version overwrites whatever is there (for documents only one device writes).
+// A read naming the version it already has (x-if-version, or If-None-Match) gets 304 and no body;
+// GET /docs lists every document's name, version and time. Writing nothing (DELETE) removes it.
+// Names are the apps' file names; 1.5 MB at most.
 const DOC_NAME = /^[A-Za-z0-9._-]{1,120}$/;
 const DOC_MAX = 1500000;
 const docsReady = new WeakSet();
@@ -179,6 +184,19 @@ async function docsTable(db) {
   docsReady.add(db);
 }
 
+async function conflict(env, name) {
+  const row = await env.DOCS.prepare("SELECT version FROM docs WHERE name = ?").bind(name).first();
+  const response = refused(409, "Changed since it was read");
+  response.headers.set("x-version", String(row ? row.version : 0));
+  return response;
+}
+
+async function documentList(env) {
+  await docsTable(env.DOCS);
+  const { results } = await env.DOCS.prepare("SELECT name, version, updated FROM docs ORDER BY name").all();
+  return json(results);
+}
+
 async function documents(request, env, name) {
   if (!env.DOCS) return refused(501, "Sync is not set up in this account: run the one-click setup again");
   if (!DOC_NAME.test(name)) return refused(400, "Bad document name");
@@ -186,38 +204,57 @@ async function documents(request, env, name) {
   if (request.method === "GET") {
     const row = await env.DOCS.prepare("SELECT data, version FROM docs WHERE name = ?").bind(name).first();
     if (!row) return new Response(null, { status: 404, headers: { "x-version": "0", "cache-control": "no-store" } });
+    const cached = (request.headers.get("x-if-version") || request.headers.get("if-none-match") || "").replace(/^W\\//, "").replaceAll('"', "");
+    if (cached === String(row.version)) return new Response(null, { status: 304, headers: { "x-version": String(row.version), "cache-control": "no-store" } });
     return new Response(new Uint8Array(row.data), {
       headers: { "content-type": "application/octet-stream", "x-version": String(row.version), "cache-control": "no-store" }
     });
   }
   // A missing header would read as 0 ("there was none") and could overwrite: it is required.
   const given = request.headers.get("x-if-version") || "";
-  if (!/^[0-9]{1,15}$/.test(given)) return refused(428, "x-if-version is required");
-  const expected = Number(given);
+  const overwrite = given === "*";
+  if (!overwrite && !/^[0-9]{1,15}$/.test(given)) return refused(428, "x-if-version is required");
+  const expected = overwrite ? 0 : Number(given);
   if (request.method === "DELETE") {
-    const done = await env.DOCS.prepare("DELETE FROM docs WHERE name = ? AND version = ?").bind(name, expected).run();
-    return done.meta.changes > 0 || expected === 0 ? json({ ok: true, version: 0 }) : refused(409, "Changed since it was read");
+    const done = overwrite
+      ? await env.DOCS.prepare("DELETE FROM docs WHERE name = ?").bind(name).run()
+      : await env.DOCS.prepare("DELETE FROM docs WHERE name = ? AND version = ?").bind(name, expected).run();
+    if (done.meta.changes > 0 || overwrite) return json({ ok: true, version: 0 });
+    // "There was none" is only true if there still is none.
+    if (expected === 0 && !(await env.DOCS.prepare("SELECT 1 AS found FROM docs WHERE name = ?").bind(name).first())) return json({ ok: true, version: 0 });
+    return conflict(env, name);
   }
   if (request.method !== "PUT") return refused(405, "Method not allowed");
   const data = new Uint8Array(await request.arrayBuffer());
   if (data.byteLength > DOC_MAX) return refused(413, "Document too large");
   const now = Date.now();
+  if (overwrite) {
+    const row = await env.DOCS.prepare("INSERT INTO docs (name, data, version, updated) VALUES (?, ?, 1, ?) ON CONFLICT(name) DO UPDATE SET data = excluded.data, version = docs.version + 1, updated = excluded.updated RETURNING version").bind(name, data, now).first();
+    return json({ ok: true, version: row.version });
+  }
   const done = expected === 0
     ? await env.DOCS.prepare("INSERT INTO docs (name, data, version, updated) VALUES (?, ?, 1, ?) ON CONFLICT(name) DO NOTHING").bind(name, data, now).run()
     : await env.DOCS.prepare("UPDATE docs SET data = ?, version = version + 1, updated = ? WHERE name = ? AND version = ?").bind(data, now, name, expected).run();
-  if (done.meta.changes === 0) return refused(409, "Changed since it was read");
+  if (done.meta.changes === 0) return conflict(env, name);
   return json({ ok: true, version: expected + 1 });
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === "/health") return json({ ok: true, service: "voiceinput-ai" });
+    if (url.pathname === "/health") {
+      const configured = typeof env.KEY === "string" && env.KEY.length >= 32;
+      return configured ? json({ ok: true, service: "voiceinput-ai" })
+        : json({ ok: false, service: "voiceinput-ai", error: "KEY is not set: run the one-click setup again" }, 503);
+    }
     if (!(await authorized(request, env.KEY))) return refused(401, "Authentication error");
     // The apps' connection test: key checked, no model run.
     if (request.method === "GET" && url.pathname === "/ai/models/search") return withUsage(json({ success: true, result: [] }), await usedToday(env));
     if (request.method === "GET" && url.pathname === "/usage") {
       return withUsage(json({ success: true, result: { neurons: await usedToday(env), free: FREE_PER_DAY } }), await usedToday(env));
+    }
+    if (request.method === "GET" && url.pathname === "/docs") {
+      return env.DOCS ? documentList(env) : refused(501, "Sync is not set up in this account: run the one-click setup again");
     }
     const doc = url.pathname.match(/^\\/docs\\/([^/]+)$/);
     if (doc) return documents(request, env, decodeURIComponent(doc[1]));
@@ -297,13 +334,16 @@ async function syncDatabase(accessToken: string, account: string): Promise<strin
 }
 
 /**
- * Puts `voiceinput-ai` into the account with a new key. Setting up again replaces the key, so a
- * device set up before needs the new one (the Mac's "Send keys to iPhone" carries it).
+ * Puts `voiceinput-ai` into the account. A first setup mints the key. Setting up again (also the way
+ * to ship new Worker code) keeps the Worker's existing key, so no device loses sync: Cloudflare
+ * never returns a secret's value, so `key` is null then and the page tells the user to keep the key
+ * their devices already hold. `rotate` forces a new key (every other device must then be given it).
  */
-export async function provisionVoiceInput(accessToken: string, accountId: string): Promise<{ worker: string; key: string; ready: boolean }> {
+export async function provisionVoiceInput(accessToken: string, accountId: string, rotate = false): Promise<{ worker: string; key: string | null; ready: boolean }> {
   const account = encodeURIComponent(accountId);
   const address = await ensureWorkersSubdomain(accessToken, account, "voiceinput");
-  const key = randomKey();
+  const scripts = await step("worker", () => cf<Array<{ id: string }>>(accessToken, `/accounts/${account}/workers/scripts`));
+  const key = rotate || !scripts.some((script) => script.id === VOICEINPUT_WORKER) ? randomKey() : null;
   const usage = await step("storage", () => usageNamespace(accessToken, account));
   const docs = await step("database", () => syncDatabase(accessToken, account));
   const form = new FormData();
@@ -312,11 +352,11 @@ export async function provisionVoiceInput(accessToken: string, accountId: string
     compatibility_date: "2026-09-10",
     bindings: [
       { type: "ai", name: "AI" },
-      { type: "secret_text", name: "KEY", text: key },
+      ...(key ? [{ type: "secret_text", name: "KEY", text: key }] : []),
       { type: "kv_namespace", name: "USAGE", namespace_id: usage },
       { type: "d1", name: "DOCS", database_id: docs }
     ],
-    // Secrets set by hand (the owner's speech server, `ownSpeech`) survive a new setup.
+    // The KEY (unless rotated) and secrets set by hand (the owner's speech server, `ownSpeech`) survive a new setup.
     keep_bindings: ["secret_text"],
     annotations: { "workers/message": "VoiceInput one-click setup" }
   })], { type: "application/json" }));
@@ -380,7 +420,13 @@ export function chooseAccountPage(accounts: Array<{ id: string; name: string }>)
 <p id="busy" class="card" hidden>正在你的账户里开通……新账户第一次要准备网址，大约要 1–2 分钟，请别关闭这个页面。<br><span class="en">Setting it up in your account… a new account's first address takes about 1–2 minutes. Please keep this page open.</span></p>`);
 }
 
-export function doneRedirect(worker: string, key: string): Response {
+export function doneRedirect(worker: string, key: string | null): Response {
+  if (!key) {
+    return voiceInputPage("已更新 · Updated", `<h1>已更新，密钥不变</h1><p class="en">Updated; your key is unchanged</p>
+<div class="card"><p>你账户里的 <b>${VOICEINPUT_WORKER}</b> 已换成最新代码，原来的密钥继续有效：各设备上的声入不用重新连接，也不用做任何事。</p>
+<p class="en">The ${VOICEINPUT_WORKER} in your account now runs the latest code and its existing key still works: VoiceInput on your devices needs no reconnecting. Keep using the key they already hold.</p></div>
+<p class="en">${escape(worker)}</p>`);
+  }
   const target = `${VOICEINPUT_CALLBACK}#${new URLSearchParams({ worker, key }).toString()}`;
   return voiceInputPage("已连接 · Connected", `<h1>已连接，正在回到声入…</h1><p class="en">Connected. Going back to VoiceInput…</p>
 <a class="button" href="${escape(target)}">回到声入 · Back to VoiceInput</a>`, `<meta http-equiv="refresh" content="0;url=${escape(target)}">`);

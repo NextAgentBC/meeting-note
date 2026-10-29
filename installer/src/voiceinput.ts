@@ -8,9 +8,11 @@
 import { cf, ensureWorkersSubdomain, InstallError, settle, step, waitForApp } from "./provision";
 
 export const VOICEINPUT_WORKER = "voiceinput-ai";
-export const VOICEINPUT_SCOPES = "workers-scripts.write workers-kv-storage.write ai.write user-details.read";
+export const VOICEINPUT_SCOPES = "workers-scripts.write workers-kv-storage.write d1.write ai.write user-details.read";
 /** The KV namespace (in the user's account) where the Worker keeps the day's count. */
 export const VOICEINPUT_USAGE_NAMESPACE = "voiceinput-usage";
+/** The D1 database (in the user's account) that holds the apps' synced documents. */
+export const VOICEINPUT_SYNC_DATABASE = "voiceinput-sync";
 /** Where the apps' web sign-in sheet waits; it closes when the browser is sent here. */
 export const VOICEINPUT_CALLBACK = "voiceinput://cloudflare";
 
@@ -162,6 +164,51 @@ function failed(error) {
   return refused(/neuron|4006|daily/i.test(message) ? 429 : 502, message);
 }
 
+// The apps' synced documents (vocabulary, the phone's journal, knowledge, the review's memory) in
+// the user's own D1: one row a document, its bytes as they are, and a version that goes up by one
+// with every write. A write names the version it read (x-if-version, 0 for "there was none") and
+// is refused with 409 when another device wrote in between: the app reads again, merges, retries.
+// Writing nothing (DELETE) removes it. Names are the apps' file names; 1.5 MB at most.
+const DOC_NAME = /^[A-Za-z0-9._-]{1,120}$/;
+const DOC_MAX = 1500000;
+const docsReady = new WeakSet();
+
+async function docsTable(db) {
+  if (docsReady.has(db)) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS docs (name TEXT PRIMARY KEY, data BLOB NOT NULL, version INTEGER NOT NULL, updated INTEGER NOT NULL)").run();
+  docsReady.add(db);
+}
+
+async function documents(request, env, name) {
+  if (!env.DOCS) return refused(501, "Sync is not set up in this account: run the one-click setup again");
+  if (!DOC_NAME.test(name)) return refused(400, "Bad document name");
+  await docsTable(env.DOCS);
+  if (request.method === "GET") {
+    const row = await env.DOCS.prepare("SELECT data, version FROM docs WHERE name = ?").bind(name).first();
+    if (!row) return new Response(null, { status: 404, headers: { "x-version": "0", "cache-control": "no-store" } });
+    return new Response(new Uint8Array(row.data), {
+      headers: { "content-type": "application/octet-stream", "x-version": String(row.version), "cache-control": "no-store" }
+    });
+  }
+  // A missing header would read as 0 ("there was none") and could overwrite: it is required.
+  const given = request.headers.get("x-if-version") || "";
+  if (!/^[0-9]{1,15}$/.test(given)) return refused(428, "x-if-version is required");
+  const expected = Number(given);
+  if (request.method === "DELETE") {
+    const done = await env.DOCS.prepare("DELETE FROM docs WHERE name = ? AND version = ?").bind(name, expected).run();
+    return done.meta.changes > 0 || expected === 0 ? json({ ok: true, version: 0 }) : refused(409, "Changed since it was read");
+  }
+  if (request.method !== "PUT") return refused(405, "Method not allowed");
+  const data = new Uint8Array(await request.arrayBuffer());
+  if (data.byteLength > DOC_MAX) return refused(413, "Document too large");
+  const now = Date.now();
+  const done = expected === 0
+    ? await env.DOCS.prepare("INSERT INTO docs (name, data, version, updated) VALUES (?, ?, 1, ?) ON CONFLICT(name) DO NOTHING").bind(name, data, now).run()
+    : await env.DOCS.prepare("UPDATE docs SET data = ?, version = version + 1, updated = ? WHERE name = ? AND version = ?").bind(data, now, name, expected).run();
+  if (done.meta.changes === 0) return refused(409, "Changed since it was read");
+  return json({ ok: true, version: expected + 1 });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -172,6 +219,8 @@ export default {
     if (request.method === "GET" && url.pathname === "/usage") {
       return withUsage(json({ success: true, result: { neurons: await usedToday(env), free: FREE_PER_DAY } }), await usedToday(env));
     }
+    const doc = url.pathname.match(/^\\/docs\\/([^/]+)$/);
+    if (doc) return documents(request, env, decodeURIComponent(doc[1]));
     if (request.method !== "POST") return refused(405, "Method not allowed");
     if (url.pathname === "/asr/v1/audio/transcriptions") return ownSpeech(request, env, ctx);
     const input = await request.json().catch(() => null);
@@ -235,6 +284,18 @@ async function usageNamespace(accessToken: string, account: string): Promise<str
   })).id;
 }
 
+/** The sync database, made once and found again when setting up anew (its documents stay). */
+async function syncDatabase(accessToken: string, account: string): Promise<string> {
+  const existing = await cf<Array<{ uuid: string; name: string }>>(accessToken,
+    `/accounts/${account}/d1/database?name=${encodeURIComponent(VOICEINPUT_SYNC_DATABASE)}`);
+  const found = existing.find((database) => database.name === VOICEINPUT_SYNC_DATABASE);
+  if (found) return found.uuid;
+  return (await cf<{ uuid: string }>(accessToken, `/accounts/${account}/d1/database`, {
+    method: "POST",
+    body: JSON.stringify({ name: VOICEINPUT_SYNC_DATABASE })
+  })).uuid;
+}
+
 /**
  * Puts `voiceinput-ai` into the account with a new key. Setting up again replaces the key, so a
  * device set up before needs the new one (the Mac's "Send keys to iPhone" carries it).
@@ -244,6 +305,7 @@ export async function provisionVoiceInput(accessToken: string, accountId: string
   const address = await ensureWorkersSubdomain(accessToken, account, "voiceinput");
   const key = randomKey();
   const usage = await step("storage", () => usageNamespace(accessToken, account));
+  const docs = await step("database", () => syncDatabase(accessToken, account));
   const form = new FormData();
   form.set("metadata", new Blob([JSON.stringify({
     main_module: "worker.js",
@@ -251,7 +313,8 @@ export async function provisionVoiceInput(accessToken: string, accountId: string
     bindings: [
       { type: "ai", name: "AI" },
       { type: "secret_text", name: "KEY", text: key },
-      { type: "kv_namespace", name: "USAGE", namespace_id: usage }
+      { type: "kv_namespace", name: "USAGE", namespace_id: usage },
+      { type: "d1", name: "DOCS", database_id: docs }
     ],
     // Secrets set by hand (the owner's speech server, `ownSpeech`) survive a new setup.
     keep_bindings: ["secret_text"],

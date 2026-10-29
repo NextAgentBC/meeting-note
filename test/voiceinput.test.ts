@@ -122,3 +122,47 @@ describe("the day's usage", () => {
     expect((await fetch(post("/ai/v1/chat/completions", body), { KEY, AI: { run } }, ctx)).headers.get("x-voiceinput-neurons-today")).toBeNull();
   });
 });
+
+// D1 as the Worker uses it (prepare → bind → first / run), on Node's SQLite.
+function fakeD1() {
+  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+  const db = new DatabaseSync(":memory:");
+  const statement = (sql: string, args: unknown[] = []) => ({
+    bind: (...values: unknown[]) => statement(sql, values),
+    first: async () => db.prepare(sql).get(...(args as never[])) ?? null,
+    run: async () => ({ meta: { changes: Number(db.prepare(sql).run(...(args as never[])).changes) } })
+  });
+  return { prepare: (sql: string) => statement(sql) };
+}
+
+describe("the synced documents", () => {
+  const at = (path: string, init: RequestInit = {}, key = KEY) =>
+    new Request(`https://voiceinput-ai.x.workers.dev${path}`, { ...init, headers: { authorization: `Bearer ${key}`, ...(init.headers || {}) } });
+  const put = (name: string, body: string, version: number) =>
+    at(`/docs/${name}`, { method: "PUT", body, headers: { "x-if-version": String(version) } });
+
+  it("keeps a document and refuses a write that missed another", async () => {
+    const e = { KEY, DOCS: fakeD1() };
+    const missing = await worker.fetch(at("/docs/Vocabulary.json"), e);
+    expect([missing.status, missing.headers.get("x-version")]).toEqual([404, "0"]);
+    expect(await (await worker.fetch(put("Vocabulary.json", "v1", 0), e)).json()).toEqual({ ok: true, version: 1 });
+    expect((await worker.fetch(put("Vocabulary.json", "again", 0), e)).status).toBe(409);
+    const read = await worker.fetch(at("/docs/Vocabulary.json"), e);
+    expect([await read.text(), read.headers.get("x-version")]).toEqual(["v1", "1"]);
+    expect((await worker.fetch(put("Vocabulary.json", "v2", 1), e)).status).toBe(200);
+    expect((await worker.fetch(put("Vocabulary.json", "stale", 1), e)).status).toBe(409);
+    expect(await (await worker.fetch(at("/docs/Vocabulary.json"), e)).text()).toBe("v2");
+    const gone = await worker.fetch(at("/docs/Vocabulary.json", { method: "DELETE", headers: { "x-if-version": "2" } }), e);
+    expect(gone.status).toBe(200);
+    expect((await worker.fetch(at("/docs/Vocabulary.json"), e)).status).toBe(404);
+  });
+
+  it("asks for its key, a version and a plain name, and says when sync isn't set up", async () => {
+    const e = { KEY, DOCS: fakeD1() };
+    expect((await worker.fetch(at("/docs/a.json", {}, "wrong"), e)).status).toBe(401);
+    expect((await worker.fetch(at("/docs/a.json", { method: "PUT", body: "x" }), e)).status).toBe(428);
+    expect((await worker.fetch(at("/docs/..%2Fetc", {}), e)).status).toBe(400);
+    expect((await worker.fetch(put("big.json", "x".repeat(1_500_001), 0), e)).status).toBe(413);
+    expect((await worker.fetch(at("/docs/a.json"), { KEY })).status).toBe(501);
+  });
+});

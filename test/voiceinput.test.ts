@@ -258,3 +258,87 @@ describe("setting up again", () => {
     expect(page).toContain("密钥不变");
   });
 });
+
+describe("the AI's read-only link", () => {
+  const owner = (method: string, path: string, body?: unknown, key = KEY) => new Request(`https://x.workers.dev${path}`, {
+    method, headers: { authorization: `Bearer ${key}` }, ...(body ? { body: JSON.stringify(body) } : {})
+  });
+  const rpc = (token: string, method: string, params: unknown = {}) => new Request(`https://x.workers.dev/mcp/${token}`, {
+    method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+  });
+  const call = async (e: unknown, token: string, name: string, args: unknown = {}) => {
+    const answer = await (await worker.fetch(rpc(token, "tools/call", { name, arguments: args }), e)).json() as { result: { content: Array<{ text: string }> } };
+    return answer.result.content[0].text;
+  };
+  const put = (e: unknown, name: string, value: unknown) => worker.fetch(new Request(`https://x.workers.dev/docs/${name}`, {
+    method: "PUT", headers: { authorization: `Bearer ${KEY}`, "x-if-version": "*" },
+    body: typeof value === "string" ? value : JSON.stringify(value)
+  }), e);
+  const item = (title: string, quote: string) => ({ id: title, category: "x", title, takeaway: title, examples: [{ quote, date: "2026-11-01T00:00:00Z", source: "WeChat", bundleID: "com.tencent.xinWeChat" }] });
+
+  async function seeded() {
+    const e = { KEY, DOCS: fakeD1() };
+    await put(e, "Knowledge.json", { categories: [{ id: "sales", name: "销售与报价", about: "" }, { id: "life", name: "生活点滴", about: "" }, { id: "style", name: "说话风格", about: "" }] });
+    await put(e, "Knowledge-sales.json", [item("包价", "王先生的包价是一万")]);
+    await put(e, "Knowledge-life.json", [item("家事", "王先生的秘密")]);
+    await put(e, "Profile-Mac.json", { profile: "做诊所和教育", terms: ["Zenoti"], digest: "不外露" });
+    await put(e, "Meetings.json", { meetings: [{ record: "Meeting-1", name: "2026-11-01 0900 报价.md", started: "2026-11-01T09:00:00Z", minutes: 30, summary: "报价" }] });
+    await put(e, "Meeting-1", "# 报价\n王先生确认包价\n别的话");
+    const made = await (await worker.fetch(owner("POST", "/agents", { name: "Claude" }), e)).json() as { id: string; token: string };
+    return { e, ...made };
+  }
+
+  it("opens only with a link that was made, and takes back a revoked one", async () => {
+    const { e, id, token } = await seeded();
+    expect((await worker.fetch(rpc(token, "ping"), e)).status).toBe(200);
+    expect((await worker.fetch(rpc("x".repeat(43), "ping"), e)).status).toBe(401);
+    expect((await worker.fetch(new Request("https://x.workers.dev/mcp", { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ id: 1, method: "ping" }) }), e)).status).toBe(200);
+    // Only the owner's key makes links, and the owner's key is no link.
+    expect((await worker.fetch(owner("POST", "/agents", { name: "x" }, token), e)).status).toBe(401);
+    expect((await worker.fetch(new Request("https://x.workers.dev/mcp", { method: "POST", headers: { authorization: `Bearer ${KEY}` }, body: "{}" }), e)).status).toBe(401);
+    const listed = await (await worker.fetch(owner("GET", "/agents"), e)).text();
+    expect(listed).toContain("Claude");
+    expect(listed).not.toContain(token);
+    await worker.fetch(owner("DELETE", `/agents/${id}`), e);
+    expect((await worker.fetch(rpc(token, "ping"), e)).status).toBe(401);
+  });
+
+  it("can't reach the documents or the models", async () => {
+    const { e, token } = await seeded();
+    expect((await worker.fetch(owner("GET", "/docs/Knowledge.json", undefined, token), e)).status).toBe(401);
+    expect((await worker.fetch(owner("POST", "/ai/v1/chat/completions", {}, token), e)).status).toBe(401);
+  });
+
+  it("reads memory and meetings, and writes nothing", async () => {
+    const { e, token } = await seeded();
+    const tools = await (await worker.fetch(rpc(token, "tools/list"), e)).json() as { result: { tools: Array<{ name: string }> } };
+    expect(tools.result.tools.map((tool) => tool.name)).toEqual(["about_me", "list_knowledge", "read_knowledge", "search_memory", "list_meetings", "read_meeting"]);
+    expect(await call(e, token, "about_me")).toBe(JSON.stringify({ profile: "做诊所和教育", terms: ["Zenoti"] }));
+    expect(await call(e, token, "read_meeting")).toContain("王先生确认包价");
+    const found = JSON.parse(await call(e, token, "search_memory", { query: "王先生" }));
+    expect(found.knowledge.map((one: { title: string }) => one.title)).toEqual(["包价"]);
+    expect(found.meetings[0].lines).toEqual(["王先生确认包价"]);
+  });
+
+  it("keeps style and life out, and app IDs", async () => {
+    const { e, token } = await seeded();
+    const listed = await call(e, token, "list_knowledge");
+    expect(listed).toContain("销售与报价");
+    expect(listed).not.toContain("生活点滴");
+    expect(listed).not.toContain("说话风格");
+    expect(await call(e, token, "read_knowledge", { category: "life" })).toContain("No such category");
+    expect(await call(e, token, "read_knowledge", { category: "生活点滴" })).toContain("No such category");
+    expect(await call(e, token, "search_memory", { query: "秘密" })).toBe(JSON.stringify({ knowledge: [], meetings: [] }));
+    expect(await call(e, token, "read_knowledge", { category: "sales" })).not.toContain("xinWeChat");
+  });
+
+  it("gets through a client's handshake", async () => {
+    const { e, token } = await seeded();
+    const hello = await (await worker.fetch(rpc(token, "initialize", { protocolVersion: "2025-06-18" }), e)).json() as { result: { protocolVersion: string } };
+    expect(hello.result.protocolVersion).toBe("2025-06-18");
+    const note = new Request(`https://x.workers.dev/mcp/${token}`, { method: "POST", body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) });
+    expect((await worker.fetch(note, e)).status).toBe(202);
+    expect((await worker.fetch(new Request(`https://x.workers.dev/mcp/${token}`), e)).status).toBe(405);
+  });
+});
+
